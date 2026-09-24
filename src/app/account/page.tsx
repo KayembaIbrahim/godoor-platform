@@ -472,7 +472,8 @@ export default function AccountPage() {
   const UGANDA_DISTRICTS = ["Masaka", "Kampala", "Wakiso", "Mukono", "Jinja", "Mbale", "Mbarara", "Gulu", "Lira", "Arua", "Fort Portal", "Hoima", "Kabale", "Soroti", "Tororo"];
 
   return (
-    <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-24 pt-4">
+    <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-24 pt-4 md:max-w-4xl">
+      <div className="md:grid md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-4">
       {/* Avatar + Name */}
       <div className="rounded-2xl border border-border bg-surface p-5 text-center">
         <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatar} />
@@ -681,9 +682,10 @@ export default function AccountPage() {
           </>
         )}
       </div>
+      </div>
 
       {/* Quick Links */}
-      <div className="mt-4 space-y-2">
+      <div className="mt-4 space-y-2 md:grid md:grid-cols-2 md:gap-2 md:space-y-0">
         {rc.links.map((link) => {
           const LinkIcon = link.icon;
           return (

@@ -18,7 +18,7 @@ function shouldShowFooter(pathname: string): boolean {
 const FOOTER_LINKS: Record<string, { label: string; href: string; external?: boolean; }[]> = {
   Product: [
     { label: "Browse merchants", href: "/app" },
-    { label: "How it works", href: "/#how-it-works" },
+    { label: "How it works", href: "/how-it-works" },
     { label: "Tutorial", href: "/tutorial" },
     { label: "Help centre", href: "/help" },
   ],

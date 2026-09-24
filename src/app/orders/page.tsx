@@ -114,7 +114,7 @@ export default function OrdersPage() {
   }, [supabaseUser?.id, profile.email]);
 
   return (
-    <div className="mx-auto min-h-[70vh] max-w-lg bg-bg pb-24">
+    <div className="mx-auto min-h-[70vh] max-w-lg bg-bg pb-24 md:max-w-4xl">
       <div className="flex items-center gap-3 border-b border-border px-4 py-3">
         <Link href="/app" className="text-muted hover:text-fg"><ArrowLeft className="h-5 w-5" /></Link>
         <h1 className="font-display text-lg font-semibold">My Orders</h1>
@@ -135,7 +135,7 @@ export default function OrdersPage() {
         </div>
       )}
 
-      <div className="px-4 pt-4 space-y-3">
+      <div className="px-4 pt-4 space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
         {loading ? (
           <div className="space-y-3 pt-4">
             {[1, 2, 3].map((i) => (
@@ -143,7 +143,7 @@ export default function OrdersPage() {
             ))}
           </div>
         ) : orders.length === 0 ? (
-          <div className="py-12 text-center animate-fade-in">
+          <div className="py-12 text-center animate-fade-in md:col-span-2">
             <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-go/10">
               <Package className="h-6 w-6 text-go" />
             </div>

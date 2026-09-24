@@ -27,7 +27,7 @@ export default function BusinessStorePage() {
   const [changeTag, setChangeTag] = useState("");
   const [changePhone, setChangePhone] = useState("");
   const [changeReason, setChangeReason] = useState("");
-  const [accepted, setAccepted] = useState<string[]>(["cash", "momo", "morse"]);
+  const [accepted, setAccepted] = useState<string[]>(["morse", "cash", "momo"]);
   const [opensAt, setOpensAt] = useState(profile.opensAt || "08:00");
   const [closesAt, setClosesAt] = useState(profile.closesAt || "22:00");
   const [category, setCategory] = useState(profile.category || CATEGORIES[0]?.id || "Food & Restaurants");
@@ -80,7 +80,7 @@ export default function BusinessStorePage() {
         setMomoName(m.momo_name || "");
         setMorseTag(m.morse_tag || "");
         setMorseConfirmed(Boolean(m.morse_tag));
-        setAccepted(m.accepted_payments && m.accepted_payments.length ? m.accepted_payments : ["cash", "momo", "morse"]);
+        setAccepted(m.accepted_payments && m.accepted_payments.length ? m.accepted_payments : ["morse", "cash", "momo"]);
         setOpensAt(m.opens_at || "08:00");
         setClosesAt(m.closes_at || "22:00");
         setCategory(m.category || "");
@@ -203,9 +203,9 @@ export default function BusinessStorePage() {
   };
 
   const PAYMENT_OPTIONS = [
+    { id: "morse", label: "Morse (USD) · recommended" },
     { id: "cash", label: "Cash on delivery" },
     { id: "momo", label: "Mobile Money" },
-    { id: "morse", label: "Morse (USD)" },
   ];
 
   const submitNameRequest = async () => {

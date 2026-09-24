@@ -12,7 +12,7 @@ import { useCart } from "@/lib/cart-store";
 
 const NAV_LINKS = [
   { label: "Browse", href: "/app" },
-  { label: "How it works", href: "/#how-it-works" },
+  { label: "How it works", href: "/how-it-works" },
   { label: "Tutorial", href: "/tutorial" },
   { label: "Help", href: "/help" },
 ];

@@ -32,7 +32,7 @@ const colorMap: Record<string, string> = {
 
 const SLIDES: Slide[] = [
   { kicker: "How GoDoor works", icon: Smartphone, tint: "sky", title: "Browse & order", desc: "Find local shops near you and add to cart in seconds." },
-  { kicker: "How GoDoor works", icon: Wallet, tint: "emerald", title: "Pay with MoMo", desc: "MTN MoMo, Airtel Money or cash — no bank card needed." },
+  { kicker: "How GoDoor works", icon: Wallet, tint: "emerald", title: "Pay your way", desc: "Morse wallet first, or MTN MoMo, Airtel Money, cash — no bank card needed." },
   { kicker: "How GoDoor works", icon: Truck, tint: "amber", title: "Track & receive", desc: "Watch your rider live on the map until it reaches your door." },
   { kicker: "Why GoDoor", icon: MapPin, tint: "blue", title: "Live GPS tracking", desc: "See exactly where your rider is, in real time." },
   { kicker: "Why GoDoor", icon: ShieldCheck, tint: "orange", title: "Verified merchants & riders", desc: "Every business and rider is verified for your safety." },

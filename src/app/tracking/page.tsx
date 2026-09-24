@@ -923,13 +923,16 @@ function RoleOverview() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-10 pt-4 md:max-w-2xl">
+    <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-10 pt-4 md:max-w-5xl">
       <header className="mb-4 flex items-center justify-between border-b border-border pb-3">
         <h1 className="font-display text-lg font-semibold flex items-center gap-2">
           <Navigation className="h-5 w-5 text-go" /> Live Map
         </h1>
         <ThemeToggle variant="header" />
       </header>
+
+      <div className="md:grid md:grid-cols-[minmax(0,1fr)_360px] md:items-start md:gap-5">
+      <div>
 
       <div className="mx-0 overflow-hidden border-y border-border shadow-xl shadow-black/20 sm:mx-0 sm:rounded-2xl sm:border">
         <div className="h-[78vh] min-h-[540px] w-full sm:h-[620px]">
@@ -947,8 +950,10 @@ function RoleOverview() {
           />
         </div>
       </div>
+      </div>
 
-      <h2 className="mt-5 text-sm font-semibold">In transit</h2>
+      <div>
+      <h2 className="mt-5 text-sm font-semibold md:mt-0">In transit</h2>
       <div className="mt-2 space-y-2">
         {active.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-6 text-center">
@@ -990,6 +995,8 @@ function RoleOverview() {
           </div>
         </>
       )}
+      </div>
+      </div>
     </div>
   );
 }

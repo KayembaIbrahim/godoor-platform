@@ -96,7 +96,7 @@ export default function CartPage() {
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-28 pt-4">
+    <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-28 pt-4 md:max-w-4xl">
       {/* Header */}
       <Link href="/app" className="inline-flex items-center gap-1 text-sm text-muted">
         <ArrowLeft className="h-4 w-4" /> Continue shopping
@@ -134,6 +134,8 @@ export default function CartPage() {
         </div>
       )}
 
+      <div className="md:grid md:grid-cols-[1fr_340px] md:items-start md:gap-6">
+      <div>
       {/* Cart items */}
       <ul className="mt-6 space-y-3">
         {lines.map((l) => (
@@ -226,6 +228,9 @@ export default function CartPage() {
         </button>
       </div>
 
+      </div>
+      <div className="md:sticky md:top-20 md:mt-6">
+
       {/* Order summary */}
       <div className="mt-4 space-y-2 rounded-2xl border border-border bg-surface p-4 text-sm">
         <div className="flex items-center justify-between">
@@ -266,6 +271,8 @@ export default function CartPage() {
           ? `Checkout · ${formatUgx(totals.total)}`
           : `Continue to checkout · ${formatUgx(totals.total)}`}
       </button>
+      </div>
+      </div>
 
       {/* Upsell: add more from this merchant */}
       {suggestions.length > 0 && (
