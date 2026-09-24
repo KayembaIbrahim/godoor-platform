@@ -463,17 +463,30 @@ export default function RiderDashboard() {
   // delivery is active, so the customer's tracking page sees a moving marker.
   // Instead of silently going dark on failure, the rider page shows the state.
   const [broadcastState, setBroadcastState] = useState<"idle" | "on" | "error">("idle");
+  const lastSentRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
   useEffect(() => {
     if (!activeDelivery || !supabaseUser?.id) { setBroadcastState("idle"); return; }
     if (!coords) return; // "Location is off" banner explains what to do
     let stopped = false;
-    const push = async () => {
+    const push = async (force = false) => {
+      // Accuracy gate: never broadcast a wild fix (>120m) unless we have
+      // nothing better yet; displacement gate: resend if moved ≥10m or 15s old.
+      const last = lastSentRef.current;
+      if (!force && last && accuracy != null && accuracy > 120) return;
+      if (!force && last) {
+        const movedM = distanceKm(last, coords) * 1000;
+        const ageMs = Date.now() - last.at;
+        if (movedM < 10 && ageMs < 15000) return;
+      }
       const ok = await updateRiderLocation(supabaseUser.id, coords.lat, coords.lng, heading || undefined, speed || undefined, accuracy || undefined);
-      if (!stopped) setBroadcastState(ok ? "on" : "error");
+      if (!stopped) {
+        setBroadcastState(ok ? "on" : "error");
+        if (ok) lastSentRef.current = { lat: coords.lat, lng: coords.lng, at: Date.now() };
+      }
     };
-    push();
+    push(true);
     // Interval covers periods when the browser throttles watchPosition callbacks.
-    const t = setInterval(push, 8000);
+    const t = setInterval(() => push(false), 5000);
     return () => { stopped = true; clearInterval(t); };
   }, [activeDelivery?.id, coords, supabaseUser?.id, heading, speed, accuracy]);
 

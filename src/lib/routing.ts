@@ -70,21 +70,29 @@ function straightLine(a: LatLng, b: LatLng): RoadRoute {
   };
 }
 
-async function viaMapbox(a: LatLng, b: LatLng, token: string): Promise<RoadRoute | null> {
+async function viaMapbox(a: LatLng, b: LatLng, token: string, heading?: number | null, accuracy?: number | null): Promise<RoadRoute | null> {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 9000);
+  const t = setTimeout(() => ctrl.abort(), 12000);
   try {
+    // Snap radius follows GPS quality: noisy fixes get a wider snap, clean
+    // fixes stay tight to the road. Bearings keep one-ways correct.
+    const radius = accuracy != null ? Math.min(50, Math.max(5, Math.round(accuracy))) : 15;
+    const bearings = heading != null && Number.isFinite(heading) ? `&bearings=${Math.round(heading)},45;` : "";
     const url =
-      `https://api.mapbox.com/directions/v5/mapbox/driving/${a.lng.toFixed(6)},${a.lat.toFixed(6)};${b.lng.toFixed(6)},${b.lat.toFixed(6)}` +
-      `?access_token=${token}&geometries=polyline6&overview=full&steps=true&language=en`;
+      `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${a.lng.toFixed(6)},${a.lat.toFixed(6)};${b.lng.toFixed(6)},${b.lat.toFixed(6)}` +
+      `?access_token=${token}&geometries=geojson&overview=full&steps=true&language=en&annotations=duration,distance&radiuses=${radius};${radius}${bearings}`;
     const res = await fetch(url, { signal: ctrl.signal });
     if (!res.ok) return null;
     const json = (await res.json()) as {
-      routes?: { geometry?: string; distance?: number; duration?: number; legs?: { steps?: { maneuver?: { instruction?: string } }[] }[] }[];
+      routes?: { geometry?: { coordinates?: [number, number][] } | string; distance?: number; duration?: number; legs?: { steps?: { maneuver?: { instruction?: string } }[] }[] }[];
     };
     const r = json.routes?.[0];
-    if (!r || typeof r.geometry !== "string") return null;
-    const coords = decodePolyline(r.geometry, 6).filter(valid);
+    if (!r || !r.geometry) return null;
+    const coords = Array.isArray((r.geometry as { coordinates?: [number, number][] }).coordinates)
+      ? (r.geometry as { coordinates: [number, number][] }).coordinates
+          .map(([lng, lat]) => ({ lat, lng }))
+          .filter(valid)
+      : [];
     if (coords.length < 2) return null;
     const steps: string[] = [];
     for (const leg of r.legs || []) {
@@ -144,7 +152,7 @@ async function viaOsrm(a: LatLng, b: LatLng): Promise<RoadRoute | null> {
  * NEXT_PUBLIC_MAPBOX_TOKEN), falls back to public OSRM, then straight-line
  * ETA. Never throws — always resolves with at least a straight-line route.
  */
-export async function fetchRoadRoute(a: LatLng, b: LatLng): Promise<RoadRoute> {
+export async function fetchRoadRoute(a: LatLng, b: LatLng, opts?: { heading?: number | null; accuracy?: number | null }): Promise<RoadRoute> {
   if (!valid(a) || !valid(b)) return straightLine({ lat: 0.3163, lng: 32.5822 }, { lat: 0.3163, lng: 32.5822 });
   const k = key(a, b);
   const hit = CACHE.get(k);
@@ -152,7 +160,7 @@ export async function fetchRoadRoute(a: LatLng, b: LatLng): Promise<RoadRoute> {
 
   const token = (process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "").trim();
   if (token) {
-    const mb = await viaMapbox(a, b, token);
+    const mb = await viaMapbox(a, b, token, opts?.heading, opts?.accuracy);
     if (mb) {
       CACHE.set(k, { at: Date.now(), route: mb });
       return mb;

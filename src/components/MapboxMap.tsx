@@ -332,7 +332,7 @@ function MapboxMapInner({
           layout: { "line-cap": "round", "line-join": "round" },
           paint: {
             "line-width": ["interpolate", ["linear"], ["zoom"], 11, 4.5, 16, 8],
-            "line-color": ["interpolate", ["linear"], ["line-progress"], 0, "#f15a22", 1, "#f97316"],
+            "line-color": ["interpolate", ["linear"], ["line-progress"], 0, "#c13e10", 1, "#f15a22"],
             "line-opacity": 1,
           },
         });
@@ -341,14 +341,33 @@ function MapboxMapInner({
           type: "line",
           source: "gdr-route",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-width": ["interpolate", ["linear"], ["zoom"], 11, 9, 16, 15], "line-color": "rgba(255,255,255,0.85)", "line-opacity": 0.9 },
+          paint: { "line-width": ["interpolate", ["linear"], ["zoom"], 11, 9, 16, 15], "line-color": "#7a2305", "line-opacity": 0.95 },
         });
         map.addLayer({
           id: "gdr-route-glow",
           type: "line",
           source: "gdr-route",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-width": ["interpolate", ["linear"], ["zoom"], 11, 13, 16, 21], "line-color": "rgba(241,90,34,0.25)", "line-opacity": 1 },
+          paint: { "line-width": ["interpolate", ["linear"], ["zoom"], 11, 13, 16, 21], "line-color": "rgba(193,62,16,0.35)", "line-opacity": 1 },
+        });
+        map.addLayer({
+          id: "gdr-route-arrows",
+          type: "symbol",
+          source: "gdr-route",
+          layout: {
+            "symbol-placement": "line",
+            "text-field": "▶",
+            "text-size": ["interpolate", ["linear"], ["zoom"], 11, 14, 16, 22],
+            "symbol-spacing": ["interpolate", ["linear"], ["zoom"], 11, 60, 16, 140],
+            "text-keep-upright": false,
+            "text-rotation-alignment": "map",
+          },
+          paint: {
+            "text-color": "#ffd9c4",
+            "text-halo-color": "#7a2305",
+            "text-halo-width": 2,
+            "text-opacity": 0.95,
+          },
         });
       }
       if (pts.length >= 2) {
@@ -356,6 +375,7 @@ function MapboxMapInner({
         try { map.moveLayer("gdr-route-glow"); } catch {}
         map.moveLayer("gdr-route-casing");
         map.moveLayer("gdr-route-line");
+        try { map.moveLayer("gdr-route-arrows"); } catch {}
       } else {
         map.getSource("gdr-route").setData({ type: "FeatureCollection", features: [] });
       }

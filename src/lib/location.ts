@@ -235,18 +235,23 @@ export function useGeolocation() {
   const geoDoneRef = useRef(false);
   const bestAccuracyRef = useRef<number>(Infinity);
   const lastCoordsRef = useRef<LatLng | null>(null);
+  const lastHeadingRef = useRef<number | null>(null);
   const addrTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const processPosition = useCallback((pos: GeolocationPosition) => {
     const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     const acc = pos.coords.accuracy;
-    // Always update when the rider has physically moved (>=30m), otherwise the
-    // marker sticks to the first fix and reads as "no live location" on the map.
+    const newHeading = pos.coords.heading ?? null;
+    // Update when the device physically moved (>=10m) or got a better fix,
+    // or turned significantly (>25°) so the rider arrow stays truthful.
     const movedMeters = lastCoordsRef.current ? (distanceKm(lastCoordsRef.current, c) * 1000) : NaN;
-    const moved = !lastCoordsRef.current || movedMeters >= 30;
+    const moved = !lastCoordsRef.current || movedMeters >= 10;
+    const turned = newHeading != null && lastHeadingRef.current != null
+      && Math.abs(newHeading - lastHeadingRef.current) > 25;
     // Also keep the best fix (lowest accuracy value = most precise)
-    if (moved || acc < bestAccuracyRef.current) {
+    if (moved || turned || acc < bestAccuracyRef.current) {
       lastCoordsRef.current = c;
+      if (newHeading != null) lastHeadingRef.current = newHeading;
       if (acc < bestAccuracyRef.current) bestAccuracyRef.current = acc;
       setCoords(c);
       setAccuracy(acc);

@@ -79,7 +79,7 @@ function BusinessDashboardInner() {
   const [fees, setFees] = useState<FeeConfig | null>(null);
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [verified, setVerified] = useState<"none" | "pending" | "approved" | "rejected">("none");
-  const [liveRiderLocs, setLiveRiderLocs] = useState<Record<string, LatLng>>({});
+  const [liveRiderLocs, setLiveRiderLocs] = useState<Record<string, LatLng & { heading?: number | null }>>({});
   const [followerCount, setFollowerCount] = useState(0);
   const [merchantRecord, setMerchantRecord] = useState<{name: string; momo_number: string; district: string; area: string; lat: number; lng: number; live_location_enabled: boolean} | null>(null);
   const [liveSharing, setLiveSharing] = useState(false);
@@ -319,18 +319,26 @@ function BusinessDashboardInner() {
       return;
     }
     setSharingBusy(true);
+    let lastSent: LatLng | null = null;
     gpsWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setMyLiveLoc(loc);
         const now = Date.now();
         if (!streamingRef.current) return;
-        if (now - streamingRef.current.lastSend < 5000) return;
-        streamingRef.current.lastSend = now;
+        // Accuracy gate (>80m skipped unless first fix) + 10m / 15s cadence.
+        const acc = pos.coords.accuracy ?? 999;
+        if (lastSent && acc > 80) return;
+        if (lastSent) {
+          const movedM = Math.hypot((loc.lat - lastSent.lat) * 111000, (loc.lng - lastSent.lng) * 111000 * Math.cos((loc.lat * Math.PI) / 180));
+          if (movedM < 10 && now - streamingRef.current.lastSend < 15000) return;
+        }
         updateProviderLocation(
           streamingRef.current.merchantId, pos.coords.latitude, pos.coords.longitude,
           pos.coords.heading || undefined, pos.coords.speed || undefined, pos.coords.accuracy || undefined,
         );
+        streamingRef.current.lastSend = now;
+        lastSent = loc;
       },
       () => setSharingBusy(false),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 },
@@ -520,12 +528,13 @@ function BusinessDashboardInner() {
                     label: merchantRecord?.name || "My Shop",
                     isPickup: true,
                   },
-                  // Active rider markers
+                  // Active rider markers (with real heading so the arrow points true)
                   ...Object.entries(liveRiderLocs).map(([riderId, loc]) => ({
                     id: riderId,
                     position: loc,
                     label: "Rider",
                     isRider: true,
+                    heading: (loc as { heading?: number | null }).heading ?? null,
                   })),
                   // Own moving marker — only while live sharing is switched on
                   ...(liveSharing && myLiveLoc ? [{
