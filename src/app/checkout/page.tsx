@@ -154,7 +154,7 @@ export default function CheckoutPage() {
 
   const customerLoc = useMemo(() => savedAddr?.lat && savedAddr?.lng ? { lat: savedAddr.lat, lng: savedAddr.lng }
       : coords?.lat && coords?.lng ? { lat: coords.lat, lng: coords.lng }
-      : { lat: 0.3533, lng: 32.5822 } as const, [savedAddr, coords]);
+      : null, [savedAddr, coords]);
 
   const totals = useMemo(() => {
     const subtotal = lines.reduce((s, l) => s + l.unitPriceUgx * l.quantity, 0);
@@ -252,8 +252,10 @@ export default function CheckoutPage() {
         service_fee_ugx: totals.service,
         total_ugx: totals.total,
         delivery_address: deliveryAddress,
-        customer_lat: savedAddr?.lat || coords?.lat || 0.3533,
-        customer_lng: savedAddr?.lng || coords?.lng || 32.5822,
+        // Real location only — null when GPS/address is unknown so the server
+        // stores no pin instead of a fake default pin.
+        customer_lat: savedAddr?.lat || coords?.lat || null,
+        customer_lng: savedAddr?.lng || coords?.lng || null,
         scheduled_for: slotTs,
         // Use payment_submitted so business sees it immediately in "payment_submitted" tab — pending is lazy and hides orders
         status: "payment_submitted",
@@ -276,8 +278,9 @@ export default function CheckoutPage() {
 
   const handleOrder = () => {
     if (!onboarded) { signup.prompt("/checkout"); return; }
-    // Auto-get location: saved address > live GPS > static Kampala fallback (0.3533, 32.5822)
-    // Don't block order — static fallback ensures every order has a pin on the map
+    // Auto-get location: saved address > live GPS > null (server stores no pin
+    // instead of a fake default, and tracking falls back to live GPS).
+    // Don't block order — the customer can still refine the address.
     if (!savedAddr && !coords) {
       // Nudge to set precise address, but allow order with static fallback
       // The map already shows Kampala; user can drag pin later
@@ -427,8 +430,8 @@ export default function CheckoutPage() {
           </button>
         </div>
 
-        {/* Map preview — always show real location: saved address, live GPS, or static Kampala fallback */}
-        <MapPreview lat={customerLoc.lat} lng={customerLoc.lng} />
+        {/* Map preview — real location only: saved address or live GPS */}
+        <MapPreview lat={customerLoc?.lat ?? 0.3163} lng={customerLoc?.lng ?? 32.5822} />
 
         {/* Delivery time estimate */}
         <div className="mt-2 flex items-center gap-2 rounded-xl bg-surface border border-border px-3 py-2">

@@ -29,26 +29,42 @@ export function calcServiceFee(subtotalUgx: number): number {
  *  proxy for these — the extra handling/capacity cost is priced per item. */
 export const BULKY_ITEM_SURCHARGE_UGX = 5000;
 
-/** Calculate GoDoor delivery fee based on distance (like Glovo/SafeBoda standard pricing).
- *  Tiered pricing for Uganda market:
- *  - 0–2 km:  UGX 2,500 (base)
- *  - 2–5 km:  UGX 3,500
- *  - 5–10 km: UGX 5,500
- *  - 10–15 km: UGX 8,000
- *  - 15–20 km: UGX 10,500
- *  - 20+ km:  10,500 + 500 per extra km (capped at 25,000)
- *  Heavy/bulky items (flagged on the product by the merchant) add a
- *  per-item surcharge on top, so a sofa is never delivered for the base fee.
+/** Time-of-day billing tiers (Uganda EAT = UTC+3).
+ *  Day (05:00–19:00) min 1,500 · evening (19:00–00:00) min 2,000 · midnight
+ *  (00:00–05:00) min 3,000. A 10-minute trip lands near 1,800 day / 2,000
+ *  evening / 3,000 midnight instead of a flat ~$1. */
+export type FareTier = "day" | "evening" | "midnight";
+
+export function ugandaFareTier(at: Date = new Date()): FareTier {
+  const h = (at.getUTCHours() + 3) % 24;
+  if (h < 5) return "midnight";
+  if (h >= 19) return "evening";
+  return "day";
+}
+
+export const FARE_MINIMUM_UGX: Record<FareTier, number> = {
+  day: 1500,
+  evening: 2000,
+  midnight: 3000,
+};
+
+/** Per-unit rates counted on BOTH road distance and trip time. */
+export const FARE_PER_KM_UGX = 200;
+export const FARE_PER_MIN_UGX = 100;
+
+/** Calculate GoDoor delivery fee from distance + time with time-of-day minimum.
+ *  `durationMin` defaults to a 25 km/h urban motorbike estimate when omitted.
+ *  Heavy/bulky items add a per-item surcharge on top.
  */
-export function calcDeliveryFee(distanceKm: number, bulkyItems = 0): number {
-  let fee: number;
-  if (!isFinite(distanceKm) || distanceKm <= 0) fee = 2500;
-  else if (distanceKm <= 2) fee = 2500;
-  else if (distanceKm <= 5) fee = 3500;
-  else if (distanceKm <= 10) fee = 5500;
-  else if (distanceKm <= 15) fee = 8000;
-  else if (distanceKm <= 20) fee = 10500;
-  else fee = Math.min(25000, 10500 + Math.ceil(distanceKm - 20) * 500);
+export function calcDeliveryFee(distanceKm: number, bulkyItems = 0, durationMin?: number | null, at?: Date): number {
+  const km = Number.isFinite(distanceKm) && distanceKm > 0 ? distanceKm : 0;
+  const mins = durationMin != null && Number.isFinite(durationMin) && (durationMin as number) > 0
+    ? (durationMin as number)
+    : (km / 25) * 60;
+  const tier = ugandaFareTier(at);
+  const raw = FARE_PER_KM_UGX * km + FARE_PER_MIN_UGX * mins;
+  let fee = Math.max(FARE_MINIMUM_UGX[tier], raw);
+  fee = Math.round(fee / 100) * 100;
   if (bulkyItems > 0) fee += bulkyItems * BULKY_ITEM_SURCHARGE_UGX;
   return fee;
 }

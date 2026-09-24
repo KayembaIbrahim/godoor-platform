@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { Navigation, MapPin, ShoppingBag } from "lucide-react";
 import { type LatLng, distanceKm } from "@/lib/location";
+import { calcDeliveryFee, ugandaFareTier, formatUgx } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
 const MapboxMapView = dynamic(() => import("@/components/MapboxMap"), {
@@ -33,16 +34,14 @@ type Props = {
   customerName?: string;
   /** Actual road polyline (Mapbox/OSRM). When provided, replaces the straight-line display. */
   roadRoute?: LatLng[] | null;
+  /** Road distance/time power the fare + ETA so billing counts time, not just distance. */
+  roadDistanceKm?: number | null;
+  roadDurationMin?: number | null;
 };
-
-function estimateFare(distKm: number): string {
-  const ugx = distKm <= 2 ? 2500 : distKm <= 5 ? 3500 : distKm <= 10 ? 5500 : distKm <= 15 ? 8000 : distKm <= 20 ? 10500 : Math.min(25000, 10500 + Math.ceil(distKm - 20) * 500);
-  return "UGX " + ugx.toLocaleString("en-UG");
-}
 
 export function LiveTrackingMap({
   riderLoc, riderHeading, providerLoc, providerName, dropoffLoc, pickupLoc, showPickup = false, label, compact = false, fill = false,
-  userLocation, merchantName, customerName, roadRoute = null,
+  userLocation, merchantName, customerName, roadRoute = null, roadDistanceKm = null, roadDurationMin = null,
 }: Props) {
   const UG_DEFAULT: LatLng = { lat: 0.3163, lng: 32.5822 };
   const hasCoords = (p: LatLng | null | undefined) => !!p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9);
@@ -51,6 +50,13 @@ export function LiveTrackingMap({
 
   const dist = riderLoc && validDropoff ? distanceKm(riderLoc, validDropoff) : null;
   const etaMin = dist != null ? Math.max(2, Math.round(dist * 4)) : null;
+
+  // Fare counts road distance + trip time with day/night minimums
+  // (1,500 day · 2,000 from 7pm · 3,000 midnight) — never the old flat ~$1.
+  const fareKm = roadDistanceKm != null && roadDistanceKm > 0 ? roadDistanceKm : dist;
+  const fareMin = roadDurationMin != null && roadDurationMin > 0 ? roadDurationMin : etaMin;
+  const fareUgx = fareKm != null && fareKm > 0 ? calcDeliveryFee(fareKm, 0, fareMin) : null;
+  const fareTier = ugandaFareTier();
 
   const center: LatLng = useMemo(() => {
     const points: LatLng[] = [];
@@ -201,8 +207,8 @@ export function LiveTrackingMap({
             </div>
             <div className="flex flex-col items-center gap-0.5 px-2">
               <p className="text-[9px] font-semibold uppercase tracking-wider text-dim">Fare</p>
-              <p className="text-sm font-bold leading-none">{dist != null ? estimateFare(dist) : "—"}</p>
-              <p className="flex items-center gap-1 text-[9px] text-muted"><MapPin className="h-2.5 w-2.5 text-go" />estimated</p>
+              <p className="text-sm font-bold leading-none">{fareUgx != null ? formatUgx(fareUgx) : "—"}</p>
+              <p className="flex items-center gap-1 text-[9px] text-muted"><MapPin className="h-2.5 w-2.5 text-go" />{fareTier === "day" ? "day rate" : fareTier === "evening" ? "night rate · from 7pm" : "midnight rate"}</p>
             </div>
           </div>
         </div>

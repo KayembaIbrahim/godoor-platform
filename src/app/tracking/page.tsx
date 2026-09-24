@@ -537,9 +537,14 @@ function OrderTracker({ order }: { order: DBOrder }) {
   }, [providerSharing, order.merchant_id]);
 
   const orderHasCoords = Boolean(order.customer_lat && order.customer_lng);
+  // No coords on the order (legacy order): show the viewer's live GPS as the
+  // drop-off so the map is never empty or misleading for the customer.
   const dropoffLoc: LatLng | null = orderHasCoords
     ? { lat: Number(order.customer_lat), lng: Number(order.customer_lng) }
+    : viewerLoc
+    ? { lat: viewerLoc.lat, lng: viewerLoc.lng }
     : null;
+  const dropoffIsLiveGps = Boolean(dropoffLoc && !orderHasCoords);
 
   // Record a location heartbeat + baseline ETA (once per rider assignment)
   const recordLocation = (loc: LatLng & { heading?: number | null; accuracy?: number | null }) => {
@@ -673,6 +678,8 @@ function OrderTracker({ order }: { order: DBOrder }) {
                   pickupLoc={pickupLoc}
                   showPickup={pickupReady}
                   roadRoute={roadCoords}
+                  roadDistanceKm={roadRoute?.distanceKm ?? null}
+                  roadDurationMin={roadRoute?.durationMin ?? null}
                   userLocation={viewerLoc}
                   label={liveRiderLoc
                     ? `${order.rider_name || "Rider"} is on the way`
@@ -682,9 +689,11 @@ function OrderTracker({ order }: { order: DBOrder }) {
                     ? "Rider heading to you"
                     : status === "rider_assigned"
                     ? "Rider heading to pickup"
+                    : dropoffIsLiveGps
+                    ? "Showing your live location"
                     : "Waiting for rider..."}
                   merchantName={order.merchant_name}
-                  customerName={order.customer_name || "Customer"}
+                  customerName={dropoffIsLiveGps ? "You (live GPS)" : order.customer_name || "Customer"}
                 />
               ) : (
                 <div className="h-full md:overflow-hidden md:rounded-2xl">
@@ -899,13 +908,18 @@ function RoleOverview() {
   }, [active[0]?.id, active[0]?.merchant_id]); // eslint-disable-line
 
   // Prefer an active order that actually carries coords for the drop-off pin.
+  // Fall back to the viewer's live GPS so a customer ALWAYS sees their real
+  // location — never a stale or default pin.
   const orderWithLoc = useMemo(
     () => active.find((o) => o.customer_lat && o.customer_lng) || active[0] || null,
     [active],
   );
   const dropLoc = orderWithLoc?.customer_lat && orderWithLoc?.customer_lng
     ? { lat: Number(orderWithLoc.customer_lat), lng: Number(orderWithLoc.customer_lng) }
+    : viewerLoc
+    ? { lat: viewerLoc.lat, lng: viewerLoc.lng }
     : null;
+  const dropIsLiveGps = Boolean(dropLoc && !(orderWithLoc?.customer_lat && orderWithLoc?.customer_lng));
 
   // Real road route for the overview map (shop → drop-off) so the route
   // line is a true road path, not a straight line.
@@ -943,9 +957,11 @@ function RoleOverview() {
             pickupLoc={shop}
             showPickup={!!shop}
             roadRoute={overviewRoadCoords}
+            roadDistanceKm={overviewRoadRoute?.distanceKm ?? null}
+            roadDurationMin={overviewRoadRoute?.durationMin ?? null}
             userLocation={viewerLoc}
             merchantName={shop?.name}
-            customerName={orderWithLoc?.customer_name || "Delivery"}
+            customerName={dropIsLiveGps ? "You (live GPS)" : orderWithLoc?.customer_name || "Delivery"}
             label={active.length ? `${active.length} active delivery${active.length > 1 ? "s" : ""}` : viewerLoc ? "You are here — live GPS" : "Live delivery map"}
           />
         </div>

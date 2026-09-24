@@ -4,6 +4,7 @@ import {
   authorize, canTransition, getMerchantForUser, isKnownStatus, isUuid,
 } from "@/lib/api-auth";
 import { debitGasFee, snapshotWallet } from "@/lib/wallet-store";
+import { calcDeliveryFee } from "@/lib/utils";
 import { refreshRateUgx, usdtConfig } from "@/lib/momo";
 import { ensureClinicOrderSchema } from "@/lib/ensure-clinic";
 
@@ -240,7 +241,7 @@ export async function POST(req: NextRequest) {
   // The merchant must exist and be active (no orders for vanished/suspended stores)
   const { data: merchant, error: merchantErr } = await sb
     .from("merchants")
-    .select("id, name, status, delivery_fee_ugx")
+    .select("id, name, status, delivery_fee_ugx, lat, lng")
     .eq("id", merchantId)
     .maybeSingle();
   if (merchantErr) return NextResponse.json({ error: merchantErr.message }, { status: 500 });
@@ -335,7 +336,32 @@ export async function POST(req: NextRequest) {
 
   const deliveryFee = subtotal >= fees.free_delivery_threshold_ugx
     ? 0
-    : Number(merchant.delivery_fee_ugx ?? fees.delivery_fee_ugx);
+    : (() => {
+        // Distance + time billing with day/night minimums
+        // (1,500 day · 2,000 from 7pm · 3,000 midnight) instead of a flat fee.
+        const mLat = Number((merchant as { lat?: unknown }).lat);
+        const mLng = Number((merchant as { lat?: unknown; lng?: unknown }).lng);
+        // customerLat/customerLng are parsed below; read raw body here.
+        const cLatRaw = Number(body.customer_lat);
+        const cLngRaw = Number(body.customer_lng);
+        const coordsKnown =
+          Number.isFinite(mLat) && Number.isFinite(mLng) &&
+          Number.isFinite(cLatRaw) && Number.isFinite(cLngRaw) &&
+          cLatRaw >= -1.5 && cLatRaw <= 4.5 && cLngRaw >= 28 && cLngRaw <= 36;
+        if (!coordsKnown) {
+          return Number(merchant.delivery_fee_ugx ?? fees.delivery_fee_ugx);
+        }
+        const dLat = ((cLatRaw - mLat) * Math.PI) / 180;
+        const dLng = ((cLngRaw - mLng) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos((mLat * Math.PI) / 180) *
+            Math.cos((cLatRaw * Math.PI) / 180) *
+            Math.sin(dLng / 2) ** 2;
+        const km = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const bulkyCount = lineItems.reduce((s, li) => s + (li.bulky ? li.quantity : 0), 0);
+        return calcDeliveryFee(km, bulkyCount, (km / 25) * 60);
+      })();
   const rawService = Math.round((subtotal * fees.service_fee_percent) / 100);
   const serviceFee = Math.min(fees.service_fee_max_ugx, Math.max(fees.service_fee_min_ugx, rawService));
   const totalUgx = subtotal + deliveryFee + serviceFee;

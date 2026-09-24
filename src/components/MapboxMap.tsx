@@ -331,8 +331,8 @@ function MapboxMapInner({
           source: "gdr-route",
           layout: { "line-cap": "round", "line-join": "round" },
           paint: {
-            "line-width": ["interpolate", ["linear"], ["zoom"], 11, 4.5, 16, 8],
-            "line-color": ["interpolate", ["linear"], ["line-progress"], 0, "#c13e10", 1, "#f15a22"],
+            "line-width": ["interpolate", ["linear"], ["zoom"], 11, 5, 16, 8.5],
+            "line-color": ["interpolate", ["linear"], ["line-progress"], 0, "#ea580c", 1, "#f97316"],
             "line-opacity": 1,
           },
         });
@@ -341,14 +341,14 @@ function MapboxMapInner({
           type: "line",
           source: "gdr-route",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-width": ["interpolate", ["linear"], ["zoom"], 11, 9, 16, 15], "line-color": "#7a2305", "line-opacity": 0.95 },
+          paint: { "line-width": ["interpolate", ["linear"], ["zoom"], 11, 10, 16, 16], "line-color": "#ffffff", "line-opacity": 1 },
         });
         map.addLayer({
           id: "gdr-route-glow",
           type: "line",
           source: "gdr-route",
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-width": ["interpolate", ["linear"], ["zoom"], 11, 13, 16, 21], "line-color": "rgba(193,62,16,0.35)", "line-opacity": 1 },
+          paint: { "line-width": ["interpolate", ["linear"], ["zoom"], 11, 14, 16, 22], "line-color": "rgba(234,88,12,0.3)", "line-opacity": 1 },
         });
         map.addLayer({
           id: "gdr-route-arrows",
@@ -357,16 +357,16 @@ function MapboxMapInner({
           layout: {
             "symbol-placement": "line",
             "text-field": "▶",
-            "text-size": ["interpolate", ["linear"], ["zoom"], 11, 14, 16, 22],
+            "text-size": ["interpolate", ["linear"], ["zoom"], 11, 16, 16, 24],
             "symbol-spacing": ["interpolate", ["linear"], ["zoom"], 11, 60, 16, 140],
             "text-keep-upright": false,
             "text-rotation-alignment": "map",
           },
           paint: {
-            "text-color": "#ffd9c4",
+            "text-color": "#ffffff",
             "text-halo-color": "#7a2305",
-            "text-halo-width": 2,
-            "text-opacity": 0.95,
+            "text-halo-width": 2.5,
+            "text-opacity": 1,
           },
         });
       }
