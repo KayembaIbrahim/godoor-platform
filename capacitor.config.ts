@@ -1,0 +1,22 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.godoor.app',
+  appName: 'GoDoor',
+  webDir: 'web-app',
+  server: {
+    url: 'https://godoor.site',
+    cleartext: true,
+  },
+  android: {
+    allowMixedContent: true,
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 1500,
+      backgroundColor: '#0b0712',
+    },
+  },
+};
+
+export default config;

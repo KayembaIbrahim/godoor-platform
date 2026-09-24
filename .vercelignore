@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+android
+web-app
+*.log
+.DS_Store
+tsconfig.tsbuildinfo
+supabase-*.sql
+SUPABASE_MIGRATION.sql
