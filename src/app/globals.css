@@ -6,19 +6,19 @@
   --font-display: "Poppins", system-ui, sans-serif;
   --font-sans: "Inter", system-ui, sans-serif;
 
-  /* ─── Light / Creamy theme (default) ─── */
-  --color-bg: #faf7f2;
-  --color-fg: #191025;
+  /* ─── Light / White theme with matching orange (default) ─── */
+  --color-bg: #ffffff;
+  --color-fg: #1a0f08;
   --color-surface: #ffffff;
-  --color-elevated: #f4f0e9;
-  --color-panel: #ede7dc;
-  --color-primary: #ea580c;
-  --color-primary-2: #c2410c;
+  --color-elevated: #fff4ec;
+  --color-panel: #ffe9d9;
+  --color-primary: #c13e10;
+  --color-primary-2: #9a2f05;
   --color-go: #f15a22;
-  --color-go-2: #ff8a3d;
-  --color-muted: #6b615f;
-  --color-dim: #a89a93;
-  --color-border: rgba(25, 16, 37, 0.08);
+  --color-go-2: #ff7a3d;
+  --color-muted: #6f5d52;
+  --color-dim: #a8988a;
+  --color-border: rgba(193, 62, 16, 0.12);
   --color-success: #16a34a;
   --color-warning: #d97706;
   --color-danger: #dc2626;
@@ -31,15 +31,15 @@
   --shadow-glow: 0 0 0 1px rgba(241, 90, 34, 0.08), 0 10px 30px -8px rgba(241, 90, 34, 0.35);
   --ring-focus: rgba(241, 90, 34, 0.45);
 
-  --hero-accent: rgba(241, 90, 34, 0.07);
-  --hero-orange: rgba(241, 90, 34, 0.045);
-  --hero-base: #faf7f2;
+  --hero-accent: rgba(241, 90, 34, 0.08);
+  --hero-orange: rgba(193, 62, 16, 0.05);
+  --hero-base: #ffffff;
 
   /* Aurora page re-skin */
-  --aurora-a: rgba(249, 115, 22, 0.07);
-  --aurora-b: rgba(217, 70, 239, 0.045);
+  --aurora-a: rgba(241, 90, 34, 0.08);
+  --aurora-b: rgba(255, 122, 61, 0.06);
   --aurora-c: rgba(16, 185, 129, 0.04);
-  --grid-line: rgba(25, 16, 37, 0.03);
+  --grid-line: rgba(193, 62, 16, 0.05);
 }
 
 [data-theme="dark"] {

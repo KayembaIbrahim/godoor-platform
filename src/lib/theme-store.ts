@@ -14,11 +14,11 @@ type ThemeState = {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      theme: "dark",
+      theme: "light",
       setTheme: (t) => set({ theme: t }),
     }),
-    // v4: dark-orange theme unlocked — dark default, user can switch
-    { name: "godoor-theme-v4-dark-orange" },
+    // v5: white theme default with matching orange — user can switch to dark
+    { name: "godoor-theme-v5-white" },
   ),
 );
 
