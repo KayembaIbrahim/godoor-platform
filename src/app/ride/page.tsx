@@ -167,7 +167,7 @@ export default function RidePage() {
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-24 pt-4">
+    <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-24 pt-4 md:max-w-4xl">
       <div className="flex items-center gap-3">
         <Link href="/app" className="grid h-9 w-9 place-items-center rounded-full bg-surface text-muted hover:bg-elevated transition">
           <ArrowLeft className="h-4 w-4" />
@@ -198,6 +198,8 @@ export default function RidePage() {
         </div>
       ) : (
         <>
+          <div className="md:grid md:grid-cols-[1fr_1.25fr] md:items-start md:gap-4">
+          <div>
           {/* Pickup / dropoff */}
           <div className="mt-4 space-y-2 rounded-2xl border border-border bg-surface p-3">
             <button type="button" onClick={() => setModal("pickup")}
@@ -219,6 +221,8 @@ export default function RidePage() {
               <Navigation className="h-4 w-4 text-dim shrink-0" />
             </button>
           </div>
+          </div>
+          <div>
 
           {/* Route preview + fare */}
           {pickup && dropoff && (
@@ -253,6 +257,8 @@ export default function RidePage() {
               <p className="px-3 pb-3 text-[10px] text-dim">Includes 5% GoDoor service fee. Pay the rider directly (cash / MoMo).</p>
             </div>
           )}
+          </div>
+          </div>
 
           <button type="button" onClick={request} disabled={busy || !pickup || !dropoff || !onboarded}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#f97316] py-3.5 text-sm font-semibold text-white hover:bg-[#ea580c] transition disabled:opacity-50">

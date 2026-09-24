@@ -305,7 +305,7 @@ function merchantFromRow(row: Record<string, unknown>): DBMerchant {
     morse_tag: (row.morse_tag as string) || "",
     accepted_payments: Array.isArray(row.accepted_payments) && (row.accepted_payments as unknown[]).length
       ? (row.accepted_payments as string[])
-      : ["cash", "momo", "morse"],
+      : ["morse", "cash", "momo"],
     created_at: row.created_at ? new Date(row.created_at as string).getTime() : Date.now(),
   };
 }
@@ -358,7 +358,7 @@ export async function fetchMerchantById(id: string): Promise<DBMerchant | undefi
           momo_number: data.momo_number || "", momo_name: data.momo_name || "",
           opens_at: data.opens_at || "08:00", closes_at: data.closes_at || "22:00",
           delivery_fee_ugx: data.delivery_fee_ugx || 0, rating: Number(data.rating || 0),
-          status: data.status || "active", live_location_enabled: Boolean(data.live_location_enabled), morse_tag: (data.morse_tag as string) || "", accepted_payments: Array.isArray(data.accepted_payments) && (data.accepted_payments as unknown[]).length ? (data.accepted_payments as string[]) : ["cash", "momo", "morse"], created_at: new Date(data.created_at).getTime(),
+          status: data.status || "active", live_location_enabled: Boolean(data.live_location_enabled), morse_tag: (data.morse_tag as string) || "", accepted_payments: Array.isArray(data.accepted_payments) && (data.accepted_payments as unknown[]).length ? (data.accepted_payments as string[]) : ["morse", "cash", "momo"], created_at: new Date(data.created_at).getTime(),
         } as DBMerchant;
         // Keep local in sync so offline fallback stays fresh
         mutateLocal((s) => {
@@ -391,7 +391,7 @@ export async function fetchMerchantByOwnerId(ownerId: string): Promise<DBMerchan
           momo_number: data.momo_number || "", momo_name: data.momo_name || "",
           opens_at: data.opens_at || "08:00", closes_at: data.closes_at || "22:00",
           delivery_fee_ugx: data.delivery_fee_ugx || 0, rating: Number(data.rating || 0),
-          status: data.status || "active", live_location_enabled: Boolean(data.live_location_enabled), morse_tag: (data.morse_tag as string) || "", accepted_payments: Array.isArray(data.accepted_payments) && (data.accepted_payments as unknown[]).length ? (data.accepted_payments as string[]) : ["cash", "momo", "morse"], created_at: new Date(data.created_at).getTime(),
+          status: data.status || "active", live_location_enabled: Boolean(data.live_location_enabled), morse_tag: (data.morse_tag as string) || "", accepted_payments: Array.isArray(data.accepted_payments) && (data.accepted_payments as unknown[]).length ? (data.accepted_payments as string[]) : ["morse", "cash", "momo"], created_at: new Date(data.created_at).getTime(),
         } as DBMerchant;
         mutateLocal((s) => {
           const next = s.merchants.filter((x) => x.id !== m.id);

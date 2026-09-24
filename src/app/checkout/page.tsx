@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Loader2, Phone, Copy, Check, MessageCircle,
@@ -125,11 +125,24 @@ export default function CheckoutPage() {
 
   // Keep the selection valid when the business doesn't accept the current method.
   // (Declared here, above the early returns below — rules of hooks.)
+  // Morse is the preferred method: auto-select it once the store's tag loads,
+  // unless the customer already picked something else.
+  const methodTouched = useRef(false);
+  useEffect(() => {
+    if (!dbMerchant || methodTouched.current || paymentMethod === "morse") return;
+    const accepts = !dbMerchant.accepted_payments?.length || dbMerchant.accepted_payments.includes("morse");
+    if (accepts && dbMerchant.morse_tag) {
+      setPaymentMethod("morse");
+    }
+  }, [dbMerchant, paymentMethod]);
   useEffect(() => {
     if (!dbMerchant || paymentMethod === "morse") return;
     const ok = !dbMerchant.accepted_payments?.length ? true : dbMerchant.accepted_payments.includes(paymentMethod);
     if (!ok) {
-      const fallback = (["cash", "momo", "airtel"] as const).find((p) => !dbMerchant.accepted_payments?.length || dbMerchant.accepted_payments!.includes(p)) || "cash";
+      const pool: Array<"morse" | "cash" | "momo" | "airtel"> = dbMerchant.morse_tag
+        ? ["morse", "cash", "momo", "airtel"]
+        : ["cash", "momo", "airtel"];
+      const fallback = pool.find((p) => !dbMerchant.accepted_payments?.length || dbMerchant.accepted_payments!.includes(p)) || "cash";
       setPaymentMethod(fallback);
     }
   }, [dbMerchant, paymentMethod]);
@@ -270,7 +283,7 @@ export default function CheckoutPage() {
       // The map already shows Kampala; user can drag pin later
     }
     if (paymentMethod === "momo" && !merchantMomo) {
-      setError("This store hasn't set up a MoMo number yet. Choose Airtel or Cash instead.");
+      setError("This store hasn't set up a MoMo number yet. Choose Morse, Airtel or Cash instead.");
       return;
     }
     if (paymentMethod === "morse" && !dbMerchant?.morse_tag) {
@@ -365,14 +378,14 @@ export default function CheckoutPage() {
   }
 
   const paymentMethods = [
+    { id: "morse" as const, label: "Morse", icon: MessageCircle, color: "text-go", bg: "bg-go/10", desc: "USD to the store · recommended" },
     { id: "momo" as const, label: "MTN MoMo", icon: Smartphone, color: "text-yellow-500", bg: "bg-yellow-500/10", desc: "Mobile Money" },
     { id: "airtel" as const, label: "Airtel", icon: Smartphone, color: "text-red-500", bg: "bg-red-500/10", desc: "Airtel Money" },
     { id: "cash" as const, label: "Cash", icon: Banknote, color: "text-success", bg: "bg-success/10", desc: "Pay on delivery" },
-    { id: "morse" as const, label: "Morse", icon: MessageCircle, color: "text-go", bg: "bg-go/10", desc: "USD to the store" },
   ];
 
   // Only the methods this specific business accepts (defaults to all three).
-  const merchantAccepted = dbMerchant?.accepted_payments?.length ? dbMerchant.accepted_payments : ["cash", "momo", "morse"];
+  const merchantAccepted = dbMerchant?.accepted_payments?.length ? dbMerchant.accepted_payments : ["morse", "cash", "momo"];
   const morseReady = Boolean(dbMerchant?.morse_tag);
   const availableMethods = paymentMethods.filter((m) =>
     merchantAccepted.includes(m.id) && (m.id !== "morse" || morseReady)
@@ -386,7 +399,7 @@ export default function CheckoutPage() {
   ];
 
   return (
-    <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-16 pt-4">
+    <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-16 pt-4 md:max-w-4xl">
       <Link href="/cart" className="inline-flex items-center gap-1 text-sm text-muted"><ArrowLeft className="h-4 w-4" /> Back to cart</Link>
       <h1 className="mt-3 font-display text-2xl font-semibold">Checkout</h1>
       {merchantName && <p className="mt-1 text-sm text-muted">{merchantName}</p>}
@@ -398,6 +411,8 @@ export default function CheckoutPage() {
         </div>
       )}
 
+      <div className="md:grid md:grid-cols-[1fr_360px] md:items-start md:gap-6">
+      <div>
       {/* ── Delivery Address ── */}
       <div className="mt-6">
         <label className="block text-sm"><span className="text-muted">Delivery address</span></label>
@@ -472,7 +487,7 @@ export default function CheckoutPage() {
             const Icon = m.icon;
             const active = paymentMethod === m.id;
             return (
-              <button key={m.id} type="button" onClick={() => setPaymentMethod(m.id)}
+              <button key={m.id} type="button" onClick={() => { methodTouched.current = true; setPaymentMethod(m.id); }}
                 className={`relative flex flex-col items-center gap-2 rounded-2xl border-2 px-2 py-4 text-center transition card-press ${
                   active
                     ? "border-go bg-go/10 shadow-sm"
@@ -564,6 +579,8 @@ export default function CheckoutPage() {
         <span className="text-muted">Notes</span>
         <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Gate code, call on arrival…" className="mt-1.5 w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none ring-go focus:ring-2" />
       </label>
+      </div>
+      <div className="md:sticky md:top-20">
 
       {/* ── Order Summary Card ── */}
       <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-surface">
@@ -643,6 +660,8 @@ export default function CheckoutPage() {
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
         {onboarded ? "Place order & get payment details" : "Sign up & place order"}
       </button>
+      </div>
+      </div>
 
       <SignupModal open={signup.open} onClose={() => signup.setOpen(false)} returnTo={signup.returnTo} />
     <AddressSearchModal

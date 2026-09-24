@@ -153,9 +153,9 @@ export default function CustomerHome() {
   }, []);
 
   return (
-    <div className="mx-auto min-h-[70vh] max-w-lg bg-bg pb-24">
+    <div className="mx-auto min-h-[70vh] max-w-lg bg-bg pb-24 md:max-w-3xl lg:max-w-6xl">
       <header className="sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur-xl">
-        <div className="space-y-2 px-4 pt-3 pb-3">
+        <div className="space-y-2 px-4 pt-3 pb-3 md:mx-auto md:max-w-3xl">
           {/* Delivery address bar — Uber style */}
           <button
             type="button"
@@ -348,12 +348,13 @@ export default function CustomerHome() {
         )}
 
         <p id="merchants" className="text-xs font-medium uppercase tracking-wider text-dim scroll-mt-32">{areaHeading}</p>
+        <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0 lg:grid-cols-3">
         {merchantsLoading && (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
+          <>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="skeleton h-28 w-full rounded-2xl" />
             ))}
-          </div>
+          </>
         )}
         {!merchantsLoading && list.map((m) => {
           const dist = effectiveLoc ? distanceKm(effectiveLoc, m) : null;
@@ -406,7 +407,7 @@ export default function CustomerHome() {
           );
         })}
         {list.length === 0 && !merchantsLoading && (
-          <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-8 text-center">
+          <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-8 text-center md:col-span-2 lg:col-span-3">
             <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-go/10">
               <ShoppingBag className="h-7 w-7 text-go" />
             </div>
@@ -431,6 +432,7 @@ export default function CustomerHome() {
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* Only customer sees the customer bottom nav — business/rider have their own */}
