@@ -52,3 +52,21 @@ FLUTTERWAVE_SECRET_KEY=     # server only — never NEXT_PUBLIC_
 ```
 
 Wire provider HTTP in `src/lib/momo.ts`. Default is `demo` (no keys).
+
+<!-- omgithub:readme:start -->
+## 🚀 Build, play, and remix with OMGithub
+
+**Remixed using [OMGithub.com](https://omgithub.com).**
+
+[![OMGithub](https://img.shields.io/badge/OMGithub-Open%20project-orange?style=for-the-badge)](https://omgithub.com/KayembaIbrahim/godoor-platform)
+[![GitHub](https://img.shields.io/badge/GitHub-Source-181717?logo=github&style=for-the-badge)](https://github.com/KayembaIbrahim/godoor-platform)
+
+- 🎮 [Open the project](https://omgithub.com/KayembaIbrahim/godoor-platform).
+- ✨ [Remix this project](https://omgithub.com/?remix=KayembaIbrahim%2Fgodoor-platform).
+- 💻 [Explore the source](https://github.com/KayembaIbrahim/godoor-platform).
+- 🛠️ [Check build runs](https://github.com/KayembaIbrahim/godoor-platform/actions).
+- 🐛 [Report an issue](https://github.com/KayembaIbrahim/godoor-platform/issues).
+- 👤 [Explore the creator's projects](https://omgithub.com/KayembaIbrahim).
+- 🌍 [Create with OMGithub](https://omgithub.com).
+- 🧬 [Explore the remix source](https://github.com/KayembaIbrahim/godoor-platform).
+<!-- omgithub:readme:end -->
