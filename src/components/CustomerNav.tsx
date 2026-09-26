@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Home, ShoppingBag, User, ShoppingCart } from "lucide-react";
+import { Home, ShoppingBag, User, ShoppingCart, Bike } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
   { href: "/app", label: "Home", icon: Home },
+  { href: "/ride", label: "Ride", icon: Bike },
   { href: "/cart", label: "Cart", icon: ShoppingCart },
   { href: "/orders", label: "Orders", icon: ShoppingBag },
   { href: "/account", label: "Account", icon: User },

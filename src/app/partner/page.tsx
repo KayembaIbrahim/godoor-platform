@@ -127,7 +127,7 @@ function PartnerBody() {
               role === "rider" ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]" : "border-border bg-surface text-muted hover:bg-elevated"
             }`}
           >
-            <Truck className="h-4 w-4" /> I want to deliver
+            <Truck className="h-4 w-4" /> I want to deliver or drive
           </button>
         </div>
 
@@ -159,7 +159,7 @@ function PartnerBody() {
 
           {role === "rider" && (
             <div className="rounded-2xl border border-border bg-surface p-4">
-              <p className="text-xs font-semibold text-muted">Delivery details</p>
+              <p className="text-xs font-semibold text-muted">Transport and delivery details</p>
               <div className="mt-3 space-y-3">
                 <div>
                   <label className="text-xs font-medium text-muted">Vehicle type</label>

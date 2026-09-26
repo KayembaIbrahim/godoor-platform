@@ -154,7 +154,7 @@ export default function CustomerHome() {
 
   return (
     <div className="mx-auto min-h-[70vh] max-w-lg bg-bg pb-24 md:max-w-3xl lg:max-w-6xl">
-      <header className="sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur-xl">
+      <header className="relative z-20 border-b border-border bg-bg/90 backdrop-blur-xl">
         <div className="space-y-2 px-4 pt-3 pb-3 md:mx-auto md:max-w-3xl">
           {/* Delivery address bar — Uber style */}
           <button
