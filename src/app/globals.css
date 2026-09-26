@@ -6,6 +6,32 @@
   --font-display: "Poppins", system-ui, sans-serif;
   --font-sans: "Inter", system-ui, sans-serif;
 
+  /* ─── New Professional Color System ─── */
+  --primary: #F97316;
+  --primary-hover: #EA580C;
+  --primary-light: #FFEDD5;
+  --secondary: #0F172A;
+  --secondary-hover: #1E293B;
+  --success: #059669;
+  --success-light: #D1FAE5;
+  --bg: #FFFFFF;
+  --surface: #F8FAFC;
+  --surface-2: #F1F5F9;
+  --border: #E2E8F0;
+  --text: #0F172A;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
+  --text-inverse: #FFFFFF;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --shadow: 0 4px 20px -2px rgb(15 23 42 / 0.08);
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08);
+  --shadow-lg: 0 12px 28px -4px rgb(15 23 42 / 0.12);
+  --shadow-xl: 0 20px 40px -8px rgb(15 23 42 / 0.15);
+  --shadow-glow: 0 0 0 1px rgb(249 115 22 / 0.1), 0 10px 30px -8px rgb(249 115 22 / 0.25);
+  --ring-focus: rgb(249 115 22 / 0.4);
+
   /* ─── Light / Creamy theme (default) ─── */
   --color-bg: #faf7f2;
   --color-fg: #191025;
@@ -15,6 +41,7 @@
   --color-primary: #ea580c;
   --color-primary-2: #c2410c;
   --color-go: #f15a22;
+  --color-secondary: #0F172A;
   --color-go-2: #ff8a3d;
   --color-muted: #6b615f;
   --color-dim: #a89a93;
@@ -48,12 +75,28 @@
   --color-surface: #120d1b;
   --color-elevated: #1a1327;
   --color-panel: #221a33;
+  --primary: #F97316;
+  --primary-hover: #FB923C;
+  --primary-light: #7C2D12;
+  --secondary: #F8FAFC;
+  --secondary-hover: #E2E8F0;
+  --success: #34D399;
+  --success-light: #064E3B;
+  --bg: #0F172A;
+  --surface: #1E293B;
+  --surface-2: #334155;
+  --border: #334155;
+  --text: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-inverse: #0F172A;
   --color-primary: #f15a22;
   --color-primary-2: #c2410c;
   --color-go: #f97316;
   --color-go-2: #ff8a3d;
   --color-muted: #a295ab;
   --color-dim: #6f6678;
+  --color-secondary: #F8FAFC;
   --color-border: rgba(255, 255, 255, 0.09);
   --color-success: #22c55e;
   --color-warning: #f59e0b;

@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Home, Clock, Wallet, User, MapPin } from "lucide-react";
+import { Home, Clock, Wallet, User, MapPin, Bike } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
   { href: "/rider", label: "Home", icon: Home },
   { href: "/rider/history", label: "History", icon: Clock },
   { href: "/rider/earnings", label: "Earnings", icon: Wallet },
+  { href: "/ride", label: "Boda", icon: Bike },
   { href: "/tracking", label: "Map", icon: MapPin },
   { href: "/account", label: "Profile", icon: User },
 ];
@@ -35,19 +36,19 @@ export function RiderNav() {
               href={t.href}
               className={cn(
                 "relative flex flex-col items-center gap-0.5 rounded-2xl px-3 py-1.5 transition-all duration-200 active:scale-90",
-                isActive ? "text-[#f97316]" : "text-muted hover:text-fg"
+                isActive ? "text-primary" : "text-muted hover:text-fg"
               )}
             >
               <span
                 className={cn(
                   "absolute inset-0 rounded-2xl transition-all duration-200",
-                  isActive ? "bg-[#f97316]/12 scale-100 opacity-100" : "scale-90 opacity-0"
+                  isActive ? "bg-primary/12 scale-100 opacity-100" : "scale-90 opacity-0"
                 )}
                 aria-hidden
               />
               <span className="relative">
                 <Icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "scale-110")} />
-                {isActive && <span className="absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-[#f97316]" />}
+                {isActive && <span className="absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary" />}
               </span>
               <span className={cn("relative text-[10px] font-medium", isActive && "font-semibold")}>{t.label}</span>
             </Link>
