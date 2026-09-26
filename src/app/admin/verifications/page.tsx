@@ -298,7 +298,7 @@ export default function AdminVerificationsPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                      doc.role === "business" ? "bg-primary/15 text-primary" : "bg-[#f97316]/15 text-[#f97316]"
+                      doc.role === "business" ? "bg-primary/15 text-primary" : "bg-primary/15 text-primary"
                     }`}>{doc.role}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLE[doc.status]}`}>
                       {doc.status}

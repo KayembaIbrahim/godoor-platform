@@ -123,7 +123,7 @@ export default function AdminOverview() {
       <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { href: "/admin/merchants", label: "Merchants", desc: "Approve & manage", icon: Store, color: "text-go" },
-          { href: "/admin/riders", label: "Riders", desc: "Verify & dispatch", icon: Truck, color: "text-[#f97316]" },
+          { href: "/admin/riders", label: "Riders", desc: "Verify & dispatch", icon: Truck, color: "text-primary" },
           { href: "/admin/disputes", label: "Disputes", desc: `${stats.openDisputes} open`, icon: AlertTriangle, color: "text-danger" },
           { href: "/admin/settings", label: "Settings", desc: "Fees & config", icon: Settings, color: "text-primary" },
         ].map((a) => {

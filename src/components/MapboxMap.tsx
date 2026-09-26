@@ -60,13 +60,13 @@ function nextPinId(): string { pinUid += 1; return `p${pinUid}`; }
     carries the real brand mark. */
 function doorMark(): string {
   return `
-    <rect x="7.82" y="3.66" width="5.7" height="9.88" rx="0.95" fill="#f15a22"/>
-    <rect x="8.39" y="4.23" width="4.56" height="8.74" rx="0.57" fill="#ff7a3d"/>
+    <rect x="7.82" y="3.66" width="5.7" height="9.88" rx="0.95" fill="var(--primary)"/>
+    <rect x="8.39" y="4.23" width="4.56" height="8.74" rx="0.57" fill="var(--primary)"/>
     <circle cx="12.38" cy="8.6" r="0.61" fill="#0b0712"/>
-    <circle cx="12.38" cy="8.6" r="0.3" fill="#ff7a3d" opacity="0.4"/>
+    <circle cx="12.38" cy="8.6" r="0.3" fill="var(--primary)" opacity="0.4"/>
     <path d="M13.52 3.66L16.18 4.61V12.59L13.52 13.54V3.66Z" fill="#c13e10"/>
     <path d="M14.09 4.23L15.61 4.99V12.21L14.09 12.97V4.23Z" fill="#d94e18"/>
-    <circle cx="14.09" cy="8.6" r="0.38" fill="#ff7a3d" opacity="0.3"/>
+    <circle cx="14.09" cy="8.6" r="0.38" fill="var(--primary)" opacity="0.3"/>
   `;
 }
 
@@ -124,14 +124,14 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
   const isDest = m.isDestination;
 
   let size = 44;
-  let light = "#f97316";
-  let dark = "#ea580c";
+  let light = "var(--primary)";
+  let dark = "var(--primary-hover)";
   let icon = doorMark();
   let shape: "teardrop" | "storefront" = "teardrop";
 
   if (isPickup) {
     size = 47;
-    light = "#f97316"; dark = "#ea580c";
+    light = "#F97316"; dark = "#EA580C";
     icon = bagMark();
     shape = "storefront";
   } else if (isDest) {
@@ -140,7 +140,7 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
     icon = doorMark();
   } else if (isRider) {
     size = 52;
-    light = "#f97316"; dark = "#ea580c";
+    light = "#F97316"; dark = "#EA580C";
     icon = riderMark();
   } else {
     size = 42;
@@ -212,7 +212,7 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
       pointer-events: none;
       z-index: 1;
     `;
-    arrow.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2l7 10h-4v8h-6v-8H5z" fill="#ea580c" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+    arrow.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2l7 10h-4v8h-6v-8H5z" fill="#EA580C" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
     el.appendChild(arrow);
     (el as any).__gdrArrow = arrow;
   }
@@ -332,7 +332,7 @@ function MapboxMapInner({
           layout: { "line-cap": "round", "line-join": "round" },
           paint: {
             "line-width": ["interpolate", ["linear"], ["zoom"], 11, 5, 16, 8.5],
-            "line-color": ["interpolate", ["linear"], ["line-progress"], 0, "#ea580c", 1, "#f97316"],
+            "line-color": ["interpolate", ["linear"], ["line-progress"], 0, "#EA580C", 1, "#F97316"],
             "line-opacity": 1,
           },
         });
@@ -401,7 +401,7 @@ function MapboxMapInner({
         const el = document.createElement("div");
         const inner = document.createElement("div");
         el.style.cssText = "width:22px;height:22px;";
-        inner.style.cssText = `width:22px;height:22px;border-radius:50%;background:#ea580c;border:3px solid #fff;box-shadow:0 0 0 5px rgba(234,88,12,0.25), 0 4px 10px rgba(0,0,0,0.35);`;
+        inner.style.cssText = `width:22px;height:22px;border-radius:50%;background:var(--primary-hover);border:3px solid #fff;box-shadow:0 0 0 5px rgba(249,115,22,0.25), 0 4px 10px rgba(0,0,0,0.35);`;
         el.appendChild(inner);
         dotMarkerRef.current = new mapboxgl.default.Marker({ element: el, anchor: "center" }).setLngLat([pts[0].lng, pts[0].lat]).addTo(map);
       }
@@ -618,7 +618,7 @@ function MapboxMapInner({
         const el = document.createElement("div");
         el.style.cssText = `
           width: 26px; height: 26px; border-radius: 50%;
-          background: #f15a22; border: 3px solid #fff;
+          background: var(--primary); border: 3px solid #fff;
           box-shadow: 0 0 0 6px rgba(241,90,34,0.3), 0 4px 12px rgba(0,0,0,0.35);
           animation: marker-ring-pulse 2.5s ease-in-out infinite;
           position: relative;

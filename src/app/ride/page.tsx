@@ -71,7 +71,7 @@ function ActiveRideCard({ ride: initial }: { ride: DBRide }) {
     ride.status === "completed" ? "Trip completed" : "Cancelled";
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#f97316]/40 bg-surface">
+    <div className="overflow-hidden rounded-2xl border border-primary/40 bg-surface">
       <div className="h-[52vh] min-h-[340px] w-full">
         <LiveTrackingMap
           fill
@@ -94,7 +94,7 @@ function ActiveRideCard({ ride: initial }: { ride: DBRide }) {
           <p className="mt-1 text-xs text-muted">Nearby boda riders have been notified.</p>
         )}
         <div className="mt-2 flex items-center justify-between">
-          <p className="text-sm font-bold text-[#f97316] tabular-nums">{formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">incl. 5% service fee</span></p>
+          <p className="text-sm font-bold text-primary tabular-nums">{formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">incl. 5% service fee</span></p>
           {["requested", "accepted"].includes(ride.status) && (
             <button type="button" onClick={cancel} disabled={busy}
               className="rounded-xl bg-danger/10 px-3 py-2 text-xs font-semibold text-danger disabled:opacity-50">
@@ -174,7 +174,7 @@ export default function RidePage() {
         </Link>
         <div>
           <h1 className="font-display text-lg font-bold flex items-center gap-2">
-            <Bike className="h-5 w-5 text-[#f97316]" /> Boda Ride
+            <Bike className="h-5 w-5 text-primary" /> Boda Ride
           </h1>
           <p className="text-[11px] text-muted">Door-to-door boda, tracked live</p>
         </div>
@@ -213,7 +213,7 @@ export default function RidePage() {
             </button>
             <button type="button" onClick={() => setModal("dropoff")}
               className="flex w-full items-center gap-2.5 rounded-xl bg-elevated/60 px-3 py-3 text-left hover:bg-elevated transition">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#f97316] shrink-0" />
+              <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0" />
               <span className="min-w-0 flex-1">
                 <span className="block text-[10px] uppercase tracking-wider text-dim">Dropoff</span>
                 <span className="block truncate text-sm font-medium">{dropoff?.place || "Where to?"}</span>
@@ -251,7 +251,7 @@ export default function RidePage() {
                 </div>
                 <div>
                   <p className="text-[9px] uppercase tracking-wider text-dim">ETA pickup</p>
-                  <p className="flex items-center justify-center gap-1 text-sm font-bold"><Clock className="h-3 w-3 text-[#f97316]" /> ~10 min</p>
+                  <p className="flex items-center justify-center gap-1 text-sm font-bold"><Clock className="h-3 w-3 text-primary" /> ~10 min</p>
                 </div>
               </div>
               <p className="px-3 pb-3 text-[10px] text-dim">Includes 5% GoDoor service fee. Pay the rider directly (cash / MoMo).</p>
@@ -261,7 +261,7 @@ export default function RidePage() {
           </div>
 
           <button type="button" onClick={request} disabled={busy || !pickup || !dropoff || !onboarded}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#f97316] py-3.5 text-sm font-semibold text-white hover:bg-[#ea580c] transition disabled:opacity-50">
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-white hover:bg-primary-2 transition disabled:opacity-50">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bike className="h-4 w-4" />}
             {busy ? "Requesting…" : !onboarded ? "Sign in to request a ride" : "Request boda ride"}
           </button>

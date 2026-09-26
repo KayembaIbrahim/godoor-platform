@@ -77,8 +77,8 @@ export function SetPasswordGate({ title = "Welcome to GoDoor" }: { title?: strin
       </div>
 
       <div className="mt-10 flex flex-col items-center text-center">
-        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[#f97316]/15">
-          <KeyRound className="h-7 w-7 text-[#f97316]" />
+        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-primary/15">
+          <KeyRound className="h-7 w-7 text-primary" />
         </div>
         <h1 className="mt-4 font-display text-2xl font-bold">{title}</h1>
         <p className="mt-2 text-sm text-muted">

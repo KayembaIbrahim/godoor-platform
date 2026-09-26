@@ -26,7 +26,7 @@ export function useSignupPrompt() {
 const ROLES: { id: Role; label: string; desc: string; icon: typeof Store; color: string }[] = [
   { id: "customer", label: "Shop on GoDoor", desc: "Order food, pharmacy, parcels", icon: ShoppingBag, color: "text-go" },
   { id: "business", label: "Register a business", desc: "List your shop on GoDoor", icon: Store, color: "text-primary-2" },
-  { id: "rider", label: "Become a rider", desc: "Deliver orders, earn money", icon: Truck, color: "text-[#f97316]" },
+  { id: "rider", label: "Become a rider", desc: "Deliver orders, earn money", icon: Truck, color: "text-primary" },
 ];
 
 export function SignupModal({

@@ -14,7 +14,7 @@ import { ADMIN_COOKIE, verifySession } from "@/lib/admin-session";
  * The secret never leaves the server — it is only read from an env var here.
  * When `ADMIN_PATH_SECRET` is unset (local dev), admin behaves as before.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // The auth endpoint is public — it validates the password itself.

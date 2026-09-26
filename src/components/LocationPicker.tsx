@@ -44,7 +44,7 @@ export function LocationPicker({
 
       map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
-      const marker = new mapboxgl.Marker({ color: "#f97316", draggable: true })
+      const marker = new mapboxgl.Marker({ color: "var(--primary)", draggable: true })
         .setLngLat([value.lng, value.lat])
         .addTo(map);
 

@@ -93,3 +93,65 @@ export function detectNetwork(msisdn256: string): "mtn_momo" | "airtel_money" | 
   if (/^(70|75|74|20)/.test(local)) return "airtel_money";
   return null;
 }
+
+// ─── Phase 1: Commission & Payment Model ──────────────────────────────────────
+
+/** Default platform commission rate charged to the merchant (15%). */
+export const DEFAULT_COMMISSION_RATE = 0.15;
+
+/** Generate a unique payment reference like GD-8K2P9 for Morse P2P transfers. */
+export function generatePaymentReference(orderId: string): string {
+  const rand = crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
+  return `GD-${rand}`;
+}
+
+/** Full financial breakdown for an order. All server-computed — client never sets prices. */
+export interface OrderFinancials {
+  orderId: string;
+  subtotalUgx: number;        // sum of item prices × qty (what the customer sees)
+  deliveryFeeUgx: number;     // customer-facing delivery fee
+  totalCustomerPaysUgx: number; // subtotal + deliveryFee
+  commissionRate: number;     // default 0.15
+  platformFeeUgx: number;     // subtotal × commissionRate
+  merchantPayoutUgx: number;  // subtotal × (1 - commissionRate)
+  riderPayoutUgx: number;     // delivery fee portion (or negotiated)
+  paymentReference: string;   // unique ref for Morse transfer
+}
+
+/** Compute the full financial model for an order. */
+export function computeOrderFinancials(params: {
+  subtotalUgx: number;
+  deliveryFeeUgx: number;
+  riderPayoutUgx?: number;
+  commissionRate?: number;
+  orderId: string;
+}): OrderFinancials {
+  const { subtotalUgx, deliveryFeeUgx, riderPayoutUgx, commissionRate = DEFAULT_COMMISSION_RATE, orderId } = params;
+  const commission = Math.round(subtotalUgx * commissionRate);
+  const merchantPayout = subtotalUgx - commission;
+  const riderPayout = Number.isFinite(riderPayoutUgx) ? riderPayoutUgx as number : deliveryFeeUgx;
+  return {
+    orderId,
+    subtotalUgx,
+    deliveryFeeUgx,
+    totalCustomerPaysUgx: subtotalUgx + deliveryFeeUgx,
+    commissionRate,
+    platformFeeUgx: commission,
+    merchantPayoutUgx: merchantPayout,
+    riderPayoutUgx: riderPayout,
+    paymentReference: generatePaymentReference(orderId),
+  };
+}
+
+/** Validate that a Morse transfer matches the expected amount and reference. */
+export function validateMorseTransfer(params: {
+  receivedAmountUgx: number;
+  expectedAmountUgx: number;
+  reference: string;
+  paymentReference: string;
+}): { valid: boolean; mismatch?: string } {
+  const { receivedAmountUgx, expectedAmountUgx, reference, paymentReference } = params;
+  if (reference !== paymentReference) return { valid: false, mismatch: "Reference mismatch" };
+  if (receivedAmountUgx < expectedAmountUgx) return { valid: false, mismatch: "Amount short" };
+  return { valid: true };
+}

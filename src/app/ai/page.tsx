@@ -37,7 +37,7 @@ const FAQ_SECTIONS: FAQSection[] = [
     id: "payments",
     title: "Payments",
     icon: CreditCard,
-    color: "text-[#f97316]",
+    color: "text-primary",
     items: [
       { q: "How does payment work?", a: "GoDoor uses a P2P (peer-to-peer) payment model. When you place an order, you pay the business directly via their displayed MoMo or Airtel Money number. After sending money, send a confirmation screenshot in the chat. The business confirms payment and starts preparing your order." },
       { q: "What payment methods are accepted?", a: "You can pay via MTN Mobile Money (MoMo), Airtel Money, or Cash on delivery. Select your preferred method at checkout. Wallet payments will be available soon." },

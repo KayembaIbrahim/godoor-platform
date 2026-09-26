@@ -10,7 +10,7 @@ import { Logo } from "@/components/Logo";
 const ROLES: { id: Role; label: string; desc: string; icon: typeof Store; color: string }[] = [
   { id: "customer", label: "Customer", desc: "Order food, pharmacy, parcels", icon: ShoppingBag, color: "text-go" },
   { id: "business", label: "Business", desc: "Sell on GoDoor, receive orders", icon: Store, color: "text-primary" },
-  { id: "rider", label: "Rider", desc: "Deliver orders, earn money", icon: Truck, color: "text-[#f97316]" },
+  { id: "rider", label: "Rider", desc: "Deliver orders, earn money", icon: Truck, color: "text-primary" },
 ];
 
 function AuthModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -210,7 +210,7 @@ export function HeaderAuth() {
     const displayName = profile.name || profile.email || "User";
     const displayEmail = supabaseUser?.email || profile.email || "";
     const roleLabel = role === "business" ? "Business" : role === "rider" ? "Rider" : "Customer";
-    const roleLabelColor = role === "business" ? "text-primary" : role === "rider" ? "text-[#f97316]" : "text-go";
+    const roleLabelColor = role === "business" ? "text-primary" : role === "rider" ? "text-primary" : "text-go";
 
     // All roles go to /account for profile
     const profileHref = "/account";

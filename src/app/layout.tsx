@@ -1,17 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import { ThemeEffect } from "@/components/ThemeEffect";
 import { HeaderClient } from "@/components/HeaderClient";
 import { ClientProviders } from "@/components/ClientProviders";
 import { AppFooter } from "@/components/AppFooter";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-display",
-});
 
 export const metadata: Metadata = {
   title: "GoDoor — Delivering Possibilities",
@@ -41,7 +33,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${poppins.variable}`} data-theme="light">
+    <html lang="en" data-theme="light">
       <body className="font-sans antialiased">
         <ThemeEffect />
         <HeaderClient />

@@ -32,8 +32,13 @@ jobs:
       - name: Install Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Bundle web assets into the Android project
-        run: npx cap sync android
+      - name: Prepare Android project
+        run: |
+          mkdir -p web-app
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+          npx cap sync android
 
       - name: Build debug APK
         working-directory: android

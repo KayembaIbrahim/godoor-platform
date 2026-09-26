@@ -124,7 +124,7 @@ export default function AdminPayouts() {
             <Store className="h-3 w-3" /> Merchants
           </button>
           <button type="button" onClick={() => setTab("rider")}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${tab === "rider" ? "bg-[#f97316]/15 text-[#f97316]" : "bg-surface text-muted hover:bg-elevated"}`}>
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${tab === "rider" ? "bg-primary/15 text-primary" : "bg-surface text-muted hover:bg-elevated"}`}>
             <Truck className="h-3 w-3" /> Riders
           </button>
         </div>
@@ -178,8 +178,8 @@ export default function AdminPayouts() {
                 <tr key={p.id} className="border-t border-border hover:bg-elevated/50 transition">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <div className={`grid h-8 w-8 place-items-center rounded-full ${p.role === "merchant" ? "bg-primary/10" : "bg-[#f97316]/10"}`}>
-                        {p.role === "merchant" ? <Store className="h-4 w-4 text-primary" /> : <Truck className="h-4 w-4 text-[#f97316]" />}
+                      <div className={`grid h-8 w-8 place-items-center rounded-full ${p.role === "merchant" ? "bg-primary/10" : "bg-primary/10"}`}>
+                        {p.role === "merchant" ? <Store className="h-4 w-4 text-primary" /> : <Truck className="h-4 w-4 text-primary" />}
                       </div>
                       <div>
                         <p className="text-xs font-medium">{p.name}</p>

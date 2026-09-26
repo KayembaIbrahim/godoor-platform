@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServiceClient } from "@/lib/supabase-server";
+import { getPublicClient, getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid, resolveMerchantWriteAccess } from "@/lib/api-auth";
 
 const ENSURE_BUSINESS_TYPE = `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT 'goods';`;
@@ -8,12 +8,79 @@ async function ensureBusinessType(sb: NonNullable<ReturnType<typeof getServiceCl
   try { await sb.rpc("exec_sql", { query: ENSURE_BUSINESS_TYPE }); } catch {}
 }
 
+type LegacyBusiness = Record<string, unknown>;
+
+function normalizeHour(value: string, fallback: string): string {
+  const match = value.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if (!match) return fallback;
+
+  let hour = Number(match[1]);
+  const minute = Number(match[2] || 0);
+  const period = match[3]?.toLowerCase();
+  if (period === "pm" && hour < 12) hour += 12;
+  if (period === "am" && hour === 12) hour = 0;
+  if (hour > 23 || minute > 59) return fallback;
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function splitOperatingHours(value: unknown) {
+  const hours = String(value || "");
+  const matches = [...hours.matchAll(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/gi)];
+  return {
+    opens_at: matches[0] ? normalizeHour(matches[0][0], "08:00") : "08:00",
+    closes_at: matches[1] ? normalizeHour(matches[1][0], "22:00") : "22:00",
+  };
+}
+
+function legacyBusinessToMerchant(row: LegacyBusiness) {
+  const address = String(row.address || "");
+  const [area = "", district = ""] = address.split(",").map((part) => part.trim());
+  const operatingHours = splitOperatingHours(row.operating_hours);
+
+  return {
+    ...row,
+    owner_id: row.owner_id || null,
+    tagline: row.tagline || row.description || "",
+    area: address || "Uganda",
+    district: district || area || "Uganda",
+    momo_number: "",
+    momo_name: "",
+    ...operatingHours,
+    business_type: String(row.business_type || "").toLowerCase().includes("clinic") ? "clinic" : "goods",
+    delivery_fee_ugx: Math.round(Number(row.godoor_delivery_fee || 0) * 1000),
+    status: row.verification_status === "approved" ? "active" : "pending",
+  };
+}
+
 export async function GET() {
-  const sb = getServiceClient();
-  if (!sb) return NextResponse.json({ merchants: [] });
-  const { data, error } = await sb.from("merchants").select("*").eq("status", "active").order("rating", { ascending: false }).limit(200);
-  if (error) return NextResponse.json({ merchants: [] });
-  return NextResponse.json({ merchants: data || [] });
+  const sb = getServiceClient() || getPublicClient();
+  if (!sb) return NextResponse.json({ merchants: [], error: "Supabase is not configured" }, { status: 503 });
+
+  const { data, error } = await sb
+    .from("merchants")
+    .select("*")
+    .eq("status", "active")
+    .order("rating", { ascending: false })
+    .limit(200);
+
+  if (!error) return NextResponse.json({ merchants: data || [] });
+
+  const { data: businesses, error: businessError } = await sb
+    .from("businesses")
+    .select("*")
+    .eq("verification_status", "approved")
+    .order("rating", { ascending: false })
+    .limit(200);
+
+  if (!businessError) {
+    return NextResponse.json({ merchants: (businesses || []).map(legacyBusinessToMerchant) });
+  }
+
+  return NextResponse.json(
+    { merchants: [], error: businessError.message || error.message },
+    { status: 503 },
+  );
 }
 
 export async function POST(req: NextRequest) {

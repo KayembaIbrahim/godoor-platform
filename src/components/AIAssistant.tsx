@@ -77,7 +77,7 @@ function AIModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                 <rect x="3" y="2" width="13" height="20" rx="2" fill="white" />
                 <path d="M16 2L21 4V20L16 22V2Z" fill="rgba(255,255,255,0.7)" />
-                <circle cx="14" cy="12.5" r="1.2" fill="#f15a22" />
+                <circle cx="14" cy="12.5" r="1.2" fill="var(--primary)" />
               </svg>
             </div>
             <div>
@@ -107,7 +107,7 @@ function AIModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                       <rect x="3" y="2" width="13" height="20" rx="2" fill="white" />
                       <path d="M16 2L21 4V20L16 22V2Z" fill="rgba(255,255,255,0.7)" />
-                      <circle cx="14" cy="12.5" r="1.2" fill="#f15a22" />
+                      <circle cx="14" cy="12.5" r="1.2" fill="var(--primary)" />
                     </svg>
                   )}
                 </div>
@@ -129,7 +129,7 @@ function AIModal({ open, onClose }: { open: boolean; onClose: () => void }) {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                     <rect x="3" y="2" width="13" height="20" rx="2" fill="white" />
                     <path d="M16 2L21 4V20L16 22V2Z" fill="rgba(255,255,255,0.7)" />
-                    <circle cx="14" cy="12.5" r="1.2" fill="#f15a22" />
+                    <circle cx="14" cy="12.5" r="1.2" fill="var(--primary)" />
                   </svg>
                 </div>
                 <div className="rounded-2xl rounded-bl-md bg-surface border border-border px-4 py-3">
@@ -194,7 +194,7 @@ export function AITrigger() {
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
           <rect x="3" y="2" width="13" height="20" rx="2" fill="white" />
           <path d="M16 2L21 4V20L16 22V2Z" fill="rgba(255,255,255,0.7)" />
-          <circle cx="14" cy="12.5" r="1.2" fill="#f15a22" />
+          <circle cx="14" cy="12.5" r="1.2" fill="var(--primary)" />
         </svg>
       </button>
       <AIModal open={open} onClose={() => setOpen(false)} />

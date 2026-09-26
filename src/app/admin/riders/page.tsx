@@ -86,7 +86,7 @@ export default function AdminRiders() {
     <div className="pb-24 md:pb-0 animate-fade-in">
       <div className="flex items-center gap-3">
         <h1 className="font-display text-2xl font-bold">Riders</h1>
-        <span className="rounded-full bg-[#f97316]/15 px-2.5 py-0.5 text-xs font-bold text-[#f97316]">{riders.length}</span>
+        <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-bold text-primary">{riders.length}</span>
       </div>
       <p className="mt-1 text-sm text-muted">Manage delivery riders — verify, suspend, or view activity.</p>
 
@@ -110,8 +110,8 @@ export default function AdminRiders() {
         {filtered.map((r) => (
           <div key={r.id} className="rounded-2xl border border-border bg-surface p-4 transition hover:border-primary/30">
             <div className="flex items-start gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#f97316]/10 ring-1 ring-[#f97316]/20">
-                <Truck className="h-5 w-5 text-[#f97316]" />
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
+                <Truck className="h-5 w-5 text-primary" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
