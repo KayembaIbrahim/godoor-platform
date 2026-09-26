@@ -49,8 +49,8 @@ const APPLY_CARDS: {
     desc: "Apply to deliver with GoDoor — approved riders are onboarded by our team.",
     icon: Truck,
     href: "/partner?role=rider",
-    color: "text-[#f97316]",
-    iconBg: "bg-[#f97316]/15 ring-[#f97316]/30",
+    color: "text-primary",
+    iconBg: "bg-primary/15 ring-primary/30",
   },
 ];
 
@@ -91,7 +91,7 @@ export default function OnboardingPage() {
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
               <rect x="3" y="2" width="13" height="20" rx="2" fill="#fff" />
               <path d="M16 2L21 4V20L16 22V2Z" fill="#0b0712" />
-              <circle cx="14" cy="12.5" r="1.2" fill="#f15a22" />
+              <circle cx="14" cy="12.5" r="1.2" fill="var(--primary)" />
             </svg>
           </div>
           <h1 className="font-display text-3xl font-semibold">Welcome to GoDoor</h1>

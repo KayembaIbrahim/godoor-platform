@@ -18,8 +18,8 @@ export function merchantVisual(m: Merchant) {
     case "food":
       return {
         icon: m.id === "mcht_grill" ? Flame : m.id === "mcht_rolex" ? Beef : Home,
-        tint: "from-[#f15a22]/20 to-[#ff7a3d]/5",
-        ring: "ring-[#f15a22]/30",
+        tint: "from-primary/20 to-primary/5",
+        ring: "ring-primary/30",
       };
     case "groceries":
       return {

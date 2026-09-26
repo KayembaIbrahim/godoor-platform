@@ -124,7 +124,7 @@ function PartnerBody() {
             type="button"
             onClick={() => setRole("rider")}
             className={`flex items-center justify-center gap-2 rounded-2xl border-2 px-4 py-3 text-sm font-semibold transition ${
-              role === "rider" ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]" : "border-border bg-surface text-muted hover:bg-elevated"
+              role === "rider" ? "border-primary bg-primary/10 text-primary" : "border-border bg-surface text-muted hover:bg-elevated"
             }`}
           >
             <Truck className="h-4 w-4" /> I want to deliver or drive

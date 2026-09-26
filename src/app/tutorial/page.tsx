@@ -56,10 +56,10 @@ const TUTORIALS: Record<TutorialRole, { label: string; desc: string; icon: typeo
     label: "Rider",
     desc: "Deliver orders & earn money",
     icon: Truck,
-    color: "text-[#f97316]",
+    color: "text-primary",
     slides: [
-      { icon: Truck, title: "Register as a rider", desc: "Sign up with your vehicle type, plate number, and preferred service area. GPS auto-detects your location.", color: "text-[#f97316]", bg: "bg-[#f97316]/10" },
-      { icon: Globe, title: "Go online", desc: "Open your rider dashboard. Toggle online status to start receiving delivery requests near you.", color: "text-[#f97316]", bg: "bg-[#f97316]/10" },
+      { icon: Truck, title: "Register as a rider", desc: "Sign up with your vehicle type, plate number, and preferred service area. GPS auto-detects your location.", color: "text-primary", bg: "bg-primary/10" },
+      { icon: Globe, title: "Go online", desc: "Open your rider dashboard. Toggle online status to start receiving delivery requests near you.", color: "text-primary", bg: "bg-primary/10" },
       { icon: Bell, title: "Accept deliveries", desc: "See available orders with distance, fare, and merchant name. Tap to accept one that fits you.", color: "text-go", bg: "bg-go/10", tip: "Orders are sorted by distance — closer = faster earnings." },
       { icon: MapPin, title: "Pickup the order", desc: "Navigate to the merchant using the in-app map. Confirm when you've collected the package.", color: "text-primary", bg: "bg-primary/10" },
       { icon: Navigation, title: "Deliver to customer", desc: "Your GPS broadcasts live to the customer and business. Navigate to the drop-off address.", color: "text-success", bg: "bg-success/10", tip: "Keep GoDoor open during delivery for accurate tracking." },

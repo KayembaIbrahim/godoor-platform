@@ -67,7 +67,7 @@ export default function HowItWorksPage() {
           <Link href="/app" className="flex items-center justify-center gap-2 rounded-2xl bg-go py-3 text-sm font-semibold text-white hover:bg-go-2 transition">
             Order food & shops <ArrowRight className="h-4 w-4" />
           </Link>
-          <Link href="/ride" className="flex items-center justify-center gap-2 rounded-2xl bg-[#f97316] py-3 text-sm font-semibold text-white hover:bg-[#ea580c] transition">
+          <Link href="/ride" className="flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-2 transition">
             <Bike className="h-4 w-4" /> Book a boda
           </Link>
         </div>
@@ -109,10 +109,10 @@ export default function HowItWorksPage() {
       {/* Riders */}
       <section className="mt-8">
         <h2 className="flex items-center gap-2 font-display text-lg font-bold">
-          <Bike className="h-5 w-5 text-[#f97316]" /> For riders
+          <Bike className="h-5 w-5 text-primary" /> For riders
         </h2>
-        <Steps steps={RIDER_STEPS} accent="bg-[#f97316]" />
-        <Link href="/partner?role=rider" className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-[#f97316] py-3 text-sm font-semibold text-white hover:bg-[#ea580c] transition">
+        <Steps steps={RIDER_STEPS} accent="bg-primary" />
+        <Link href="/partner?role=rider" className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-white hover:bg-primary-2 transition">
           Become a rider <ArrowRight className="h-4 w-4" />
         </Link>
       </section>

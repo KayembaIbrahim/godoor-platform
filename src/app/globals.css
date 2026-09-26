@@ -51,6 +51,7 @@
   --color-panel: var(--primary-light);
   --color-primary: var(--primary);
   --color-primary-2: var(--primary-hover);
+  --color-secondary: var(--secondary);
   --color-go: var(--primary);
   --color-go-2: var(--primary-hover);
   --color-muted: var(--text-muted);
@@ -114,6 +115,7 @@
   --color-panel: var(--primary-light);
   --color-primary: var(--primary);
   --color-primary-2: var(--primary-hover);
+  --color-secondary: var(--secondary);
   --color-go: var(--primary);
   --color-go-2: var(--primary-hover);
   --color-muted: var(--text-muted);

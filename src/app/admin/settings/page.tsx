@@ -147,7 +147,7 @@ export default function AdminSettings() {
       {/* Delivery Fees */}
       <div className="mt-4 rounded-2xl border border-border bg-surface p-5">
         <div className="flex items-center gap-2.5 mb-4">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#f97316]/10"><Truck className="h-4 w-4 text-[#f97316]" /></div>
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10"><Truck className="h-4 w-4 text-primary" /></div>
           <div>
             <h2 className="text-sm font-semibold">Delivery Fees</h2>
             <p className="text-[10px] text-muted">Default delivery fee and free delivery threshold</p>

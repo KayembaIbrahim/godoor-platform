@@ -100,7 +100,7 @@ export default function AdminAnalytics() {
   }, {} as Record<string, number>);
   const roleOrder = ["customer", "business", "rider", "admin"];
   const roleLabels: Record<string, string> = { customer: "Customers", business: "Businesses", rider: "Riders", admin: "Admins" };
-  const roleColors: Record<string, string> = { customer: "bg-go", business: "bg-primary", rider: "bg-[#f97316]", admin: "bg-danger" };
+  const roleColors: Record<string, string> = { customer: "bg-go", business: "bg-primary", rider: "bg-primary", admin: "bg-danger" };
   const maxRoleCount = Math.max(...Object.values(roleStats), 1);
 
   return (

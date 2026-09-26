@@ -60,13 +60,13 @@ function nextPinId(): string { pinUid += 1; return `p${pinUid}`; }
     carries the real brand mark. */
 function doorMark(): string {
   return `
-    <rect x="7.82" y="3.66" width="5.7" height="9.88" rx="0.95" fill="#f15a22"/>
-    <rect x="8.39" y="4.23" width="4.56" height="8.74" rx="0.57" fill="#ff7a3d"/>
+    <rect x="7.82" y="3.66" width="5.7" height="9.88" rx="0.95" fill="var(--primary)"/>
+    <rect x="8.39" y="4.23" width="4.56" height="8.74" rx="0.57" fill="var(--primary-hover)"/>
     <circle cx="12.38" cy="8.6" r="0.61" fill="#0b0712"/>
-    <circle cx="12.38" cy="8.6" r="0.3" fill="#ff7a3d" opacity="0.4"/>
-    <path d="M13.52 3.66L16.18 4.61V12.59L13.52 13.54V3.66Z" fill="#c13e10"/>
-    <path d="M14.09 4.23L15.61 4.99V12.21L14.09 12.97V4.23Z" fill="#d94e18"/>
-    <circle cx="14.09" cy="8.6" r="0.38" fill="#ff7a3d" opacity="0.3"/>
+    <circle cx="12.38" cy="8.6" r="0.3" fill="var(--primary-hover)" opacity="0.4"/>
+    <path d="M13.52 3.66L16.18 4.61V12.59L13.52 13.54V3.66Z" fill="var(--secondary)"/>
+    <path d="M14.09 4.23L15.61 4.99V12.21L14.09 12.97V4.23Z" fill="var(--primary-hover)"/>
+    <circle cx="14.09" cy="8.6" r="0.38" fill="var(--primary-hover)" opacity="0.3"/>
   `;
 }
 

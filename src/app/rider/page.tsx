@@ -126,8 +126,8 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
 
       {/* Active ride */}
       {activeRide && (
-        <div className="rounded-2xl border border-[#f97316]/40 bg-[#f97316]/5 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#f97316]">
+        <div className="rounded-2xl border border-primary/40 bg-primary/5 p-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
             {activeRide.status === "accepted" ? "Heading to passenger" : "Trip in progress"}
           </p>
           <p className="mt-1.5 text-sm font-semibold flex items-center gap-1.5">
@@ -139,12 +139,12 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <a href={navUrl(activeRide)} target="_blank" rel="noopener noreferrer"
-              className="btn flex-1 bg-[#f97316]/15 text-[#f97316] !border-[#f97316]/30 hover:bg-[#f97316]/25">
+              className="btn flex-1 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25">
               <Navigation className="h-3 w-3 shrink-0" /> Navigate
             </a>
             {activeRide.status === "accepted" ? (
               <button type="button" onClick={() => act(activeRide, "start")} disabled={busyId === activeRide.id}
-                className="btn flex-1 bg-[#f97316] text-white hover:bg-[#ea580c] disabled:opacity-60">
+                className="btn flex-1 bg-primary text-white hover:bg-primary-2 disabled:opacity-60">
                 {busyId === activeRide.id ? "Confirming…" : "Start trip"}
               </button>
             ) : (
@@ -182,12 +182,12 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
                 <p className="text-xs text-muted truncate">🏁 {r.dropoff_address || "Destination"}</p>
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-sm font-bold text-[#f97316] tabular-nums">{formatUgx(r.total_ugx)}</p>
+                <p className="text-sm font-bold text-primary tabular-nums">{formatUgx(r.total_ugx)}</p>
                 <p className="text-[10px] text-dim tabular-nums">{r.distance_km} km</p>
               </div>
             </div>
             <button type="button" onClick={() => act(r, "accept")} disabled={busyId === r.id || !!activeRide}
-              className="btn mt-3 w-full bg-[#f97316] text-white hover:bg-[#ea580c] disabled:opacity-60">
+              className="btn mt-3 w-full bg-primary text-white hover:bg-primary-2 disabled:opacity-60">
               {busyId === r.id ? "Accepting…" : activeRide ? "Finish current trip first" : "Accept ride"}
             </button>
           </div>
@@ -511,8 +511,8 @@ export default function RiderDashboard() {
     return (
       <div className="hero-wash flex min-h-[70vh] items-center justify-center px-4">
         <div className="text-center animate-fade-in">
-          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-[#f97316]/15 ring-1 ring-[#f97316]/30">
-            <Truck className="h-8 w-8 text-[#f97316]" />
+          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-primary/15 ring-1 ring-primary/30">
+            <Truck className="h-8 w-8 text-primary" />
           </div>
           <h1 className="font-display text-2xl font-bold">Rider Dashboard</h1>
           <p className="mt-2 max-w-sm mx-auto text-sm text-muted">Register as a rider to start earning by delivering orders across Uganda.</p>
@@ -590,12 +590,12 @@ export default function RiderDashboard() {
   return (
     <div className="mx-auto min-h-screen max-w-lg bg-bg pb-24 md:max-w-2xl">
       {/* Header — teal rider theme with earnings-forward */}
-      <div className="border-b border-[#f97316]/15 bg-gradient-to-b from-[#f97316]/8 to-transparent px-4 pt-4 pb-3">
+      <div className="border-b border-primary/15 bg-gradient-to-b from-primary/8 to-transparent px-4 pt-4 pb-3">
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-display text-lg font-bold">{riderName}</h1>
-              <span className="chip bg-[#f97316]/15 text-[#f97316]">
+              <span className="chip bg-primary/15 text-primary">
                 <Truck className="h-2.5 w-2.5" /> Rider
               </span>
             </div>
@@ -611,7 +611,7 @@ export default function RiderDashboard() {
         </div>
 
         {/* Earnings card — teal gradient */}
-        <div className="mt-3 rounded-2xl bg-gradient-to-br from-[#f97316] via-[#ea580c] to-[#c2410c] p-4 shadow-glow">
+        <div className="mt-3 rounded-2xl bg-gradient-to-br from-primary via-primary-2 to-[#c2410c] p-4 shadow-glow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] uppercase tracking-wider text-white/60">Today&apos;s Earnings</p>
@@ -637,7 +637,7 @@ export default function RiderDashboard() {
         {/* Location status */}
         <button type="button" onClick={refreshLoc}
           className="mt-3 flex items-center gap-2 rounded-xl bg-surface border border-border px-3.5 py-2.5 w-full text-left shadow-xs">
-          <MapPin className="h-4 w-4 text-[#f97316] shrink-0" />
+          <MapPin className="h-4 w-4 text-primary shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted truncate">{address || "Detecting location…"}</p>
             {locStatus === "watching" && accuracy != null && (
@@ -653,17 +653,17 @@ export default function RiderDashboard() {
               )
             )}
           </div>
-          <Navigation className="h-3.5 w-3.5 text-[#f97316] shrink-0" />
+          <Navigation className="h-3.5 w-3.5 text-primary shrink-0" />
         </button>
 
         {/* Mode switch — Deliveries vs Boda transport vertical */}
         <div className="mt-3 grid grid-cols-2 gap-1 rounded-2xl bg-bg p-1">
           <button type="button" onClick={() => setMode("deliveries")}
-            className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "deliveries" ? "bg-surface text-[#f97316] shadow-xs" : "text-muted"}`}>
+            className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "deliveries" ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
             <Package className="h-3.5 w-3.5" /> Deliveries
           </button>
           <button type="button" onClick={() => setMode("boda")}
-            className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "boda" ? "bg-surface text-[#f97316] shadow-xs" : "text-muted"}`}>
+            className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "boda" ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
             <Bike className="h-3.5 w-3.5" /> Boda
           </button>
         </div>
@@ -689,9 +689,9 @@ export default function RiderDashboard() {
             { id: "profile" as const, label: "Profile", count: 0 },
           ]).map((t) => (
             <button key={t.id} type="button" onClick={() => setTab(t.id)}
-              className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-medium transition ${tab === t.id ? "bg-surface text-[#f97316] shadow-xs" : "text-muted"}`}>
+              className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-medium transition ${tab === t.id ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
               {t.label}
-              {t.count > 0 && <span className="num ml-0.5 h-4 min-w-4 rounded-full bg-[#f97316] px-1 text-[9px] font-bold text-white text-center">{t.count}</span>}
+              {t.count > 0 && <span className="num ml-0.5 h-4 min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold text-white text-center">{t.count}</span>}
             </button>
           ))}
         </div>
@@ -755,26 +755,26 @@ export default function RiderDashboard() {
                     <p className="text-xs text-muted truncate">{d.order.items}</p>
                   </div>
                   <div className="text-right shrink-0 ml-3">
-                    <div><Price amount={d.fareUgx} className="num text-lg font-bold text-[#f97316]" /></div>
+                    <div><Price amount={d.fareUgx} className="num text-lg font-bold text-primary" /></div>
                     <p className="num text-[10px] text-dim">{d.distanceKm.toFixed(1)} km trip · ~{d.etaMin} min</p>
                   </div>
                 </div>
                 <div className="mt-3 rounded-xl bg-bg ring-1 ring-border/50 px-3 py-2.5 text-[11px] space-y-2">
                   <div className="flex items-center gap-2 text-dim"><span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-go/15"><span className="h-1.5 w-1.5 rounded-full bg-go" /></span>
                     <span className="min-w-0 flex-1 truncate">Pickup: {d.pickupName}</span>
-                    {d.pickupMin > 0 && <span className="num shrink-0 text-[#f97316] font-medium">~{d.pickupMin} min away · {d.pickupKm.toFixed(1)} km</span>}
+                    {d.pickupMin > 0 && <span className="num shrink-0 text-primary font-medium">~{d.pickupMin} min away · {d.pickupKm.toFixed(1)} km</span>}
                   </div>
                   <div className="flex items-center gap-2 text-dim"><span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-success/15"><span className="h-1.5 w-1.5 rounded-full bg-success" /></span>Drop-off: {d.order.delivery_address || "Uganda"}</div>
                   {d.customerPhone && (
-                    <div className="flex items-center gap-2 text-dim"><Phone className="h-3.5 w-3.5 shrink-0 text-[#f97316]" />
+                    <div className="flex items-center gap-2 text-dim"><Phone className="h-3.5 w-3.5 shrink-0 text-primary" />
                       <span className="min-w-0 flex-1 truncate">Customer: {d.order.customer_name || "Customer"} · {d.customerPhone}</span>
-                      <a href={`tel:${d.customerPhone.replace(/[^0-9]/g, "")}`} className="chip shrink-0 bg-[#f97316]/15 text-[#f97316]">Call</a>
+                      <a href={`tel:${d.customerPhone.replace(/[^0-9]/g, "")}`} className="chip shrink-0 bg-primary/15 text-primary">Call</a>
                     </div>
                   )}
                 </div>
                 <button type="button" onClick={() => acceptDelivery(d.order)}
                   disabled={acceptingId === d.order.id}
-                  className="mt-3 w-full btn bg-[#f97316] text-white hover:bg-[#ea580c] shadow-glow active:scale-[0.97]">
+                  className="mt-3 w-full btn bg-primary text-white hover:bg-primary-2 shadow-glow active:scale-[0.97]">
                   {acceptingId === d.order.id ? (
                     <><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> Verifying…</>
                   ) : (
@@ -817,19 +817,19 @@ export default function RiderDashboard() {
                   {(activeDelivery.customer_lat && activeDelivery.customer_lng) ? (
                     <a href={`https://www.google.com/maps/dir/?api=1&destination=${activeDelivery.customer_lat},${activeDelivery.customer_lng}`}
                       target="_blank" rel="noopener noreferrer"
-                      className="btn flex-1 bg-[#f97316]/15 text-[#f97316] !border-[#f97316]/30 hover:bg-[#f97316]/25">
+                      className="btn flex-1 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25">
                       <Navigation className="h-3 w-3 shrink-0" /> Navigate
                     </a>
                   ) : (
                     <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeDelivery.delivery_address || "Uganda")}`}
                       target="_blank" rel="noopener noreferrer"
-                      className="btn flex-1 bg-[#f97316]/15 text-[#f97316] !border-[#f97316]/30 hover:bg-[#f97316]/25">
+                      className="btn flex-1 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25">
                       <Navigation className="h-3 w-3 shrink-0" /> Navigate
                     </a>
                   )}
                   {activeDelivery?.status === "rider_assigned" ? (
                     <button type="button" onClick={pickupDelivery} disabled={deliveryBusy === activeDelivery?.id}
-                      className="btn flex-1 bg-[#f97316] text-white hover:bg-[#ea580c] shadow-glow disabled:opacity-60">
+                      className="btn flex-1 bg-primary text-white hover:bg-primary-2 shadow-glow disabled:opacity-60">
                       {deliveryBusy === activeDelivery?.id
                         ? <><span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white border-t-transparent" /> Confirming…</>
                         : <><Package className="h-3.5 w-3.5 shrink-0" /> Picked up</>}
@@ -940,7 +940,7 @@ export default function RiderDashboard() {
                     <p className="num text-[10px] text-dim">#{o.id.slice(-6)} · {o.customer_name || "Customer"}</p>
                   </div>
                   <div className="text-right shrink-0 ml-3">
-                    <div><Price amount={o.delivery_fee_ugx || 3000} className="num text-sm font-bold text-[#f97316]" /></div>
+                    <div><Price amount={o.delivery_fee_ugx || 3000} className="num text-sm font-bold text-primary" /></div>
                     <span className={`chip mt-1.5 ${
                       o.status === "rider_assigned" ? "bg-primary/15 text-primary" :
                       o.status === "delivering" ? "bg-go/15 text-go" :
@@ -993,12 +993,12 @@ export default function RiderDashboard() {
           {affiliations.invites.length > 0 ? (
             <div>
               <h3 className="flex items-center gap-2 text-sm font-semibold">
-                <Store className="h-4 w-4 text-[#f97316]" />
+                <Store className="h-4 w-4 text-primary" />
                 Store invites ({affiliations.invites.length})
               </h3>
               <div className="mt-2 space-y-3">
                 {affiliations.invites.map((inv) => (
-                  <div key={inv.merchant_id} className="rounded-2xl border border-[#f97316]/30 bg-[#f97316]/5 p-4 shadow-xs animate-spring-in">
+                  <div key={inv.merchant_id} className="rounded-2xl border border-primary/30 bg-primary/5 p-4 shadow-xs animate-spring-in">
                     <p className="text-sm font-semibold">{inv.merchant_name}</p>
                     <p className="text-[11px] text-muted">{inv.category || "Store"} wants you to join their delivery team.</p>
                     <p className="mt-1 text-[10px] text-dim">
@@ -1008,7 +1008,7 @@ export default function RiderDashboard() {
                     <div className="mt-3 flex gap-2">
                       <button type="button" disabled={affreplying === inv.merchant_id}
                         onClick={() => replyAffiliation(inv.merchant_id, "accept", inv.merchant_name)}
-                        className="btn flex-1 bg-[#f97316] text-white hover:bg-[#ea580c] shadow-glow">
+                        className="btn flex-1 bg-primary text-white hover:bg-primary-2 shadow-glow">
                         {affreplying === inv.merchant_id ? (<><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> Joining…</>) : (<><CheckCircle2 className="h-3.5 w-3.5" /> Accept</>)}
                       </button>
                       <button type="button" disabled={affreplying === inv.merchant_id}
@@ -1069,7 +1069,7 @@ export default function RiderDashboard() {
       {/* Earnings */}
       {tab === "earnings" && (
         <div className="px-4 pt-4 space-y-4">
-          <div className="rounded-2xl bg-gradient-to-br from-[#f97316] to-[#ea580c] p-5 text-white shadow-glow animate-spring-in">
+          <div className="rounded-2xl bg-gradient-to-br from-primary to-primary-2 p-5 text-white shadow-glow animate-spring-in">
             <p className="text-xs uppercase tracking-wider text-white/60">Total earnings</p>
             <p className="num mt-1 font-display text-3xl font-bold">{formatUgx(totalEarnings)}</p>
             <div className="mt-3 grid grid-cols-2 gap-3">
@@ -1106,13 +1106,13 @@ export default function RiderDashboard() {
         <div className="px-4 pt-4 space-y-3">
           <div className="tile shadow-xs p-4 animate-spring-in">
             <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-full bg-[#f97316]/15 ring-1 ring-[#f97316]/30">
-                <span className="text-lg font-bold text-[#f97316]">{riderName.charAt(0)}</span>
+              <div className="grid h-12 w-12 place-items-center rounded-full bg-primary/15 ring-1 ring-primary/30">
+                <span className="text-lg font-bold text-primary">{riderName.charAt(0)}</span>
               </div>
               <div>
                 <p className="font-semibold">{riderName}</p>
                 <p className="text-xs text-muted">{profile.email}</p>
-                <span className="chip mt-1 bg-[#f97316]/15 text-[#f97316]">
+                <span className="chip mt-1 bg-primary/15 text-primary">
                   <Truck className="h-2.5 w-2.5" /> {vehicleType}
                 </span>
                 {effectiveVerified === "approved" && (

@@ -42,7 +42,7 @@ const ROLE_CONFIG: Record<string, { label: string; icon: typeof Store; color: st
   rider: {
     label: "Rider",
     icon: Truck,
-    color: "text-[#f97316]",
+    color: "text-primary",
     links: [
       { href: "/rider", label: "Rider Dashboard", icon: Truck },
       { href: "/rider/earnings", label: "Earnings", icon: Wallet },

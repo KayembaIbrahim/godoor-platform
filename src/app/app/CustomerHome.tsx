@@ -202,8 +202,8 @@ export default function CustomerHome() {
               </span>
             </a>
             <Link href="/ride"
-              className="flex items-center gap-2.5 rounded-2xl border border-[#f97316]/30 bg-[#f97316]/10 px-3.5 py-3 transition hover:bg-[#f97316]/15">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#f97316] text-white">
+              className="flex items-center gap-2.5 rounded-2xl border border-primary/30 bg-primary/10 px-3.5 py-3 transition hover:bg-primary/15">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-white">
                 <Bike className="h-4.5 w-4.5" />
               </span>
               <span>

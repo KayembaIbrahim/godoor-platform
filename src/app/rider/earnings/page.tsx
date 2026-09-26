@@ -23,7 +23,7 @@ export default function RiderEarningsPage() {
   return (<>
     <div className="mx-auto min-h-screen max-w-lg bg-bg pb-24 px-4">
       <h1 className="pt-4 font-display text-xl font-bold">Earnings</h1>
-      <div className="mt-4 rounded-2xl bg-gradient-to-br from-[#f97316] to-primary p-5 text-white">
+      <div className="mt-4 rounded-2xl bg-gradient-to-br from-primary to-primary p-5 text-white">
         <p className="text-xs uppercase tracking-wider text-white/60">Total earnings</p>
         <p className="mt-1 font-display text-3xl font-bold">{formatUgx(net)}</p>
         <p className="text-[10px] text-white/50 mt-1">After {100 - commission}% platform commission</p>

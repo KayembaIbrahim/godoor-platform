@@ -7,7 +7,7 @@ import { fetchUsers, type DBUser } from "@/lib/db";
 const ROLE_COLORS: Record<string, string> = {
   customer: "bg-go/15 text-go",
   business: "bg-primary/15 text-primary",
-  rider: "bg-[#f97316]/15 text-[#f97316]",
+  rider: "bg-primary/15 text-primary",
   admin: "bg-danger/15 text-danger",
 };
 

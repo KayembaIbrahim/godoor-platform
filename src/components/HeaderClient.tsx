@@ -126,10 +126,10 @@ export function HeaderClient() {
                 {RIDER_LINKS.map((link) => {
                   const active = pathname === link.href || pathname.startsWith(link.href);
                   return (
-                    <Link key={link.href} href={link.href} className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${active ? "bg-[#f97316]/10 text-[#f97316]" : "text-muted hover:bg-elevated hover:text-fg"}`}>{link.label}</Link>
+                    <Link key={link.href} href={link.href} className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${active ? "bg-primary/10 text-primary" : "text-muted hover:bg-elevated hover:text-fg"}`}>{link.label}</Link>
                   );
                 })}
-                <Link href={dashboardHref} className="rounded-full bg-[#f97316]/10 px-3 py-1.5 text-xs font-semibold text-[#f97316] hover:bg-[#f97316]/15 transition">Rider</Link>
+                <Link href={dashboardHref} className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition">Rider</Link>
               </>
             ) : null}
           </nav>
@@ -158,7 +158,7 @@ export function HeaderClient() {
               <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/10 transition">{link.label}</Link>
             ))}
             {isRider && RIDER_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-[#f97316] hover:bg-[#f97316]/10 transition">{link.label}</Link>
+              <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/10 transition">{link.label}</Link>
             ))}
             {!onboarded ? (
               <>
@@ -171,7 +171,7 @@ export function HeaderClient() {
             ) : isBusiness ? (
               <Link href={dashboardHref} onClick={() => setMenuOpen(false)} className="rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 transition">Business dashboard</Link>
             ) : isRider ? (
-              <Link href={dashboardHref} onClick={() => setMenuOpen(false)} className="rounded-xl bg-[#f97316] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#ea580c] transition">Rider dashboard</Link>
+              <Link href={dashboardHref} onClick={() => setMenuOpen(false)} className="rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-white hover:bg-primary-2 transition">Rider dashboard</Link>
             ) : null}
           </nav>
         </div>
