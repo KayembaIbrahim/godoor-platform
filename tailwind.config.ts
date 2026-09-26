@@ -19,6 +19,7 @@ const config: Config = {
         "primary-2": "var(--color-primary-2)",
         go: "var(--color-go)",
         "go-2": "var(--color-go-2)",
+        secondary: "var(--color-secondary)",
         muted: "var(--color-muted)",
         dim: "var(--color-dim)",
         border: "var(--color-border)",
