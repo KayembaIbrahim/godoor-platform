@@ -15,7 +15,6 @@ const NAV_LINKS = [
   { label: "Browse", href: "/app" },
   { label: "GoBoda", href: "/ride" },
   { label: "How it works", href: "/how-it-works" },
-  { label: "Tutorial", href: "/tutorial" },
   { label: "Help", href: "/help" },
 ];
 

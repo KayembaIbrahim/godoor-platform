@@ -59,7 +59,7 @@ export type SessionState = {
   completeOnboarding: () => void;
   reset: () => void;
   signUp: (email: string, password: string, name: string, role: Role) => Promise<AuthResult>;
-  signIn: (email: string, password: string, roleOverride?: Role) => Promise<AuthResult>;
+  signIn: (email: string, password: string) => Promise<AuthResult & { role?: Role }>;
   signOut: () => Promise<void>;
   loadAuthSession: () => Promise<void>;
 };
@@ -213,7 +213,7 @@ set({
         }
       },
 
-      signIn: async (email, password, roleOverride?: Role) => {
+      signIn: async (email, password) => {
         const sb = getSupabase();
         if (!sb) return { error: "Supabase not configured." };
 
@@ -222,7 +222,10 @@ set({
           if (error) return friendlyError(error.message);
 
           const user = data.user;
-          const resolvedRole = roleOverride || (user.user_metadata?.role as Role) || get().role || "customer";
+          // Role is server-authoritative. Taking it from client input or from the
+          // role persisted on this device would let any account sign in as any
+          // role, so only the verified account metadata is trusted here.
+          const resolvedRole = (user.user_metadata?.role as Role) || "customer";
           const prevUserId = get().supabaseUser?.id;
           const freshProfile = prevUserId && prevUserId !== user.id ? {} : { ...get().profile };
           clearAdminSessionIfSwitched(prevUserId, user.id);
@@ -240,7 +243,7 @@ set({
             onboarded: true,
           });
           requestNotificationPermission();
-          return {};
+          return { role: resolvedRole };
         } catch (e: any) {
           return friendlyError(e?.message || "Something went wrong. Try again.");
         }
