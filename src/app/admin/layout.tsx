@@ -82,7 +82,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           <div className="flex items-center gap-2">
             <AdminNotificationBell />
-            <ThemeToggle variant="header" />
+            <ThemeToggle />
             <Link href="/" className="text-xs text-muted hover:text-fg transition hidden sm:inline">← App</Link>
           </div>
         </div>

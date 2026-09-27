@@ -656,7 +656,7 @@ function OrderTracker({ order }: { order: DBOrder }) {
             <p className="text-[10px] text-success font-medium">Delivered</p>
           )}
         </div>
-        <ThemeToggle variant="header" />
+        <ThemeToggle />
       </div>
 
       {/* Grid: sticky live map (left) + live details (right) on desktop */}
@@ -943,7 +943,7 @@ function RoleOverview() {
         <h1 className="font-display text-lg font-semibold flex items-center gap-2">
           <Navigation className="h-5 w-5 text-go" /> Live Map
         </h1>
-        <ThemeToggle variant="header" />
+        <ThemeToggle />
       </header>
 
       <div className="md:grid md:grid-cols-[minmax(0,1fr)_360px] md:items-start md:gap-5">

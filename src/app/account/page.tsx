@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { MorseLogo } from "@/components/MorseLogo";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import Link from "next/link";
 
 const ROLE_CONFIG: Record<string, { label: string; icon: typeof Store; color: string; links: { href: string; label: string; icon: typeof Store }[] }> = {
