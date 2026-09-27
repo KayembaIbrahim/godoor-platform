@@ -36,16 +36,20 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 2) Hardcoded /admin references (nav links, redirects after login).
+  // 2) The admin API. This must be checked before the /admin branch below:
+  //    "/api/admin/..." does not start with "/admin", so a guard nested there
+  //    is unreachable and every route would fall through unprotected.
+  if (pathname.startsWith("/api/admin/")) {
+    const token = request.cookies.get(ADMIN_COOKIE)?.value || "";
+    return (await verifySession(token))
+      ? NextResponse.next()
+      : new NextResponse("Not Found", { status: 404 });
+  }
+
+  // 3) Hardcoded /admin references (nav links, redirects after login).
   if (pathname.startsWith("/admin")) {
     const token = request.cookies.get(ADMIN_COOKIE)?.value || "";
     const authorized = await verifySession(token);
-
-    if (pathname.startsWith("/api/admin/")) {
-      return authorized
-        ? NextResponse.next()
-        : new NextResponse("Not Found", { status: 404 });
-    }
 
     if (secret !== "admin") {
       // Canonical location is the secret path — send signed-in admins there.

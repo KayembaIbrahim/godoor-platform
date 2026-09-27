@@ -11,11 +11,27 @@ export const P2FA_TTL_MS = 5 * 60 * 1000; // password-step grant expires in 5 mi
 
 const enc = new TextEncoder();
 
-/** Shared HMAC secret for session signing + TOTP secret encryption. */
+/**
+ * Shared HMAC secret for session signing + TOTP secret encryption.
+ *
+ * ADMIN_SESSION_SECRET is the intended source. The Supabase service key is
+ * accepted as a fallback so existing deployments keep working, but the
+ * hardcoded literal is NOT safe outside local dev: it is committed to this
+ * repo, so anyone could forge a valid admin session cookie with it. Fail
+ * closed rather than silently signing admin sessions with a public constant.
+ */
 export function adminSessionSecret(): string {
   const env = process.env.ADMIN_SESSION_SECRET;
   if (env) return env;
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || "godoor-local-dev";
+  const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabase) return supabase;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "ADMIN_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY must be set in production — " +
+        "refusing to sign admin sessions with the public development fallback.",
+    );
+  }
+  return "godoor-local-dev";
 }
 
 async function hmacHex(data: string): Promise<string> {
