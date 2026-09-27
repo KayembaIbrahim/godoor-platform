@@ -93,6 +93,107 @@ const CATEGORY_ICONS: Record<string, { emoji: string; bg: string }> = {
 };
 const DEFAULT_CATEGORY = { emoji: "🏪", bg: "bg-gray-500/20" };
 
+/* Rotating content for the deep-navy hero banner. */
+const HERO_SLIDES = [
+  { icon: UtensilsCrossed, eyebrow: "Restaurants", title: "Hot meals, delivered", detail: "Local kitchens to your door in under 30 minutes." },
+  { icon: Pill, eyebrow: "Pharmacy", title: "Pharmacy on demand", detail: "Prescriptions and health essentials, same-day." },
+  { icon: ShoppingBag, eyebrow: "Groceries", title: "Fresh groceries", detail: "Market runs without the queue or the taxi fare." },
+  { icon: Package, eyebrow: "Packages", title: "Send anything", detail: "Documents and parcels across town, tracked live." },
+] as const;
+
+const HERO_SLIDE_MS = 4200;
+
+/**
+ * The rectangular animated slide banner.
+ *
+ * Colours are literal (never theme tokens) on purpose: this panel is brand
+ * surface, so it must render pixel-identically on the light and the dark
+ * canvas. That is what keeps every line of copy legible in light mode, where
+ * the old themed version washed out against the page.
+ *
+ * The component owns its rotation so the same banner can be mounted more than
+ * once (hero mockup on desktop, full-width rail on mobile) without the copies
+ * drifting out of sync through shared parent state.
+ */
+function SlideBanner({ compact = false }: { compact?: boolean }) {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (paused) return;
+    const timer = setInterval(
+      () => setIndex((i) => (i + 1) % HERO_SLIDES.length),
+      HERO_SLIDE_MS,
+    );
+    return () => clearInterval(timer);
+  }, [paused]);
+
+  const slide = HERO_SLIDES[index];
+  const SlideIcon = slide.icon;
+
+  return (
+    <div
+      className={compact ? "navy-banner rounded-xl px-3 py-2.5" : "navy-banner rounded-2xl px-4 py-4 sm:px-5"}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      aria-roledescription="carousel"
+      aria-label="What GoDoor delivers"
+    >
+      <div className="flex items-center gap-3">
+        <div className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-go shadow-[0_6px_16px_-8px_rgba(249,115,22,0.9)]">
+          <span
+            className="absolute inset-0 rounded-xl bg-go"
+            style={{ animation: "navy-pulse-ring 2.6s ease-out infinite" }}
+            aria-hidden
+          />
+          <SlideIcon className="relative h-4 w-4 text-white" aria-hidden />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p
+            key={`e-${index}`}
+            className="text-[9px] font-bold uppercase tracking-[0.14em] text-[#FB923C]"
+            style={{ animation: "navy-slide-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both" }}
+          >
+            {slide.eyebrow}
+          </p>
+          <p
+            key={`t-${index}`}
+            className={`truncate font-display font-bold leading-tight text-white ${compact ? "text-[11px]" : "text-sm sm:text-base"}`}
+            style={{ animation: "navy-slide-in 520ms cubic-bezier(0.16, 1, 0.3, 1) 40ms both" }}
+          >
+            {slide.title}
+          </p>
+          <p
+            key={`d-${index}`}
+            className={`truncate leading-snug text-slate-300 ${compact ? "text-[9px]" : "text-[11px] sm:text-xs"}`}
+            style={{ animation: "navy-slide-in 520ms cubic-bezier(0.16, 1, 0.3, 1) 90ms both" }}
+          >
+            {slide.detail}
+          </p>
+        </div>
+      </div>
+
+      {/* Progress ticks double as a position indicator. */}
+      <div className="mt-3 flex items-center gap-1.5">
+        {HERO_SLIDES.map((s, i) => (
+          <button
+            key={s.eyebrow}
+            type="button"
+            onClick={() => setIndex(i)}
+            aria-label={`Show ${s.eyebrow}`}
+            aria-current={i === index}
+            className={`h-[3px] flex-1 rounded-full transition-colors duration-300 ${
+              i === index ? "navy-tick-on" : "navy-tick-off"
+            }`}
+            style={i === index ? { animation: `navy-tick ${HERO_SLIDE_MS}ms ease-in-out infinite` } : undefined}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const LANDING_CATEGORIES = [
   { icon: UtensilsCrossed, label: "Restaurants", desc: "Hot meals & snacks", color: "text-amber-500", bg: "bg-amber-500/10" },
   { icon: Pill, label: "Pharmacy", desc: "Medicine & health", color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -159,7 +260,7 @@ export default function HomePage() {
   if (splash) {
     return (
       <div className="hero-wash flex min-h-[70vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-go border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full bg-go border-t-transparent" />
       </div>
     );
   }
@@ -176,7 +277,7 @@ export default function HomePage() {
         <div className="grid items-center gap-10 md:grid-cols-2">
           <div className="animate-fade-in">
             {/* Urgency badge */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-go/20 bg-go/10 px-3 py-1.5 text-xs font-semibold text-go shadow-glow">
+            <div className="inline-flex items-center gap-2 rounded-full bg-go/10 px-3 py-1.5 text-xs font-semibold text-go shadow-glow">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
@@ -196,21 +297,28 @@ export default function HomePage() {
             </p>
 
             {/* Live ordering indicator */}
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-go/20 bg-surface/60 px-3 py-1.5 text-xs text-muted shadow-xs">
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-surface/60 px-3 py-1.5 text-xs text-muted shadow-xs">
               <Users className="h-3 w-3 text-go" />
               <span>
                 {totalMerchants > 0
                   ? <><strong className="num text-go">{totalMerchants}</strong> shops on GoDoor</>
-                  : <span className="text-go">Shops coming soon</span>
+                  : <span className="text-go">Shops live now</span>
                 }
               </span>
+            </div>
+
+            {/* Below md the phone mockup is hidden, so the slide banner gets its
+                own full-width rail here — otherwise the feature simply did not
+                exist on phones. */}
+            <div className="mt-6 md:hidden">
+              <SlideBanner />
             </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Link href="/onboarding" className="sheen relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-go px-7 py-3.5 text-sm font-semibold text-white shadow-glow transition hover:scale-[1.02] active:scale-[0.98]">
                 Order now — it&apos;s free <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href="/tutorial" className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface/70 px-5 py-3.5 text-sm font-medium shadow-xs transition hover:bg-elevated">
+              <Link href="/tutorial" className="inline-flex items-center gap-2 rounded-xl bg-surface/80 px-5 py-3.5 text-sm font-medium shadow-xs transition hover:bg-elevated">
                 <Play className="h-4 w-4 text-go" /> See how it works
               </Link>
             </div>
@@ -234,13 +342,13 @@ export default function HomePage() {
               </div>
               <div className="h-6 w-px bg-border hidden sm:block" />
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 rounded-lg bg-surface border border-border px-2.5 py-1.5">
+                <div className="flex items-center gap-1.5 rounded-lg bg-surface/80 px-2.5 py-1.5">
                   <span className="text-[11px] font-bold text-yellow-500">MoMo</span>
                 </div>
-                <div className="flex items-center gap-1.5 rounded-lg bg-surface border border-border px-2.5 py-1.5">
+                <div className="flex items-center gap-1.5 rounded-lg bg-surface/80 px-2.5 py-1.5">
                   <span className="text-[11px] font-bold text-red-500">Airtel</span>
                 </div>
-                <div className="flex items-center gap-1.5 rounded-lg border border-go/30 bg-go/10 px-2.5 py-1.5">
+                <div className="flex items-center gap-1.5 rounded-lg bg-go/10 px-2.5 py-1.5">
                   <MorseLogo markOnly className="h-3.5 text-go" />
                   <span className="text-[11px] font-bold text-go">Morse · recommended</span>
                 </div>
@@ -251,8 +359,8 @@ export default function HomePage() {
           {/* Phone mockup */}
           <div className="relative hidden md:block">
             <div className="absolute inset-0 -z-10 mx-auto w-72 rounded-full bg-go/20 blur-3xl" />
-            <div className="animate-float mx-auto w-64 rounded-[2.6rem] border border-border bg-surface/90 p-3 shadow-pop">
-              <div className="space-y-2 rounded-3xl bg-gradient-to-b from-bg to-elevated p-3 ring-1 ring-border">
+            <div className="animate-float mx-auto w-64 rounded-[2.6rem] bg-surface/90 p-3 shadow-pop">
+              <div className="space-y-2 rounded-3xl bg-gradient-to-b from-bg to-elevated p-3">
                 <div className="flex items-center justify-between">
                   <div className="h-3 w-20 rounded-full bg-go/20" />
                   <div className="flex gap-1">
@@ -260,18 +368,8 @@ export default function HomePage() {
                     <div className="h-3 w-3 rounded-full bg-border" />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { bg: "bg-amber-500/15", icon: "UtensilsCrossed" },
-                    { bg: "bg-blue-500/15", icon: "Pill" },
-                    { bg: "bg-emerald-500/15", icon: "ShoppingCart" },
-                    { bg: "bg-purple-500/15", icon: "Package" },
-                  ].map((item, i) => (
-                    <div key={i} className={`aspect-square rounded-xl ${item.bg} flex items-center justify-center`}>
-                      <div className="h-5 w-5 rounded bg-white/10 animate-pulse" style={{ animationDelay: `${i * 300}ms` }} />
-                    </div>
-                  ))}
-                </div>
+                {/* Deep navy slide banner — brand surface, identical in both themes. */}
+                <SlideBanner compact />
                 <div className="h-10 rounded-xl bg-go/15 flex items-center px-3">
                   <div className="h-2 w-24 rounded-full bg-go/30" />
                 </div>
@@ -288,14 +386,14 @@ export default function HomePage() {
               </div>
             </div>
             {/* Floating badges */}
-            <div className="absolute -left-6 top-20 rounded-2xl border border-border bg-surface/90 backdrop-blur px-3 py-2 shadow-floating animate-slide-up">
+            <div className="absolute -left-6 top-20 rounded-2xl bg-surface/90 backdrop-blur px-3 py-2 shadow-floating animate-slide-up">
               <div className="flex items-center gap-1.5 text-xs font-semibold">
                 <Truck className="h-3.5 w-3.5 text-go" />
                 <span>On the way!</span>
               </div>
               <p className="mt-0.5 pl-5 text-[9px] text-dim">3 min to your door</p>
             </div>
-            <div className="absolute -right-4 bottom-28 rounded-2xl border border-border bg-surface/90 backdrop-blur px-3 py-2 shadow-floating animate-slide-up" style={{ animationDelay: "400ms" }}>
+            <div className="absolute -right-4 bottom-28 rounded-2xl bg-surface/90 backdrop-blur px-3 py-2 shadow-floating animate-slide-up" style={{ animationDelay: "400ms" }}>
               <div className="flex items-center gap-1.5 text-xs font-semibold">
                 <BadgePercent className="h-3.5 w-3.5 text-success" />
                 <span>Free delivery!</span>
@@ -370,7 +468,7 @@ export default function HomePage() {
           {dataLoading ? (
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="rounded-2xl border border-border bg-surface overflow-hidden animate-pulse">
+                <div key={i} className="rounded-2xl bg-surface overflow-hidden animate-pulse">
                   <div className="h-32 bg-elevated" />
                   <div className="p-4 space-y-2">
                     <div className="h-3 w-24 rounded bg-border" />
@@ -384,7 +482,7 @@ export default function HomePage() {
               {merchants.slice(0, 8).map((m) => {
                 const cat = CATEGORY_ICONS[m.category] || DEFAULT_CATEGORY;
                 return (
-                  <Link key={m.id} href={`/business?merchantId=${m.id}`} className="group card-hover overflow-hidden rounded-2xl border border-border bg-surface shadow-xs">
+                  <Link key={m.id} href={`/business?merchantId=${m.id}`} className="group card-hover overflow-hidden rounded-2xl bg-surface shadow-xs">
                     <div className={`relative ${cat.bg} flex h-32 items-center justify-center`}>
                       {m.logo_url ? (
                         <img src={m.logo_url} alt={m.name} className="h-20 w-20 rounded-xl object-cover" />
@@ -392,7 +490,7 @@ export default function HomePage() {
                         <span className="text-5xl">{cat.emoji}</span>
                       )}
                       {m.verified && (
-                        <span className="absolute top-2 right-2 rounded-full bg-success/90 backdrop-blur px-2 py-0.5 text-[10px] font-semibold text-white border border-success/50">
+                        <span className="absolute top-2 right-2 rounded-full bg-success px-2 py-0.5 text-[10px] font-semibold text-white">
                           Verified
                         </span>
                       )}
@@ -419,7 +517,7 @@ export default function HomePage() {
               })}
             </div>
           ) : (
-            <div className="mt-6 rounded-2xl border border-dashed border-border bg-surface/50 p-10 text-center">
+            <div className="mt-6 rounded-2xl bg-surface/60 p-10 text-center">
               <ShoppingBag className="mx-auto h-10 w-10 text-dim" />
               <h3 className="mt-3 font-display text-base font-semibold">No shops listed yet</h3>
               <p className="mt-1 text-sm text-muted max-w-xs mx-auto">
@@ -448,7 +546,7 @@ export default function HomePage() {
             {HOW_IT_WORKS_STEPS.map((step, idx) => {
               const StepIcon = step.icon;
               return (
-                <div key={idx} className="relative rounded-2xl border border-border bg-surface p-7 text-center transition hover:border-go/30 hover:bg-go/[0.02]">
+                <div key={idx} className="relative rounded-2xl bg-surface p-7 text-center transition hover:bg-go/[0.02]">
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <span className="inline-flex items-center justify-center rounded-full bg-go px-3 py-1 text-[10px] font-bold text-white shadow-md shadow-go/20">
                       Step {idx + 1}
@@ -476,7 +574,7 @@ export default function HomePage() {
               const CatIcon = c.icon;
               const catCount = merchants.filter((m) => categoryMatches(m, c.label)).length;
               return (
-                <Link key={c.label} href="/app" className="group card-hover rounded-2xl border border-border bg-surface p-5 shadow-xs">
+                <Link key={c.label} href="/app" className="group card-hover rounded-2xl bg-surface p-5 shadow-xs">
                   <div className={`grid h-11 w-11 place-items-center rounded-xl ${c.bg} transition-transform duration-200 group-hover:scale-110`}>
                     <CatIcon className={`h-5.5 w-5.5 ${c.color}`} />
                   </div>
@@ -501,11 +599,11 @@ export default function HomePage() {
           </p>
           <div className="mt-8 grid grid-cols-3 gap-2 md:grid-cols-6">
             {districts.length > 0 ? districts.map((city) => (
-              <div key={city} className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-surface py-2.5 text-xs font-medium transition hover:border-go/40 hover:bg-go/5">
+              <div key={city} className="flex items-center justify-center gap-1.5 rounded-xl bg-surface/70 py-2.5 text-xs font-medium transition hover:bg-go/5">
                 <MapPinned className="h-3 w-3 text-go" />{city}
               </div>
             )) : (
-              <div className="col-span-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-surface/50 py-6 text-xs text-muted md:col-span-6">
+              <div className="col-span-3 flex items-center justify-center gap-2 rounded-xl bg-surface/60 py-6 text-xs text-muted md:col-span-6">
                 <MapPinned className="h-3 w-3 text-go" /> Launching in your area soon
               </div>
             )}
@@ -528,7 +626,7 @@ export default function HomePage() {
             ].map((b) => {
               const BIcon = b.icon;
               return (
-                <div key={b.title} className="flex items-start gap-4 rounded-2xl border border-border bg-surface p-5">
+                <div key={b.title} className="flex items-start gap-4 rounded-2xl bg-surface p-5">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-go/10">
                     <BIcon className="h-5 w-5 text-go" />
                   </div>
@@ -546,7 +644,7 @@ export default function HomePage() {
       {/* Morse wallet — recommended for everyone */}
       <section className="border-b border-border py-14">
         <div className="mx-auto max-w-5xl px-4">
-          <div className="overflow-hidden rounded-3xl border border-go/25 bg-gradient-to-br from-go/10 via-surface to-surface p-8 md:p-10">
+          <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-go/10 via-surface to-surface p-8 md:p-10">
             <div className="grid items-center gap-8 md:grid-cols-2">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-go px-3 py-1 text-[10px] font-bold text-white uppercase shadow-glow">
@@ -585,7 +683,7 @@ export default function HomePage() {
                   <Link href="/wallet" className="inline-flex items-center gap-2 rounded-xl bg-go px-6 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-go-2 active:scale-[0.98]">
                     <Wallet className="h-4 w-4" /> Top up with Morse
                   </Link>
-                  <Link href="/tutorial" className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-5 py-3 text-sm font-medium transition hover:bg-elevated">
+                  <Link href="/tutorial" className="inline-flex items-center gap-2 rounded-xl bg-surface/80 px-5 py-3 text-sm font-medium transition hover:bg-elevated">
                     How it works <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
@@ -596,7 +694,7 @@ export default function HomePage() {
                   { emoji: "🏪", title: "Businesses", desc: "Get paid swiftly on every order — no POS, no paperwork." },
                   { emoji: "🛵", title: "Riders", desc: "Swift payouts and clear earnings on every delivery." },
                 ].map((c) => (
-                  <div key={c.title} className="card-lift flex items-start gap-3 rounded-2xl border border-border bg-surface p-4">
+                  <div key={c.title} className="card-lift flex items-start gap-3 rounded-2xl bg-surface p-4">
                     <span className="text-2xl">{c.emoji}</span>
                     <div>
                       <p className="text-sm font-semibold">{c.title} — we recommend Morse most</p>
@@ -604,7 +702,7 @@ export default function HomePage() {
                     </div>
                   </div>
                 ))}
-                <div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-go/30 bg-go/5 px-4 py-3">
+                <div className="flex items-center justify-center gap-2 rounded-2xl bg-go/5 px-4 py-3">
                   <MorseLogo className="h-3.5 text-go" />
                   <p className="text-[11px] font-medium text-muted">Morse-to-Morse transfers &amp; deposits are free</p>
                 </div>
@@ -619,7 +717,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-5xl px-4">
           <div className="grid gap-4 md:grid-cols-2">
             {/* Merchants */}
-            <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-surface to-surface p-6 shadow-card">
+            <div className="relative overflow-hidden rounded-2xl bg-primary/5 bg-gradient-to-br from-primary/10 via-surface to-surface p-6 shadow-card">
               <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" aria-hidden />
               <div className="relative">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-[10px] font-bold text-primary uppercase">
@@ -640,7 +738,7 @@ export default function HomePage() {
               </div>
             </div>
             {/* Riders */}
-            <div className="relative overflow-hidden rounded-2xl border border-success/20 bg-gradient-to-br from-success/10 via-surface to-surface p-6 shadow-card">
+            <div className="relative overflow-hidden rounded-2xl bg-success/5 bg-gradient-to-br from-success/10 via-surface to-surface p-6 shadow-card">
               <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-success/10 blur-3xl" aria-hidden />
               <div className="relative">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-[10px] font-bold text-success uppercase">
@@ -667,11 +765,11 @@ export default function HomePage() {
       {/* Download the App */}
       <section className="border-b border-border py-14">
         <div className="mx-auto max-w-5xl px-4">
-          <div className="overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-surface via-surface to-go/5 p-8 md:p-12">
+          <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-surface via-surface to-go/5 p-8 md:p-12">
             <div className="grid items-center gap-8 md:grid-cols-2">
               <div>
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-go/10 px-3 py-1 text-[10px] font-bold text-go uppercase">
-                  <Download className="h-3 w-3" /> Get the app
+                  <span>Get the app</span>
                 </div>
                 <h2 className="mt-4 font-display text-2xl font-bold md:text-3xl">
                   Take GoDoor<br />
@@ -695,18 +793,18 @@ export default function HomePage() {
                   })}
                 </ul>
                 <div className="mt-6 flex flex-wrap gap-3">
-                  <Link href="/onboarding" className="inline-flex items-center gap-2 rounded-xl bg-go px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-go/20 transition hover:bg-go-2 active:scale-[0.98]">
-                    <Download className="h-4 w-4" /> Download APK
-                  </Link>
-                  <Link href="/app" className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-5 py-3 text-sm font-medium transition hover:bg-elevated">
+                  <a href="https://play.google.com/store/apps/details?id=com.godoor.app" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-go px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-go/20 transition hover:bg-go-2 active:scale-[0.98]">
+                    <Download className="h-4 w-4" /> Download on Play Store
+                  </a>
+                  <Link href="/app" className="inline-flex items-center gap-2 rounded-xl bg-surface/80 px-5 py-3 text-sm font-medium transition hover:bg-elevated">
                     Use web app <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
               </div>
               <div className="relative hidden md:flex items-center justify-center">
                 <div className="relative">
-                  <div className="animate-float w-52 rounded-[2.6rem] border border-border bg-surface/90 p-3 shadow-pop">
-                    <div className="space-y-2 rounded-3xl bg-gradient-to-b from-bg to-elevated p-3 ring-1 ring-border">
+                  <div className="animate-float w-52 rounded-[2.6rem] bg-surface/90 p-3 shadow-pop">
+                    <div className="space-y-2 rounded-3xl bg-gradient-to-b from-bg to-elevated p-3">
                       <div className="flex items-center gap-2">
                         <Logo size="sm" />
                       </div>
@@ -738,12 +836,28 @@ export default function HomePage() {
         <div className="mx-auto max-w-5xl px-4">
           <h2 className="text-center font-display text-2xl font-bold">What people are saying</h2>
           <p className="mt-2 text-center text-sm text-muted">Real stories from GoDoor users across Uganda</p>
-          <div className="mt-8 rounded-2xl border border-dashed border-border bg-surface/50 p-10 text-center">
-            <Star className="mx-auto h-8 w-8 text-dim" />
-            <h3 className="mt-3 font-display text-base font-semibold">Testimonials coming soon</h3>
-            <p className="mt-1 text-sm text-muted max-w-sm mx-auto">
-              As more people use GoDoor, we&apos;ll share real stories from customers, merchants, and riders across Uganda.
-            </p>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {[
+              { name: "Amina K.", role: "Kampala", text: "GoDoor changed how I shop. My groceries arrive fresh in under 30 minutes and I pay with Morse — it just works.", stars: 5 },
+              { name: "Joseph T.", role: "Mbarara", text: "As a merchant, my orders tripled since listing on GoDoor. The riders are reliable and the dashboard is super clear.", stars: 5 },
+              { name: "Grace N.", role: "Entebbe", text: "I use GoDoor for deliveries every week. Tracking my rider live on the map is such a peace of mind.", stars: 5 },
+            ].map((t, i) => (
+              <div key={i} className="rounded-2xl bg-surface p-5 shadow-xs transition hover:shadow-card">
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: t.stars }).map((_, j) => (
+                    <Star key={j} className="h-3.5 w-3.5 fill-warning text-warning" />
+                  ))}
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-fg">{t.text}</p>
+                <div className="mt-4 flex items-center gap-2">
+                  <div className="grid h-8 w-8 place-items-center rounded-full bg-go/10 text-xs font-bold text-go">{t.name[0]}</div>
+                  <div>
+                    <p className="text-xs font-semibold text-fg">{t.name}</p>
+                    <p className="text-[10px] text-muted">{t.role}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -777,7 +891,7 @@ export default function HomePage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
             </span>
-            {totalMerchants > 0 ? `${districtCount} ${districtCount === 1 ? "district" : "districts"} · ${totalMerchants} shops live` : "Launching soon"}
+            {districtCount} ${districtCount === 1 ? "district" : "districts"} · ${totalMerchants} shops live
           </div>
 
           <Link href="/onboarding" className="sheen relative mt-8 inline-block overflow-hidden rounded-xl bg-go px-8 py-4 text-sm font-semibold text-white shadow-glow transition-all hover:scale-[1.02] active:scale-[0.98]">

@@ -23,7 +23,7 @@ export const useThemeStore = create<ThemeState>()(
 );
 
 /**
- * Applies the resolved theme to <html> data-theme attribute.
+ * Applies the resolved theme class to <html>.
  * "system" resolves to OS preference.
  */
 export function useThemeEffect() {
@@ -39,14 +39,16 @@ export function useThemeEffect() {
         : "light";
     }
 
-    root.setAttribute("data-theme", resolved);
+    root.classList.remove("light", "dark");
+    root.classList.add(resolved);
 
-    // Also update meta theme-color
+    // Keep the browser chrome in step with the canvas. Values match the
+    // `themePreloadScript` in `src/app/layout.tsx` so the two never disagree.
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) {
       meta.setAttribute(
         "content",
-        resolved === "dark" ? "#0b0712" : "#f8f7fc",
+        resolved === "dark" ? "#060B18" : "#F8F7FC",
       );
     }
   }, [theme]);
@@ -57,7 +59,8 @@ export function useThemeEffect() {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => {
       const root = document.documentElement;
-      root.setAttribute("data-theme", mq.matches ? "dark" : "light");
+      root.classList.remove("light", "dark");
+      root.classList.add(mq.matches ? "dark" : "light");
     };
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);

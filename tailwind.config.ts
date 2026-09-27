@@ -6,7 +6,7 @@ const config: Config = {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  darkMode: ["class", '[data-theme="dark"]'],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
@@ -25,6 +25,10 @@ const config: Config = {
         success: "var(--color-success)",
         warning: "var(--color-warning)",
         danger: "var(--color-danger)",
+        navy: "var(--color-navy)",
+        "navy-hover": "var(--color-navy-hover)",
+        "navy-deep": "var(--color-navy-deep)",
+        "navy-soft": "var(--color-navy-soft)",
       },
       fontFamily: {
         display: ["var(--font-display)", "system-ui", "sans-serif"],

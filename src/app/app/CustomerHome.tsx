@@ -92,7 +92,19 @@ export default function CustomerHome() {
     return () => { cancelled = true; };
   }, [effectiveLoc?.lat, effectiveLoc?.lng]);
 
-  const categories = useMemo(() => [...new Set(merchants.map((m) => m.category))], [merchants]);
+  const categories = useMemo(
+    () => [...new Set(merchants.map((m) => m.category).filter(Boolean))].sort(),
+    [merchants],
+  );
+
+  /** How many shops sit behind each category chip, so nobody taps a dead end. */
+  const catCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const m of merchants) {
+      if (m.category) counts[m.category] = (counts[m.category] || 0) + 1;
+    }
+    return counts;
+  }, [merchants]);
   const districts = useMemo(() => {
     const set = [...new Set(merchants.map((m) => m.district || m.area || "Uganda"))];
     return set.sort((a, b) => a.localeCompare(b));
@@ -152,6 +164,15 @@ export default function CustomerHome() {
     setDeliveryAddr(result);
   }, []);
 
+  const clearAll = useCallback(() => {
+    setQ("");
+    setCat("all");
+    setDistrict("auto");
+    setMinRating(0);
+    setFreeDeliveryOnly(false);
+    setVerifiedOnly(false);
+  }, []);
+
   return (
     <div className="mx-auto min-h-[70vh] max-w-lg bg-bg pb-24 md:max-w-3xl lg:max-w-6xl">
       <header className="relative z-20 border-b border-border bg-bg/90 backdrop-blur-xl">
@@ -160,7 +181,7 @@ export default function CustomerHome() {
           <button
             type="button"
             onClick={() => setAddressSearchOpen(true)}
-            className="flex w-full items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2.5 text-left shadow-xs transition hover:border-go/40 hover:bg-elevated hover:shadow-card"
+            className="flex w-full items-center gap-2 rounded-xl bg-surface px-3 py-2.5 text-left shadow-xs transition hover:bg-elevated hover:shadow-card"
           >
             <MapPin className="h-4 w-4 text-go shrink-0" />
             <div className="min-w-0 flex-1">
@@ -172,7 +193,7 @@ export default function CustomerHome() {
 
           {/* Active delivery banner */}
           {trackedDelivery && trackedDelivery.status !== "delivered" && (
-            <Link href="/tracking" className="flex items-center gap-2 rounded-xl border border-go/30 bg-go/10 px-3 py-2.5 shadow-xs transition hover:bg-go/15">
+            <Link href="/tracking" className="flex items-center gap-2 rounded-xl bg-go/10 px-3 py-2.5 shadow-xs transition hover:bg-go/15">
               <Truck className="h-4 w-4 text-go animate-pulse" />
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-go">Live delivery in progress</p>
@@ -182,17 +203,35 @@ export default function CustomerHome() {
             </Link>
           )}
 
-          {/* Search — tap to open full product search */}
-          <button type="button" onClick={() => setProductSearchOpen(true)}
-            className="flex w-full items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2.5 text-left shadow-xs transition hover:border-go/40 hover:bg-elevated hover:shadow-card">
-            <Search className="h-4 w-4 text-dim shrink-0" />
-            <span className="text-sm text-muted">Search food, shops, anything…</span>
-          </button>
+          {/* Search — filters the shop list as you type. Product-level search
+              stays one tap below, because people mean a shop 9 times out of 10. */}
+          <div className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2.5 shadow-xs transition focus-within:shadow-card">
+            <Search className="h-4 w-4 shrink-0 text-navy" />
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search shops, areas, food…"
+              aria-label="Search shops"
+              className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-muted"
+            />
+            {q ? (
+              <button type="button" onClick={() => setQ("")} aria-label="Clear search"
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-elevated text-muted transition hover:bg-navy hover:text-white">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button type="button" onClick={() => setProductSearchOpen(true)}
+                className="chip chip-nav shrink-0 bg-navy/10 text-navy transition hover:bg-navy hover:text-white dark:bg-navy-soft dark:text-slate-200">
+                All products
+              </button>
+            )}
+          </div>
 
           {/* Services — Food delivery + Boda ride (super-app grid seed) */}
           <div className="grid grid-cols-2 gap-2">
             <a href="#merchants"
-              className="flex items-center gap-2.5 rounded-2xl border border-go/30 bg-go/10 px-3.5 py-3 transition hover:bg-go/15">
+              className="flex items-center gap-2.5 rounded-2xl bg-go/10 px-3.5 py-3 transition hover:bg-go/15">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-go text-white">
                 <ShoppingBag className="h-4.5 w-4.5" />
               </span>
@@ -202,7 +241,7 @@ export default function CustomerHome() {
               </span>
             </a>
             <Link href="/ride"
-              className="flex items-center gap-2.5 rounded-2xl border border-primary/30 bg-primary/10 px-3.5 py-3 transition hover:bg-primary/15">
+              className="flex items-center gap-2.5 rounded-2xl bg-primary/10 px-3.5 py-3 transition hover:bg-primary/15">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-white">
                 <Bike className="h-4.5 w-4.5" />
               </span>
@@ -213,82 +252,145 @@ export default function CustomerHome() {
             </Link>
           </div>
 
-          {/* Sort + filter bar */}
+          {/* ── Catalogue nav ───────────────────────────────────────────
+              One row answers "how many, sorted how", one rail switches
+              category, and everything else lives behind a single Filter
+              button. Three stacked scroll rows became one. */}
           <div className="flex items-center gap-2">
-            <div className="flex flex-1 gap-1.5 overflow-x-auto pb-0.5">
-              {(["nearest", "rating"] as SortMode[]).map((s) => (
-                <button key={s} type="button" onClick={() => setSortMode(s)}
-                  className={`shrink-0 chip transition ${sortMode === s ? "bg-go text-white" : "bg-elevated text-muted hover:bg-surface"}`}>
-                  {s === "nearest" && <MapPin className="h-2.5 w-2.5" />}
-                  {s === "rating" && <Star className="h-2.5 w-2.5" />}
-                  {s === "nearest" ? "Nearby" : "Top rated"}
-                </button>
-              ))}
-            </div>
-            <button type="button" onClick={() => setShowFilters(!showFilters)}
-              className={`shrink-0 chip transition ${showFilters || activeFilterCount > 0 ? "bg-go text-white" : "bg-elevated text-muted hover:bg-surface"}`}>
-              <SlidersHorizontal className="h-2.5 w-2.5" />
-              Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+            <p className="min-w-0 flex-1 truncate text-xs text-muted">
+              {merchantsLoading ? (
+                "Finding shops near you…"
+              ) : (
+                <>
+                  <span className="num font-semibold text-fg">{list.length}</span>
+                  {list.length === 1 ? " shop" : " shops"}
+                  {activeDistrictName ? ` in ${activeDistrictName}` : " near you"}
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowFilters((v) => !v)}
+              aria-expanded={showFilters}
+              className={`chip chip-nav shrink-0 transition active:scale-95 ${
+                showFilters || activeFilterCount > 0
+                  ? "chip-on"
+                  : "bg-elevated text-muted hover:bg-surface"
+              }`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ""}
             </button>
           </div>
 
-          {/* Expanded filters */}
-          {showFilters && (
-            <div className="flex flex-wrap gap-1.5 animate-slide-down">
-              <button type="button" onClick={() => setMinRating(minRating === 4 ? 0 : 4)}
-                className={`flex items-center chip transition ${minRating === 4 ? "bg-warning/20 text-warning" : "bg-elevated text-muted"}`}>
-                <Star className="h-2.5 w-2.5" /> 4+ stars
-              </button>
-              <button type="button" onClick={() => setFreeDeliveryOnly(!freeDeliveryOnly)}
-                className={`flex items-center chip transition ${freeDeliveryOnly ? "bg-success/20 text-success" : "bg-elevated text-muted"}`}>
-                Free delivery
-              </button>
-              <button type="button" onClick={() => setVerifiedOnly(!verifiedOnly)}
-                className={`flex items-center chip transition ${verifiedOnly ? "bg-primary/20 text-primary" : "bg-elevated text-muted"}`}>
-                <BadgeCheck className="h-2.5 w-2.5" /> Verified
-              </button>
-            </div>
-          )}
-
-          {/* Category chips */}
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-            <button type="button" onClick={() => setCat("all")}
-              className={`shrink-0 chip font-medium transition ${cat === "all" ? "bg-go text-white shadow-xs" : "bg-elevated text-muted hover:bg-surface"}`}>All</button>
-            {categories.map((c) => {
-              const CatIcon = getCategoryIcon(c);
+          {/* Category rail — the main way people shop. Counts on every chip so
+              an empty category is obvious before it is tapped. */}
+          <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-1 rail-fade">
+            {[{ key: "all", label: "All", icon: null as any }, ...categories.map((c) => ({ key: c, label: c, icon: getCategoryIcon(c) }))].map((c) => {
+              const on = cat === c.key;
+              const Icon = c.icon;
+              const count = c.key === "all" ? merchants.length : catCounts[c.key] || 0;
               return (
-                <button key={c} type="button" onClick={() => setCat(c)}
-                  className={`shrink-0 flex items-center gap-1 chip transition ${cat === c ? "bg-go text-white shadow-xs" : "bg-elevated text-muted hover:bg-surface"}`}>
-                  {CatIcon ? <CatIcon className="h-3.5 w-3.5" /> : <ShoppingBag className="h-3.5 w-3.5" />}
-                  {c}
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => setCat(c.key)}
+                  aria-pressed={on}
+                  disabled={c.key !== "all" && count === 0}
+                  className={`chip chip-nav shrink-0 snap-start transition active:scale-95 ${
+                    on
+                      ? "chip-on"
+                      : count === 0
+                        ? "bg-elevated/60 text-dim opacity-60"
+                        : "bg-elevated text-muted hover:bg-surface hover:text-fg"
+                  }`}
+                >
+                  {Icon ? <Icon className="h-3.5 w-3.5" /> : <ShoppingBag className="h-3.5 w-3.5" />}
+                  {c.label}
+                  <span className={`num text-[10px] ${on ? "text-white/70" : "text-dim"}`}>{count}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* District chips */}
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5 border-t border-border pt-2">
-            <button type="button" onClick={() => setDistrict(gpsDistrict || "auto")}
-              className={`shrink-0 flex items-center gap-1 chip transition ${activeDistrictName === gpsDistrict && district !== "all" ? "bg-surface text-go ring-1 ring-go/40 shadow-xs" : "bg-elevated text-muted hover:bg-surface"}`}>
-              <MapPin className="h-3 w-3 text-go" />{gpsDistrict || (locStatus === "locating" ? "Detecting…" : "Your area")}
-            </button>
-            <button type="button" onClick={() => setDistrict("all")}
-              className={`shrink-0 chip transition ${district === "all" ? "bg-surface text-go ring-1 ring-go/40 shadow-xs" : "bg-elevated text-muted hover:bg-surface"}`}>
-              All Uganda
-            </button>
-            {districts.filter((d) => d !== gpsDistrict).map((d) => (
-              <button key={d} type="button" onClick={() => setDistrict(d)}
-                className={`shrink-0 chip transition ${activeDistrictName === d ? "bg-surface text-go ring-1 ring-go/40 shadow-xs" : "bg-elevated text-muted hover:bg-surface"}`}>
-                {d}
-              </button>
-            ))}
-          </div>
+          {/* Filter sheet — grouped, with a live "Show N shops" commit. */}
+          {showFilters && (
+            <div className="animate-slide-down space-y-4 rounded-2xl bg-surface p-3.5 shadow-card">
+              <div>
+                <p className="navy-label">Sort by</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(["nearest", "rating"] as SortMode[]).map((s) => (
+                    <button key={s} type="button" onClick={() => setSortMode(s)}
+                      className={`chip chip-nav transition active:scale-95 ${sortMode === s ? "chip-on" : "bg-elevated text-muted hover:bg-surface"}`}>
+                      {s === "nearest" ? <MapPin className="h-3.5 w-3.5" /> : <Star className="h-3.5 w-3.5" />}
+                      {s === "nearest" ? "Nearest first" : "Top rated"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="navy-label">Shop quality</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button type="button" onClick={() => setMinRating(minRating === 4 ? 0 : 4)}
+                    className={`chip chip-nav transition active:scale-95 ${minRating === 4 ? "chip-on" : "bg-elevated text-muted hover:bg-surface"}`}>
+                    <Star className="h-3.5 w-3.5" /> 4 stars &amp; up
+                  </button>
+                  <button type="button" onClick={() => setVerifiedOnly(!verifiedOnly)}
+                    className={`chip chip-nav transition active:scale-95 ${verifiedOnly ? "chip-on" : "bg-elevated text-muted hover:bg-surface"}`}>
+                    <BadgeCheck className="h-3.5 w-3.5" /> Verified only
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="navy-label">Delivery</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button type="button" onClick={() => setFreeDeliveryOnly(!freeDeliveryOnly)}
+                    className={`chip chip-nav transition active:scale-95 ${freeDeliveryOnly ? "chip-on" : "bg-elevated text-muted hover:bg-surface"}`}>
+                    <Truck className="h-3.5 w-3.5" /> Free delivery
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="navy-label">Area</p>
+                <div className="scrollbar-hide -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+                  <button type="button" onClick={() => setDistrict(gpsDistrict || "auto")}
+                    className={`chip chip-nav shrink-0 transition active:scale-95 ${activeDistrictName === gpsDistrict && district !== "all" ? "chip-on" : "bg-elevated text-muted hover:bg-surface"}`}>
+                    <MapPin className="h-3.5 w-3.5" />{gpsDistrict || (locStatus === "locating" ? "Detecting…" : "Your area")}
+                  </button>
+                  <button type="button" onClick={() => setDistrict("all")}
+                    className={`chip chip-nav shrink-0 transition active:scale-95 ${district === "all" ? "chip-on" : "bg-elevated text-muted hover:bg-surface"}`}>
+                    All Uganda
+                  </button>
+                  {districts.filter((d) => d !== gpsDistrict).map((d) => (
+                    <button key={d} type="button" onClick={() => setDistrict(d)}
+                      className={`chip chip-nav shrink-0 transition active:scale-95 ${activeDistrictName === d ? "chip-on" : "bg-elevated text-muted hover:bg-surface"}`}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 border-t border-border pt-3">
+                <button type="button" onClick={clearAll}
+                  className="chip chip-nav shrink-0 bg-elevated text-muted transition hover:bg-surface hover:text-fg active:scale-95">
+                  Clear all
+                </button>
+                <button type="button" onClick={() => setShowFilters(false)}
+                  className="chip chip-nav flex-1 justify-center bg-navy text-white transition hover:bg-navy-hover active:scale-[0.98]">
+                  Show {list.length} {list.length === 1 ? "shop" : "shops"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
       {/* First-order incentive */}
       {!onboarded && (
-        <div className="mx-4 mt-3 rounded-2xl border border-go/30 bg-gradient-to-r from-go/10 to-go/5 p-4 shadow-xs">
+        <div className="mx-4 mt-3 rounded-2xl bg-gradient-to-r from-go/10 to-go/5 p-4 shadow-xs">
           <p className="text-sm font-semibold">Free delivery on your first order</p>
           <p className="text-xs text-muted">Sign up to order from shops near you</p>
         </div>
@@ -296,7 +398,7 @@ export default function CustomerHome() {
 
       {/* GONEW — free service fee for new customers */}
       {!onboarded && (
-        <Link href="/wallet" className="mx-4 mt-3 block rounded-2xl border border-go/40 bg-gradient-to-r from-go/15 via-primary/10 to-go/5 p-4 shadow-xs card-hover transition hover:border-go/60">
+        <Link href="/wallet" className="mx-4 mt-3 block rounded-2xl bg-gradient-to-r from-go/15 via-primary/10 to-go/5 p-4 shadow-xs card-hover transition hover:bg-go/10">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-fg num">Free 2,000 UGX service fee for new customers</p>
@@ -326,7 +428,7 @@ export default function CustomerHome() {
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               {list.slice(0, 4).map((m) => (
                 <Link key={m.id} href={`/app/merchant/${m.id}`}
-                  className="shrink-0 w-40 tile shadow-xs card-hover p-3 transition hover:border-go/30">
+                  className="shrink-0 w-40 tile shadow-xs card-hover p-3 transition hover:bg-go/5">
                   <div className="h-16 w-full rounded-lg bg-gradient-to-br from-go/10 to-primary/10 flex items-center justify-center overflow-hidden">
                     {m.logo_url ? (
                       <img src={m.logo_url} alt={m.name} className="h-full w-full object-cover" />
@@ -359,7 +461,7 @@ export default function CustomerHome() {
         {!merchantsLoading && list.map((m) => {
           const dist = effectiveLoc ? distanceKm(effectiveLoc, m) : null;
           return (
-            <Link key={m.id} href={`/app/merchant/${m.id}`} className="group block tile shadow-xs card-hover overflow-hidden animate-spring-in transition-all hover:border-go/40">
+            <Link key={m.id} href={`/app/merchant/${m.id}`} className="group block tile shadow-xs card-hover overflow-hidden animate-spring-in transition-all hover:bg-go/5">
               {/* Image area */}
               <div className="relative h-28 overflow-hidden bg-gradient-to-br from-go/5 to-primary/10">
                 {m.logo_url ? (
@@ -407,7 +509,7 @@ export default function CustomerHome() {
           );
         })}
         {list.length === 0 && !merchantsLoading && (
-          <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-8 text-center md:col-span-2 lg:col-span-3">
+          <div className="rounded-2xl bg-surface/60 p-8 text-center md:col-span-2 lg:col-span-3">
             <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-go/10">
               <ShoppingBag className="h-7 w-7 text-go" />
             </div>
@@ -420,7 +522,7 @@ export default function CustomerHome() {
                   : "GoDoor is growing. Set your delivery address to find nearby shops."}
             </p>
             {(q || cat !== "all" || activeDistrictName || activeFilterCount > 0) ? (
-              <button type="button" onClick={() => { setQ(""); setCat("all"); setDistrict("auto"); setMinRating(0); setFreeDeliveryOnly(false); setVerifiedOnly(false); }}
+              <button type="button" onClick={clearAll}
                 className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-go px-4 py-2.5 text-xs font-semibold text-white hover:bg-go-2 transition">
                 <Search className="h-3.5 w-3.5" /> Clear all filters
               </button>

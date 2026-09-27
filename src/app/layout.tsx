@@ -24,16 +24,48 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Pre-paint theme resolution.
+ *
+ * `useThemeEffect` can only run after hydration, so without this the server
+ * markup (`class="light"`) would paint first and dark-mode users would get a
+ * white flash on every page load. This reads the same persisted key zustand
+ * uses and applies the class before the browser paints any body content.
+ *
+ * Kept in sync with `src/lib/theme-store.ts` (storage key + light/dark tokens).
+ */
+const themePreloadScript = `
+(function () {
+  try {
+    var raw = localStorage.getItem("godoor-theme-v5-white");
+    var stored = raw ? JSON.parse(raw) : null;
+    var theme = (stored && stored.state && stored.state.theme) || "light";
+    var resolved = theme === "system"
+      ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+      : theme;
+    var root = document.documentElement;
+    root.classList.remove("light", "dark");
+    root.classList.add(resolved);
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", resolved === "dark" ? "#060B18" : "#F8F7FC");
+  } catch (e) {}
+})();
+`.trim();
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#faf7f2",
+  themeColor: "#F8F7FC",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="light">
+    // The script rewrites the class on <html>, so React must accept the DOM as-is.
+    <html lang="en" className="light" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themePreloadScript }} />
+      </head>
       <body className="font-sans antialiased">
         <ThemeEffect />
         <HeaderClient />

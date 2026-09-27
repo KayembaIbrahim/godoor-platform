@@ -25,7 +25,7 @@ export function CustomerNav() {
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-30 px-3 pb-3 safe-area-bottom pointer-events-none">
-      <div className="pointer-events-auto mx-auto flex max-w-lg items-center justify-around rounded-3xl border border-border bg-bg/85 px-2 py-2 shadow-floating backdrop-blur-2xl">
+      <div className="pointer-events-auto relative mx-auto flex max-w-lg items-center justify-around overflow-hidden rounded-3xl border border-navy/15 bg-navy-deep px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-floating backdrop-blur-2xl">
         {tabs.map((t) => {
           const Icon = t.icon;
           const isActive = active === t.href || (t.href === "/app" && active.startsWith("/app"));
@@ -35,19 +35,21 @@ export function CustomerNav() {
               href={t.href}
               className={cn(
                 "relative flex flex-col items-center gap-0.5 rounded-2xl px-3 py-1.5 transition-all duration-200 active:scale-90",
-                isActive ? "text-go" : "text-muted hover:text-fg"
+                isActive ? "text-white" : "text-slate-400 hover:text-slate-100"
               )}
             >
               <span
                 className={cn(
                   "absolute inset-0 rounded-2xl transition-all duration-200",
-                  isActive ? "bg-go/12 scale-100 opacity-100" : "scale-90 opacity-0"
+                  isActive
+                    ? "bg-navy scale-100 opacity-100 ring-1 ring-primary/40"
+                    : "scale-90 opacity-0"
                 )}
                 aria-hidden
               />
               <span className="relative">
                 <Icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "scale-110")} />
-                {isActive && <span className="absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-go" />}
+                {isActive && <span className="absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary" />}
               </span>
               <span className={cn("relative text-[10px] font-medium", isActive && "font-semibold")}>{t.label}</span>
             </Link>

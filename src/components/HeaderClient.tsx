@@ -7,6 +7,7 @@ import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { HeaderAuth } from "@/components/HeaderAuth";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useSession, roleHomePath } from "@/lib/session-store";
 import { useCart } from "@/lib/cart-store";
 
@@ -65,9 +66,9 @@ export function HeaderClient() {
 
   return (
     <header
-      className={`sticky top-0 z-40 transition-all duration-300 ${
-        scrolled ? "shadow-card" : "shadow-none"
-      } border-b bg-bg/80 backdrop-blur-xl ${scrolled ? "border-border" : "border-transparent"}`}
+      className={`nav-glass sticky top-0 z-40 border-b transition-all duration-300 ${
+        scrolled ? "nav-glass-raised border-border" : "border-transparent"
+      }`}
     >
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
         <div className="flex items-center gap-6">
@@ -87,9 +88,8 @@ export function HeaderClient() {
                     <Link
                       key={link.href}
                       href={link.href}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                        active ? "bg-go/10 text-go" : "text-muted hover:bg-elevated hover:text-fg"
-                      }`}
+                      aria-current={active ? "page" : undefined}
+                      className={`nav-pill ${active ? "nav-pill-active" : "nav-pill-idle"}`}
                     >
                       {link.label}
                     </Link>
@@ -97,16 +97,16 @@ export function HeaderClient() {
                 })}
                 {!onboarded && (
                   <>
-                    <Link href="/partner?role=business" className="rounded-full px-3 py-1.5 text-xs font-medium text-muted hover:bg-elevated hover:text-fg transition">
+                    <Link href="/partner?role=business" className="nav-pill nav-pill-idle">
                       For Business
                     </Link>
-                    <Link href="/partner?role=rider" className="rounded-full px-3 py-1.5 text-xs font-medium text-muted hover:bg-elevated hover:text-fg transition">
+                    <Link href="/partner?role=rider" className="nav-pill nav-pill-idle">
                       For Riders
                     </Link>
                   </>
                 )}
                 {onboarded && (
-                  <Link href={dashboardHref} className="rounded-full bg-go/10 px-3 py-1.5 text-xs font-semibold text-go hover:bg-go/15 transition">
+                  <Link href={dashboardHref} className="nav-pill nav-pill-cta active:scale-95">
                     Dashboard
                   </Link>
                 )}
@@ -116,7 +116,12 @@ export function HeaderClient() {
                 {BUSINESS_LINKS.map((link) => {
                   const active = pathname === link.href || pathname.startsWith(link.href);
                   return (
-                    <Link key={link.href} href={link.href} className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${active ? "bg-primary/10 text-primary" : "text-muted hover:bg-elevated hover:text-fg"}`}>{link.label}</Link>
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      aria-current={active ? "page" : undefined}
+                      className={`nav-pill ${active ? "nav-pill-active" : "nav-pill-idle"}`}
+                    >{link.label}</Link>
                   );
                 })}
                 <Link href={dashboardHref} className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition">Business</Link>
@@ -126,7 +131,12 @@ export function HeaderClient() {
                 {RIDER_LINKS.map((link) => {
                   const active = pathname === link.href || pathname.startsWith(link.href);
                   return (
-                    <Link key={link.href} href={link.href} className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${active ? "bg-primary/10 text-primary" : "text-muted hover:bg-elevated hover:text-fg"}`}>{link.label}</Link>
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      aria-current={active ? "page" : undefined}
+                      className={`nav-pill ${active ? "nav-pill-active" : "nav-pill-idle"}`}
+                    >{link.label}</Link>
                   );
                 })}
                 <Link href={dashboardHref} className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition">Rider</Link>
@@ -136,11 +146,12 @@ export function HeaderClient() {
         </div>
         <div className="flex items-center gap-2">
           <NotificationBell />
+          <ThemeToggle />
           <HeaderAuth />
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
-            className="grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-muted transition hover:bg-elevated hover:text-fg lg:hidden"
+            className="grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95 lg:hidden"
             aria-label={menuOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={menuOpen}
           >
@@ -149,7 +160,7 @@ export function HeaderClient() {
         </div>
       </div>
       {menuOpen && (
-        <div className="border-t border-border bg-surface/95 backdrop-blur-xl lg:hidden">
+        <div className="nav-glass border-t border-border lg:hidden">
           <nav className="mx-auto flex max-w-5xl flex-col gap-1 px-4 py-3" aria-label="Mobile">
             {isCustomer && NAV_LINKS.map((link) => (
               <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-fg hover:bg-elevated transition">{link.label}</Link>

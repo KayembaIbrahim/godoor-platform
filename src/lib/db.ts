@@ -1635,7 +1635,12 @@ export async function uploadVerificationDoc(
   file: File,
 ): Promise<VerificationDoc | null> {
   const sb = getSupabase();
-  if (!sb) return null;
+  if (!sb) {
+    throw new Error(
+      "Cannot upload verification documents: Supabase is not configured. " +
+        "Please ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set."
+    );
+  }
 
   try {
     // Upload file to Supabase Storage

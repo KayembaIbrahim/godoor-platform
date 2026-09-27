@@ -30,6 +30,8 @@ type Props = {
   compact?: boolean;
   fill?: boolean;
   userLocation?: LatLng | null;
+  /** Reported GPS fix radius (metres) for the viewer — drawn as a halo. */
+  userAccuracy?: number | null;
   merchantName?: string;
   customerName?: string;
   /** Actual road polyline (Mapbox/OSRM). When provided, replaces the straight-line display. */
@@ -41,7 +43,7 @@ type Props = {
 
 export function LiveTrackingMap({
   riderLoc, riderHeading, providerLoc, providerName, dropoffLoc, pickupLoc, showPickup = false, label, compact = false, fill = false,
-  userLocation, merchantName, customerName, roadRoute = null, roadDistanceKm = null, roadDurationMin = null,
+  userLocation, userAccuracy, merchantName, customerName, roadRoute = null, roadDistanceKm = null, roadDurationMin = null,
 }: Props) {
   const UG_DEFAULT: LatLng = { lat: 0.3163, lng: 32.5822 };
   const hasCoords = (p: LatLng | null | undefined) => !!p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9);
@@ -126,7 +128,7 @@ export function LiveTrackingMap({
     return (
       <div className="space-y-2">
         <div className="relative h-[38vh] min-h-[260px] w-full overflow-hidden rounded-2xl border border-border shadow-lg shadow-black/10">
-          <MapboxMapView center={center} zoom={14} userLocation={userLocation || undefined} height={400} route={route} fitBounds={fitBounds} markers={markers} fitPadding={{ top: 56, bottom: 56, left: 48, right: 48 }} />
+          <MapboxMapView center={center} zoom={14} userLocation={userLocation || undefined} userAccuracy={userAccuracy ?? null} height={400} route={route} fitBounds={fitBounds} markers={markers} fitPadding={{ top: 56, bottom: 56, left: 48, right: 48 }} />
           <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full border border-border bg-surface/85 px-3 py-1.5 shadow-lg backdrop-blur-md">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-60" />
@@ -153,6 +155,7 @@ export function LiveTrackingMap({
           center={center}
           zoom={14}
           userLocation={userLocation || undefined}
+          userAccuracy={userAccuracy ?? null}
           height={600}
           fillHeight={fill}
           route={route}

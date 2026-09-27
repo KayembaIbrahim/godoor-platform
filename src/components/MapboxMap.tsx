@@ -42,6 +42,9 @@ type Props = {
   fitBounds?: LatLng[];
   fitPadding?: Padding;
   userLocation?: LatLng | null;
+  /** Radius (metres) of the reported GPS fix — drawn as a halo around the
+      user dot so people can see how precise "you are here" really is. */
+  userAccuracy?: number | null;
 };
 
 /* ─── Branded GoDoor pin markers ──────────────────────────────
@@ -263,12 +266,13 @@ function lerpCoord(pts: LatLng[], d: number): LatLng {
 
 function MapboxMapInner({
   center, markers = [], onMapClick, zoom = 14, height = 300, fillHeight = false,
-  className, userLocation, onError, fitBounds, fitPadding: outerPadding, route,
+  className, userLocation, userAccuracy, onError, fitBounds, fitPadding: outerPadding, route,
 }: Props & { onError?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
   const userMarkerRef = useRef<any>(null);
+  const accuracyRef = useRef<any>(null);
   const dotMarkerRef = useRef<any>(null);
   const animFrameRef = useRef<number | null>(null);
   const userMovedRef = useRef(false);
@@ -590,6 +594,9 @@ function MapboxMapInner({
           }
         } else {
           const el = createMarkerElement(m);
+          // Shop pins are decoration; the rider and the drop-off point are the
+          // answer the user is looking for, so they always paint on top.
+          el.style.zIndex = m.isRider || m.isDestination ? "30" : "10";
           const marker = new mapboxgl.default.Marker({ element: el, anchor: "bottom" })
             .setLngLat([m.position.lng, m.position.lat])
             .addTo(map);
@@ -626,12 +633,85 @@ function MapboxMapInner({
         const dot = document.createElement("div");
         dot.style.cssText = "width:9px;height:9px;border-radius:50%;background:#fff;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)";
         el.appendChild(dot);
+        el.style.zIndex = "25";
         userMarkerRef.current = new mapboxgl.default.Marker({ element: el, anchor: "center" })
           .setLngLat([userLocation.lng, userLocation.lat])
           .addTo(map);
       }
     }).catch(() => {});
   }, [userLocation?.lat, userLocation?.lng, ready]); // eslint-disable-line
+
+  /* ── GPS accuracy halo ──
+     A circle at the reported fix radius, filled with the same orange as the
+     dot. A 6 m fix looks like a point; a 200 m fix looks like a wide disc —
+     which is exactly the truth the user needs before they trust the pin. */
+  useEffect(() => {
+    if (!mapRef.current || !ready || !userLocation) return;
+    const metres = Number(userAccuracy);
+    if (!Number.isFinite(metres) || metres <= 0) return;
+    // Keep the halo honest: below ~8 m it is invisible at street zoom anyway,
+    // and beyond 1.5 km it would blanket the whole view.
+    if (metres < 8 || metres > 1500) return;
+
+    import("mapbox-gl").then((mapboxgl) => {
+      const map = mapRef.current;
+      if (!map) return;
+      const circle: [number, number][] = [];  // GeoJSON positions are [lng, lat]
+      const steps = 64;
+      for (let i = 0; i <= steps; i++) {
+        const bearing = (i / steps) * Math.PI * 2;
+        // Metres → degrees, corrected for latitude so the ring stays round.
+        const dLat = (metres * Math.cos(bearing)) / 111_320;
+        const dLng = (metres * Math.sin(bearing)) / (111_320 * Math.cos((userLocation.lat * Math.PI) / 180));
+        circle.push([userLocation.lng + dLng, userLocation.lat + dLat]);
+      }
+
+      const data = {
+        type: "FeatureCollection" as const,
+        features: [{
+          type: "Feature" as const,
+          properties: {},
+          geometry: { type: "Polygon" as const, coordinates: [circle] },
+        }],
+      };
+
+      if (accuracyRef.current) {
+        const src = map.getSource("gdr-accuracy") as any;
+        if (src?.setData) src.setData(data);
+      } else {
+        if (!map.getSource("gdr-accuracy")) {
+          map.addSource("gdr-accuracy", { type: "geojson", data });
+        }
+        if (!map.getLayer("gdr-accuracy-fill")) {
+          map.addLayer({
+            id: "gdr-accuracy-fill",
+            type: "fill",
+            source: "gdr-accuracy",
+            paint: { "fill-color": "#F97316", "fill-opacity": 0.14 },
+          });
+        }
+        if (!map.getLayer("gdr-accuracy-line")) {
+          map.addLayer({
+            id: "gdr-accuracy-line",
+            type: "line",
+            source: "gdr-accuracy",
+            paint: { "line-color": "#F97316", "line-width": 1.5, "line-opacity": 0.5 },
+          });
+        }
+        accuracyRef.current = map.getSource("gdr-accuracy");
+      }
+    }).catch(() => {});
+  }, [userLocation?.lat, userLocation?.lng, userAccuracy, ready]); // eslint-disable-line
+
+  /* ── Recentre on the user ──
+     Panning is never punished: the map keeps the manual view, and one tap
+     puts the pin back in the middle at a street-level zoom. */
+  const recentre = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !userLocation) return;
+    markUserMoved();
+    map.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: 16, pitch: 0, bearing: 0, duration: 700 });
+  }, [userLocation?.lat, userLocation?.lng, markUserMoved]); // eslint-disable-line
 
   if (!MAPBOX_TOKEN) {
     return (
@@ -652,7 +732,7 @@ function MapboxMapInner({
           color: #1a1128 !important;
           border: 1px solid rgba(0,0,0,0.06) !important;
         }
-        [data-theme="dark"] .go-door-popup .mapboxgl-popup-content {
+        .dark .go-door-popup .mapboxgl-popup-content {
           background: #14101c !important;
           color: #f7f4fb !important;
           border: 1px solid rgba(255,255,255,0.08) !important;
@@ -661,7 +741,7 @@ function MapboxMapInner({
           border-top-color: #ffffff !important;
           border-bottom-color: #ffffff !important;
         }
-        [data-theme="dark"] .go-door-popup .mapboxgl-popup-tip {
+        .dark .go-door-popup .mapboxgl-popup-tip {
           border-top-color: #14101c !important;
           border-bottom-color: #14101c !important;
         }
@@ -670,6 +750,16 @@ function MapboxMapInner({
         <div ref={containerRef} style={{ height: boxH, width: "100%" }} className={className} />
         {ready && (
           <div style={{ position: "absolute", right: 10, bottom: 18, zIndex: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+            {userLocation && (
+              <button type="button" onClick={recentre} aria-label="Centre on my location" title="Centre on my location"
+                style={{ width: 38, height: 38, borderRadius: 12, cursor: "pointer", background: "var(--color-navy)", border: "1px solid var(--navy-hover)", boxShadow: "0 2px 10px rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", transition: "transform 0.1s ease" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3.2" />
+                  <circle cx="12" cy="12" r="7.5" strokeDasharray="3 3" />
+                  <path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" />
+                </svg>
+              </button>
+            )}
             <button type="button" onClick={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in"
               style={{ width: 38, height: 38, borderRadius: 12, cursor: "pointer", background: "var(--color-surface)", border: "1px solid var(--color-border)", boxShadow: "0 2px 10px rgba(0,0,0,0.25)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-fg)", transition: "transform 0.1s ease" }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>

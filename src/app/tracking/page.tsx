@@ -498,7 +498,7 @@ function OrderTracker({ order }: { order: DBOrder }) {
   // Baseline ETA captured when the rider first appears — used to detect delays honestly.
   const baselineEtaRef = useRef<number | null>(null);
   const { supabaseUser, role } = useSession();
-  const { coords: viewerLoc } = useGeolocation();
+  const { coords: viewerLoc, accuracy: viewerAccuracy } = useGeolocation();
 
   useEffect(() => { setStatus(order.status); }, [order.status]);
 
@@ -681,6 +681,7 @@ function OrderTracker({ order }: { order: DBOrder }) {
                   roadDistanceKm={roadRoute?.distanceKm ?? null}
                   roadDurationMin={roadRoute?.durationMin ?? null}
                   userLocation={viewerLoc}
+                  userAccuracy={viewerAccuracy ?? null}
                   label={liveRiderLoc
                     ? `${order.rider_name || "Rider"} is on the way`
                     : providerLoc
@@ -859,7 +860,7 @@ function OrderTracker({ order }: { order: DBOrder }) {
 
 function RoleOverview() {
   const { supabaseUser, role, profile } = useSession();
-  const { coords: viewerLoc } = useGeolocation();
+  const { coords: viewerLoc, accuracy: viewerAccuracy } = useGeolocation();
   const [orders, setOrders] = useState<DBOrder[]>([]);
   const [shop, setShop] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -960,6 +961,7 @@ function RoleOverview() {
             roadDistanceKm={overviewRoadRoute?.distanceKm ?? null}
             roadDurationMin={overviewRoadRoute?.durationMin ?? null}
             userLocation={viewerLoc}
+            userAccuracy={viewerAccuracy ?? null}
             merchantName={shop?.name}
             customerName={dropIsLiveGps ? "You (live GPS)" : orderWithLoc?.customer_name || "Delivery"}
             label={active.length ? `${active.length} active delivery${active.length > 1 ? "s" : ""}` : viewerLoc ? "You are here — live GPS" : "Live delivery map"}
