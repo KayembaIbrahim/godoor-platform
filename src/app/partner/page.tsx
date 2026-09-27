@@ -40,10 +40,14 @@ function PartnerBody() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when the server could not store the application. When present we show
+  // a pre-filled WhatsApp link so the applicant is never left with nothing.
+  const [fallback, setFallback] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   const submit = async () => {
     setError(null);
+    setFallback(null);
     if (!contactName.trim()) { setError("Tell us who to contact."); return; }
     if (!email.trim() && phone.trim().length < 9) { setError("We need a valid email or phone number."); return; }
     if (role === "business" && !businessName.trim()) { setError("Enter your business name."); return; }
@@ -65,10 +69,15 @@ function PartnerBody() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(data.error || "Could not send your application."); setBusy(false); return; }
+      if (!res.ok) {
+        setError(data.error || "Could not send your application.");
+        if (typeof data.fallback === "string") setFallback(data.fallback);
+        setBusy(false);
+        return;
+      }
       setDone(true);
     } catch {
-      setError("Network error. Try again.");
+      setError("Network error — check your connection and try again.");
     }
     setBusy(false);
   };
@@ -209,7 +218,21 @@ function PartnerBody() {
             </div>
           </div>
 
-          {error && <p className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger">{error}</p>}
+          {error && (
+            <div className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger">
+              <p>{error}</p>
+              {fallback && (
+                <a
+                  href={fallback}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-go px-3 py-2 text-xs font-semibold text-white transition hover:bg-go-2"
+                >
+                  Send it on WhatsApp instead
+                </a>
+              )}
+            </div>
+          )}
 
           <button type="button" onClick={submit} disabled={busy}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-go py-3.5 text-sm font-semibold text-white hover:bg-go-2 disabled:opacity-50 transition card-press">

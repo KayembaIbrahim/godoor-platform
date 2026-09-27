@@ -52,6 +52,28 @@ function clamp(s: unknown, max = 300): string {
 }
 
 /**
+ * Last-resort delivery path. If we cannot store the application we still must
+ * get it to the team, so we hand the applicant a pre-filled WhatsApp message
+ * instead of letting the request disappear.
+ */
+const SUPPORT_WA = "https://wa.me/256750685772";
+
+function whatsappFallback(a: {
+  role: string; contactName: string; phone: string; email: string;
+  businessName: string; area: string;
+}): string {
+  const summary = [
+    `GoDoor ${a.role === "rider" ? "Rider" : "Business"} application`,
+    `Name: ${a.contactName}`,
+    `Phone: ${a.phone || "not given"}`,
+    `Email: ${a.email || "not given"}`,
+    a.businessName ? `Business: ${a.businessName}` : "",
+    a.area ? `Area: ${a.area}` : "",
+  ].filter(Boolean).join("\n");
+  return `${SUPPORT_WA}?text=${encodeURIComponent(summary)}`;
+}
+
+/**
  * One-time password for newly approved riders. 10 chars, unambiguous
  * alphabet (no 0/O/1/l/I) so an admin can read it out over the phone.
  */
@@ -146,14 +168,40 @@ async function issueRiderCredentials(
   return { email, password, userId };
 }
 
-// Very light abuse guard (per-process, per-IP)
-const recent: Map<string, number[]> = new Map();
-function rateLimited(key: string): boolean {
+/**
+ * Abuse guard for a public, unauthenticated form.
+ *
+ * Only *stored* applications count. Two reasons:
+ *  1. A typo or an incomplete form must never cost someone their slot. The
+ *     previous guard counted every POST, so a few misfires locked you out.
+ *  2. Ugandan mobile carriers put thousands of subscribers behind a single
+ *     public IP (carrier-grade NAT), so a tight per-IP ceiling rejects real
+ *     applicants rather than abusers — and their request is lost with no trace.
+ *
+ * The ceiling is therefore deliberately high and the window long: a spam
+ * speed-bump, not a quota. Bot traffic is handled by the honeypot.
+ */
+const MAX_STORED_PER_IP = 60; // per hour, counted only after a successful insert
+const WINDOW_MS = 60 * 60 * 1000;
+const stored: Map<string, number[]> = new Map();
+
+function tooManyStored(key: string): boolean {
   const now = Date.now();
-  const hits = (recent.get(key) || []).filter((t) => now - t < 600_000);
-  if (hits.length >= 5) { recent.set(key, [...hits, now]); return true; }
-  recent.set(key, [...hits, now]);
+  const hits = (stored.get(key) || []).filter((t) => now - t < WINDOW_MS);
+  if (hits.length >= MAX_STORED_PER_IP) {
+    stored.set(key, hits);
+    return true;
+  }
+  // Drop emptied keys so the map cannot grow without bound on a long-lived instance.
+  if (hits.length) stored.set(key, hits);
+  else stored.delete(key);
   return false;
+}
+
+function recordStored(key: string): void {
+  const now = Date.now();
+  const hits = (stored.get(key) || []).filter((t) => now - t < WINDOW_MS);
+  stored.set(key, [...hits, now]);
 }
 
 export async function POST(req: NextRequest) {
@@ -164,10 +212,6 @@ export async function POST(req: NextRequest) {
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     req.headers.get("x-real-ip") ||
     "unknown";
-  if (rateLimited(ip)) {
-    return NextResponse.json({ error: "Too many applications. Try again later." }, { status: 429 });
-  }
-
   await ensureTable(sb);
 
   const body = await req.json().catch(() => ({}));
@@ -197,6 +241,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Enter your business name." }, { status: 400 });
   }
 
+  // Gate spam after validation (so a typo never costs a slot) but before the
+  // insert, and never drop the applicant silently — hand back a WhatsApp link.
+  if (tooManyStored(ip)) {
+    return NextResponse.json({
+      error:
+        "Our application form is getting a lot of traffic right now. Please send your application to us on WhatsApp so we do not lose it.",
+      fallback: whatsappFallback({ role, contactName, phone, email, businessName, area }),
+    }, { status: 429 });
+  }
+
   const { error } = await sb.from("partner_requests").insert({
     role,
     contact_name: contactName,
@@ -211,10 +265,20 @@ export async function POST(req: NextRequest) {
   });
 
   if (error) {
-    console.error("[partner-request] insert failed:", error.message);
-    return NextResponse.json({ error: "Something went wrong sending your application." }, { status: 500 });
+    // Never let an application vanish silently. Log loudly, tell the applicant
+    // exactly what happened, and hand back a pre-filled WhatsApp link so the
+    // team still receives the request even if the database is unreachable.
+    console.error("[partner-request] insert failed:", error.message, {
+      role, contactName, email, phone, businessName, area,
+    });
+    return NextResponse.json({
+      error:
+        "We could not save your application just now. Please send it to us on WhatsApp so we do not lose it.",
+      fallback: whatsappFallback({ role, contactName, phone, email, businessName, area }),
+    }, { status: 503 });
   }
 
+  recordStored(ip);
   return NextResponse.json({ ok: true });
 }
 
