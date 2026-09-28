@@ -117,7 +117,6 @@ export const useSession = create<SessionState>()(
             ? (freshUser?.user || sessionData?.session?.user)!
             : sessionData?.session?.user;
           if (user) {
-            const existingRole = get().role;
             const prevUserId = get().supabaseUser?.id;
             const freshProfile = prevUserId && prevUserId !== user.id
               ? {} // different account on this device → never leak another user's profile
@@ -150,7 +149,12 @@ export const useSession = create<SessionState>()(
                 morseTag: profileMorseTag,
                 mustChangePassword: meta.must_change_password === true,
               },
-              role: existingRole || (meta.role as Role) || "customer",
+              // The server is the only authority on role. The persisted value
+              // used to win here, which meant a stale role — left behind by the
+              // old login role-picker or by the pre-auth onboarding picker —
+              // permanently overrode the real one, so riders were dropped into
+              // the customer/business UI on every page load.
+              role: (meta.role as Role) || "customer",
               onboarded: true,
             });
           }

@@ -12,7 +12,7 @@ import { KAMPALA, type LatLng } from "@/lib/location";
 
 export default function CustomerOnboarding() {
   const router = useRouter();
-  const { profile, setProfile, completeOnboarding, setRole } = useSession();
+  const { profile, setProfile, completeOnboarding, setRole, role } = useSession();
   const [step, setStep] = useState(1);
   const [name, setName] = useState(profile.name ?? "");
   const [morseTag, setMorseTag] = useState(profile.morseTag ?? "");
@@ -34,7 +34,10 @@ export default function CustomerOnboarding() {
   const morseOk = /^[a-z0-9_]{3,32}$/i.test(morseTag.trim().replace(/^@/, ""));
 
   const finish = async () => {
-    setRole("customer");
+    // This wizard is only ever the customer path. Never let it demote an
+    // account that already holds another role — the server decides that, and
+    // loadAuthSession restores it on the next load regardless.
+    if (role === null || role === "customer") setRole("customer");
     setProfile({
       email: email.trim(),
       name: name.trim(),
