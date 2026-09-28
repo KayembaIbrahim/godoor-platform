@@ -90,6 +90,31 @@ The default provider is `demo`. Live payments must use a signed webhook integrat
 - **Hosting:** Vercel, with `godoor.site` as the production domain
 - **Mobile:** Capacitor Android shell that wraps the live GoDoor web app
 
+## Taking this to another AI system
+
+This repository is self-contained and is the intended way to hand GoDoor to a
+different coding agent. Clone it, then:
+
+```bash
+cp .env.example .env.local   # fill in the Supabase + admin values
+npm ci
+npm run dev                  # http://localhost:3000
+```
+
+`.env.example` documents every variable the code actually reads, grouped by
+purpose, with the server-only ones marked. Two notes for whoever picks this up:
+
+- **`AGENTS.md` is load-bearing.** It tells the agent to read the bundled Next.js
+  docs in `node_modules/next/dist/docs/` before writing code, because this
+  project's Next version has breaking changes versus older training data.
+- **`npm run lint` is `tsc --noEmit`, not ESLint.** Expect a full-project type
+  check to take several minutes.
+
+Context worth reading before changing anything: `ARCHITECTURE.md` for the shape
+of the system, `API_DOCUMENTATION.md` for the HTTP surface, and `SECURITY_AUDIT.md`
+for the rules the API layer is built on (server-computed totals, webhook-verified
+wallet credits, RLS-scoped customer data).
+
 ## Run locally
 
 ```bash
@@ -139,10 +164,28 @@ For public distribution, build and sign a release APK/AAB with a private keystor
 
 ## Brand
 
-- Keep the existing **GoDoor** logo and visual identity unchanged.
+Every brand asset is **generated from one source logo**, `assets/brand/godoor-logo-source.png`
+(the official artwork: navy `#011438` and orange `#FD5501` on a transparent background).
+
+```bash
+node scripts/build-brand-assets.mjs   # regenerate everything in public/brand/
+```
+
+Replace the source file and re-run that script to refresh the whole set — the light and dark
+lockups, the standalone mark, the PWA/app icons, the favicon, and the Open Graph card. **Do not
+hand-edit anything in `public/brand/`; the script overwrites it.**
+
+- `src/components/Logo.tsx` renders that artwork and swaps to the dark twin with Tailwind’s
+  `dark:` variants, so the logo is correct on both canvases from the first paint — no flash, no
+  client JS, and no hydration mismatch from reading the theme store during render.
+- The dark variant is not a second design. The logo is navy on transparency and would vanish on a
+  dark background, so the script derives the dark twin by lifting the navy to near-white and
+  leaving the orange untouched.
 - Orange represents speed, movement, and the platform’s delivery energy.
 - **ZentechX** remains the company attribution where already shown in the product.
 - Theme colors and branded surfaces are controlled centrally through the existing design tokens.
+  Those tokens (`--primary: #F97316`, `--navy: #0F172A`) are deliberately tuned to sit close to —
+  but not identical with — the logo’s exact orange and navy.
 
 ## Repository
 

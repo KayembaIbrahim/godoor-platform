@@ -39,11 +39,18 @@ type Props = {
   /** Road distance/time power the fare + ETA so billing counts time, not just distance. */
   roadDistanceKm?: number | null;
   roadDurationMin?: number | null;
+  /** The fee actually agreed at checkout. When present it is the only amount we show. */
+  quotedFeeUgx?: number | null;
+  /** True when roadDurationMin already includes live traffic, so it must not price a fare. */
+  trafficAware?: boolean;
+  /** Per-segment congestion (Mapbox 0-4) painted onto the route line. */
+  congestion?: number[] | null;
 };
 
 export function LiveTrackingMap({
   riderLoc, riderHeading, providerLoc, providerName, dropoffLoc, pickupLoc, showPickup = false, label, compact = false, fill = false,
   userLocation, userAccuracy, merchantName, customerName, roadRoute = null, roadDistanceKm = null, roadDurationMin = null,
+  quotedFeeUgx = null, trafficAware = false, congestion = null,
 }: Props) {
   const UG_DEFAULT: LatLng = { lat: 0.3163, lng: 32.5822 };
   const hasCoords = (p: LatLng | null | undefined) => !!p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9);
@@ -56,8 +63,15 @@ export function LiveTrackingMap({
   // Fare counts road distance + trip time with day/night minimums
   // (1,500 day · 2,000 from 7pm · 3,000 midnight) — never the old flat ~$1.
   const fareKm = roadDistanceKm != null && roadDistanceKm > 0 ? roadDistanceKm : dist;
-  const fareMin = roadDurationMin != null && roadDurationMin > 0 ? roadDurationMin : etaMin;
-  const fareUgx = fareKm != null && fareKm > 0 ? calcDeliveryFee(fareKm, 0, fareMin) : null;
+  // A price must not move with traffic. The agreed fee is fixed at checkout and
+  // always wins; without one we estimate on a traffic-neutral 25 km/h so the
+  // same trip never quotes two different amounts depending on the hour.
+  const fareMin = trafficAware
+    ? (fareKm != null ? (fareKm / 25) * 60 : etaMin)
+    : roadDurationMin != null && roadDurationMin > 0 ? roadDurationMin : etaMin;
+  const estFareUgx = fareKm != null && fareKm > 0 ? calcDeliveryFee(fareKm, 0, fareMin) : null;
+  const hasQuote = quotedFeeUgx != null && quotedFeeUgx > 0;
+  const fareUgx = hasQuote ? quotedFeeUgx : estFareUgx;
   const fareTier = ugandaFareTier();
 
   const center: LatLng = useMemo(() => {
@@ -128,7 +142,7 @@ export function LiveTrackingMap({
     return (
       <div className="space-y-2">
         <div className="relative h-[38vh] min-h-[260px] w-full overflow-hidden rounded-2xl border border-border shadow-lg shadow-black/10">
-          <MapboxMapView center={center} zoom={14} userLocation={userLocation || undefined} userAccuracy={userAccuracy ?? null} height={400} route={route} fitBounds={fitBounds} markers={markers} fitPadding={{ top: 56, bottom: 56, left: 48, right: 48 }} />
+          <MapboxMapView center={center} zoom={14} userLocation={userLocation || undefined} userAccuracy={userAccuracy ?? null} height={400} route={route} congestion={congestion} fitBounds={fitBounds} markers={markers} fitPadding={{ top: 56, bottom: 56, left: 48, right: 48 }} />
           <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full border border-border bg-surface/85 px-3 py-1.5 shadow-lg backdrop-blur-md">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-60" />
@@ -159,6 +173,7 @@ export function LiveTrackingMap({
           height={600}
           fillHeight={fill}
           route={route}
+          congestion={congestion}
           fitBounds={fitBounds}
           markers={markers}
           fitPadding={fitPad}
@@ -211,7 +226,10 @@ export function LiveTrackingMap({
             <div className="flex flex-col items-center gap-0.5 px-2">
               <p className="text-[9px] font-semibold uppercase tracking-wider text-dim">Fare</p>
               <p className="text-sm font-bold leading-none">{fareUgx != null ? formatUgx(fareUgx) : "—"}</p>
-              <p className="flex items-center gap-1 text-[9px] text-muted"><MapPin className="h-2.5 w-2.5 text-go" />{fareTier === "day" ? "day rate" : fareTier === "evening" ? "night rate · from 7pm" : "midnight rate"}</p>
+              <p className="flex items-center gap-1 text-[9px] text-muted">
+                {hasQuote ? <ShoppingBag className="h-2.5 w-2.5 text-go" /> : <MapPin className="h-2.5 w-2.5 text-go" />}
+                {hasQuote ? "agreed at checkout" : fareTier === "day" ? "day rate" : fareTier === "evening" ? "night rate · from 7pm" : "midnight rate"}
+              </p>
             </div>
           </div>
         </div>

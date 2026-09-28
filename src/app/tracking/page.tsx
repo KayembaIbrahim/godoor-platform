@@ -15,7 +15,7 @@ import { subscribeToRiderLocation, fetchRiderLocation, fetchProviderLocation, su
 import { useSession } from "@/lib/session-store";
 import { formatUgx } from "@/lib/utils";
 import { useGeolocation, distanceKm, formatDistance, type LatLng } from "@/lib/location";
-import { useRoadRoute } from "@/lib/routing";
+import { useRoadRoute, summarizeTraffic } from "@/lib/routing";
 import { useRatings } from "@/lib/customer-stores";
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -272,6 +272,15 @@ function WeakGpsBanner({ accuracy }: { accuracy: number }) {
 }
 
 // ── ETA Bar ────────────────────────────────────────────────────
+
+// Congestion chip mirrors the map's traffic ramp, so the card and the polyline
+// always agree on how jammed the road is.
+const TRAFFIC_CHIP: Record<number, string> = {
+  1: "mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-go",
+  2: "mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-warning",
+  3: "mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-danger",
+  4: "mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-danger",
+};
 
 function EtaBar({ eta, distanceKmVal }: { eta: number | null; distanceKmVal: number | null }) {
   if (eta === null || distanceKmVal === null || distanceKmVal <= 0) return null;
@@ -619,6 +628,7 @@ function OrderTracker({ order }: { order: DBOrder }) {
 
   // Actual road route (Mapbox → OSRM → straight-line) for pickup → dropoff.
   const { route: roadRoute } = useRoadRoute(pickupReady ? pickupLoc : null, dropoffLoc);
+  const traffic = summarizeTraffic(roadRoute);
   const roadCoords = roadRoute && roadRoute.coordinates.length >= 2 ? roadRoute.coordinates : null;
 
   const STATUS_STEPS = [
@@ -680,6 +690,9 @@ function OrderTracker({ order }: { order: DBOrder }) {
                   roadRoute={roadCoords}
                   roadDistanceKm={roadRoute?.distanceKm ?? null}
                   roadDurationMin={roadRoute?.durationMin ?? null}
+                  congestion={roadRoute?.congestion ?? null}
+                  trafficAware={!!roadRoute?.trafficAware}
+                  quotedFeeUgx={order.delivery_fee_ugx}
                   userLocation={viewerLoc}
                   userAccuracy={viewerAccuracy ?? null}
                   label={liveRiderLoc
@@ -741,6 +754,12 @@ function OrderTracker({ order }: { order: DBOrder }) {
               </p>
             </div>
           </div>
+          {traffic && (
+            <p className={TRAFFIC_CHIP[traffic.code]}>
+              <span className="h-1.5 w-1.5 rounded-full bg-current" />
+              {traffic.label} on this route
+            </p>
+          )}
           {roadRoute.steps.length > 0 && (
             <details className="mt-3 rounded-xl bg-elevated/50 px-3 py-2">
               <summary className="cursor-pointer text-xs font-medium text-muted">Turn-by-turn ({roadRoute.steps.length})</summary>
@@ -960,6 +979,8 @@ function RoleOverview() {
             roadRoute={overviewRoadCoords}
             roadDistanceKm={overviewRoadRoute?.distanceKm ?? null}
             roadDurationMin={overviewRoadRoute?.durationMin ?? null}
+            congestion={overviewRoadRoute?.congestion ?? null}
+            trafficAware={!!overviewRoadRoute?.trafficAware}
             userLocation={viewerLoc}
             userAccuracy={viewerAccuracy ?? null}
             merchantName={shop?.name}

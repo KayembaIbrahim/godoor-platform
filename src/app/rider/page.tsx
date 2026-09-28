@@ -12,7 +12,7 @@ import { useNotifications, orderSummary, requestNotificationPermission } from "@
 import { fetchOrders, updateOrder, fetchFeeConfig, updateRiderLocation, updateRiderStatus, getUserVerificationStatus, subscribeToAllOrders, apiAuthHeaders, type DBOrder, type FeeConfig, type RiderAffiliation, fetchMerchants, fetchRiderAffiliations, respondRiderAffiliation, fetchOpenRides, fetchDriverRides, rideAction, subscribeToOpenRides, type DBRide } from "@/lib/db";
 import { getSupabase } from "@/lib/supabase";
 import { useGeolocation, formatAccuracy, distanceKm, type LatLng } from "@/lib/location";
-import { useRoadRoute } from "@/lib/routing";
+import { useRoadRoute, summarizeTraffic } from "@/lib/routing";
 import { dispatchScore } from "@/lib/dispatch";
 import { formatUgx } from "@/lib/utils";
 import { Price } from "@/components/Price";
@@ -506,6 +506,7 @@ export default function RiderDashboard() {
       ? { lat: Number(activeDelivery.customer_lat), lng: Number(activeDelivery.customer_lng) }
       : null;
   const { route: riderRoadRoute } = useRoadRoute(merchantLoc, activeDropoff);
+  const riderTraffic = summarizeTraffic(riderRoadRoute);
 
   if (!onboarded || role !== "rider") {
     return (
@@ -884,6 +885,9 @@ export default function RiderDashboard() {
                     pickupLoc={merchantLoc}
                     showPickup={!!merchantLoc}
                     roadRoute={riderRoadRoute && riderRoadRoute.coordinates.length >= 2 ? riderRoadRoute.coordinates : null}
+                    congestion={riderRoadRoute?.congestion ?? null}
+                    trafficAware={!!riderRoadRoute?.trafficAware}
+                    quotedFeeUgx={activeDelivery.delivery_fee_ugx}
                     userLocation={coords}
                     label={activeDelivery.merchant_name || "Pickup"}
                     merchantName={activeDelivery.merchant_name || "Pickup"}
@@ -898,7 +902,9 @@ export default function RiderDashboard() {
                       </span>
                       <span className="num">~{Math.max(1, Math.round(riderRoadRoute.durationMin))} min drive</span>
                       <span className="capitalize text-dim">
-                        {riderRoadRoute.source === "mapbox" ? "live route" : riderRoadRoute.source === "osrm" ? "road route" : "direct"}
+                        {riderRoadRoute.source === "mapbox"
+                          ? riderTraffic && riderTraffic.code > 1 ? riderTraffic.label : "live route"
+                          : riderRoadRoute.source === "osrm" ? "road route" : "direct"}
                       </span>
                     </div>
                   )}

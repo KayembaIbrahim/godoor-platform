@@ -39,6 +39,9 @@ type Props = {
   fillHeight?: boolean;
   animatedRider?: LatLng;
   route?: LatLng[];
+  /** Per-segment congestion (Mapbox 0-4), length = route.length - 1. Paints the
+      route line by traffic level; ignored when absent or the wrong length. */
+  congestion?: number[] | null;
   fitBounds?: LatLng[];
   fitPadding?: Padding;
   userLocation?: LatLng | null;
@@ -56,16 +59,19 @@ type Props = {
 let pinUid = 0;
 function nextPinId(): string { pinUid += 1; return `p${pinUid}`; }
 
-/** The EXACT GoDoor logo door (from public/favicon.svg / Logo.tsx) — orange
-    frame, lighter inner panel, dark knob with an orange dot, and the open 3D
-    side panel — fitted into the pin-badge circle (scale 0.38, centred on the
-    badge). Used on the customer/delivery pin and default markers so the map
-    carries the real brand mark. */
+/** A vector stand-in for the GoDoor door mark, fitted into the pin-badge
+    circle (scale 0.38, centred on the badge). Used on the customer/delivery
+    pin and default markers.
+
+    This is a hand-built approximation, not the official artwork — Mapbox pins
+    render at roughly 28px where the raster mark in `public/brand` would go
+    soft, so the shapes are redrawn as vector. It follows the real brand
+    palette (`--primary` orange over the `#011438` logo navy). */
 function doorMark(): string {
   return `
     <rect x="7.82" y="3.66" width="5.7" height="9.88" rx="0.95" fill="var(--primary)"/>
     <rect x="8.39" y="4.23" width="4.56" height="8.74" rx="0.57" fill="var(--primary)"/>
-    <circle cx="12.38" cy="8.6" r="0.61" fill="#0b0712"/>
+    <circle cx="12.38" cy="8.6" r="0.61" fill="#011438"/>
     <circle cx="12.38" cy="8.6" r="0.3" fill="var(--primary)" opacity="0.4"/>
     <path d="M13.52 3.66L16.18 4.61V12.59L13.52 13.54V3.66Z" fill="#c13e10"/>
     <path d="M14.09 4.23L15.61 4.99V12.21L14.09 12.97V4.23Z" fill="#d94e18"/>
@@ -266,7 +272,7 @@ function lerpCoord(pts: LatLng[], d: number): LatLng {
 
 function MapboxMapInner({
   center, markers = [], onMapClick, zoom = 14, height = 300, fillHeight = false,
-  className, userLocation, userAccuracy, onError, fitBounds, fitPadding: outerPadding, route,
+  className, userLocation, userAccuracy, onError, fitBounds, fitPadding: outerPadding, route, congestion = null,
 }: Props & { onError?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -329,6 +335,10 @@ function MapboxMapInner({
     try {
       if (!map.getSource("gdr-route")) {
         map.addSource("gdr-route", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        // Arrows get their own copy of the plain LineString: the traffic-coloured
+        // line is split per segment, and spacing a symbol along 2-point features
+        // would leave most of the route bare.
+        map.addSource("gdr-route-arrows-src", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         map.addLayer({
           id: "gdr-route-line",
           type: "line",
@@ -336,7 +346,14 @@ function MapboxMapInner({
           layout: { "line-cap": "round", "line-join": "round" },
           paint: {
             "line-width": ["interpolate", ["linear"], ["zoom"], 11, 5, 16, 8.5],
-            "line-color": ["interpolate", ["linear"], ["line-progress"], 0, "#EA580C", 1, "#F97316"],
+            // Brand orange when the road is clear, warming to red as it jams.
+            // 0 is "no data", so it keeps the neutral brand colour rather than
+            // claiming a traffic level we do not have.
+            "line-color": [
+              "match", ["coalesce", ["get", "congestion"], 0],
+              0, "#F97316", 1, "#F97316", 2, "#F59E0B", 3, "#EF4444", 4, "#B91C1C",
+              "#F97316",
+            ],
             "line-opacity": 1,
           },
         });
@@ -357,7 +374,7 @@ function MapboxMapInner({
         map.addLayer({
           id: "gdr-route-arrows",
           type: "symbol",
-          source: "gdr-route",
+          source: "gdr-route-arrows-src",
           layout: {
             "symbol-placement": "line",
             "text-field": "▶",
@@ -375,16 +392,31 @@ function MapboxMapInner({
         });
       }
       if (pts.length >= 2) {
-        map.getSource("gdr-route").setData({ type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: pts.map((p) => [p.lng, p.lat]) } }] });
+        // With congestion we emit one 2-point feature per segment so each can be
+        // painted by its own traffic level; otherwise a single LineString.
+        const useCongestion = !!congestion && congestion.length >= pts.length - 1;
+        const features = useCongestion
+          ? pts.slice(0, -1).map((p, i) => ({
+              type: "Feature" as const,
+              properties: { congestion: congestion[i] ?? 0 },
+              geometry: { type: "LineString" as const, coordinates: [[p.lng, p.lat], [pts[i + 1].lng, pts[i + 1].lat]] },
+            }))
+          : [{ type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: pts.map((p) => [p.lng, p.lat]) } }];
+        map.getSource("gdr-route").setData({ type: "FeatureCollection", features });
+        map.getSource("gdr-route-arrows-src").setData({
+          type: "FeatureCollection",
+          features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: pts.map((p) => [p.lng, p.lat]) } }],
+        });
         try { map.moveLayer("gdr-route-glow"); } catch {}
         map.moveLayer("gdr-route-casing");
         map.moveLayer("gdr-route-line");
         try { map.moveLayer("gdr-route-arrows"); } catch {}
       } else {
         map.getSource("gdr-route").setData({ type: "FeatureCollection", features: [] });
+        map.getSource("gdr-route-arrows-src").setData({ type: "FeatureCollection", features: [] });
       }
     } catch {}
-  }, [ready, route]);
+  }, [ready, route, congestion]);
 
   /* ── Animated "delivery in motion" dot along the route (when no live rider pin) ── */
   useEffect(() => {

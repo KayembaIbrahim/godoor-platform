@@ -6,12 +6,50 @@ import { distanceKm } from "./location";
 
 export type RouteSource = "mapbox" | "osrm" | "straight";
 
+/** Mapbox congestion codes, worst last. 0 means "no data", not "clear". */
+const TRAFFIC_LABEL: Record<number, string> = {
+  1: "Light traffic",
+  2: "Moderate traffic",
+  3: "Heavy traffic",
+  4: "Severe traffic",
+};
+
+export type TrafficSummary = { code: number; label: string };
+
+/**
+ * Dominant congestion along a route, or null when there is no usable signal
+ * (no annotations, or the route is mostly "unknown"). Segments are weighted by
+ * share of the route, so one short jam does not paint a whole trip as severe.
+ */
+export function summarizeTraffic(route: RoadRoute | null | undefined): TrafficSummary | null {
+  const c = route?.congestion;
+  if (!c || !c.length) return null;
+  const counts = [0, 0, 0, 0, 0];
+  for (const v of c) if (v >= 0 && v <= 4) counts[v]++;
+  const total = c.length;
+  let best = 0;
+  for (let i = 1; i < counts.length; i++) if (counts[i] > counts[best]) best = i;
+  // Mostly-unknown data would otherwise read as "light traffic", which is a
+  // claim we cannot make — say nothing instead.
+  if (best === 0 || counts[best] / total < 0.25) return null;
+  return { code: best, label: TRAFFIC_LABEL[best] };
+}
+
 export type RoadRoute = {
   coordinates: LatLng[];
   distanceKm: number;
   durationMin: number;
   source: RouteSource;
   steps: string[];
+  /**
+   * Traffic level per leg segment (0 unknown, 1 low, 2 moderate, 3 heavy,
+   * 4 severe). Only returned by the mapbox/driving-traffic profile, and only
+   * when congestion is requested in `annotations`. Length is coordinates-1
+   * when present, otherwise undefined.
+   */
+  congestion?: number[];
+  /** True when the ETA came from time-dependent traffic rather than free-flow. */
+  trafficAware?: boolean;
 };
 
 type CacheEntry = { at: number; route: RoadRoute };
@@ -70,6 +108,51 @@ function straightLine(a: LatLng, b: LatLng): RoadRoute {
   };
 }
 
+type MapboxRoute = {
+  geometry?: { coordinates?: [number, number][] } | string;
+  distance?: number;
+  duration?: number;
+  legs?: {
+    steps?: { maneuver?: { instruction?: string } }[];
+    annotation?: { congestion?: number[] };
+  }[];
+};
+
+function parseMapboxRoute(json: { routes?: MapboxRoute[] }, trafficAware: boolean): RoadRoute | null {
+  const r = json.routes?.[0];
+  if (!r || !r.geometry) return null;
+  const coords = Array.isArray((r.geometry as { coordinates?: [number, number][] }).coordinates)
+    ? (r.geometry as { coordinates: [number, number][] }).coordinates
+        .map(([lng, lat]) => ({ lat, lng }))
+        .filter(valid)
+    : [];
+  if (coords.length < 2) return null;
+  const steps: string[] = [];
+  for (const leg of r.legs || []) {
+    for (const st of leg.steps || []) {
+      const ins = st.maneuver?.instruction;
+      if (ins) steps.push(ins);
+      if (steps.length >= 12) break;
+    }
+    if (steps.length >= 12) break;
+  }
+  const congestion: number[] = [];
+  for (const leg of r.legs || []) {
+    for (const c of leg.annotation?.congestion || []) congestion.push(c);
+  }
+  return {
+    coordinates: coords,
+    distanceKm: (r.distance || 0) / 1000,
+    durationMin: (r.duration || 0) / 60,
+    source: "mapbox",
+    steps,
+    // Free-flow responses carry no congestion array, so a successful fallback
+    // must not claim to be traffic-aware.
+    congestion: congestion.length ? congestion : undefined,
+    trafficAware: trafficAware || undefined,
+  };
+}
+
 async function viaMapbox(a: LatLng, b: LatLng, token: string, heading?: number | null, accuracy?: number | null): Promise<RoadRoute | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 12000);
@@ -78,39 +161,40 @@ async function viaMapbox(a: LatLng, b: LatLng, token: string, heading?: number |
     // fixes stay tight to the road. Bearings keep one-ways correct.
     const radius = accuracy != null ? Math.min(50, Math.max(5, Math.round(accuracy))) : 15;
     const bearings = heading != null && Number.isFinite(heading) ? `&bearings=${Math.round(heading)},45;` : "";
-    const url =
-      `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${a.lng.toFixed(6)},${a.lat.toFixed(6)};${b.lng.toFixed(6)},${b.lat.toFixed(6)}` +
-      `?access_token=${token}&geometries=geojson&overview=full&steps=true&language=en&annotations=duration,distance&radiuses=${radius};${radius}${bearings}`;
-    const res = await fetch(url, { signal: ctrl.signal });
-    if (!res.ok) return null;
-    const json = (await res.json()) as {
-      routes?: { geometry?: { coordinates?: [number, number][] } | string; distance?: number; duration?: number; legs?: { steps?: { maneuver?: { instruction?: string } }[] }[] }[];
-    };
-    const r = json.routes?.[0];
-    if (!r || !r.geometry) return null;
-    const coords = Array.isArray((r.geometry as { coordinates?: [number, number][] }).coordinates)
-      ? (r.geometry as { coordinates: [number, number][] }).coordinates
-          .map(([lng, lat]) => ({ lat, lng }))
-          .filter(valid)
-      : [];
-    if (coords.length < 2) return null;
-    const steps: string[] = [];
-    for (const leg of r.legs || []) {
-      for (const s of leg.steps || []) {
-        const ins = s.maneuver?.instruction;
-        if (ins) steps.push(ins);
-        if (steps.length >= 12) break;
+    // `depart_at` makes the ETA time-dependent — the Directions API then
+    // weights historical traffic for the moment of travel instead of assuming
+    // free-flow. Without it a 07:30 Kampala commute and a 14:00 lull return
+    // the same number, which is how ETAs drift badly in production.
+    // `approaches=unrestricted;curb` asks the router to arrive at the dropoff
+    // on the driving side of the road, so the rider stops where a vehicle can
+    // actually pull over instead of the far pavement.
+    const departAt = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+    const path =
+      `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${a.lng.toFixed(6)},${a.lat.toFixed(6)};${b.lng.toFixed(6)},${b.lat.toFixed(6)}`;
+    const params =
+      `?access_token=${token}&geometries=geojson&overview=full&steps=true&language=en` +
+      `&annotations=duration,distance,congestion&radiuses=${radius};${radius}${bearings}` +
+      `&approaches=unrestricted;curb`;
+
+    // Attempt 1 asks for live traffic. `depart_at` is validated against the
+    // clock we send, so a device with a badly wrong time gets a 422 instead of
+    // a route; attempt 2 drops it and still returns a usable free-flow ETA
+    // rather than falling through to OSRM.
+    for (const trafficAware of [true, false]) {
+      if (ctrl.signal.aborted) return null;
+      const url = path + params + (trafficAware ? `&depart_at=${departAt}` : "");
+      try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (!res.ok) {
+          if (trafficAware) continue;
+          return null;
+        }
+        return parseMapboxRoute((await res.json()) as { routes?: MapboxRoute[] }, trafficAware);
+      } catch {
+        if (trafficAware) continue;
+        return null;
       }
-      if (steps.length >= 12) break;
     }
-    return {
-      coordinates: coords,
-      distanceKm: (r.distance || 0) / 1000,
-      durationMin: (r.duration || 0) / 60,
-      source: "mapbox",
-      steps,
-    };
-  } catch {
     return null;
   } finally {
     clearTimeout(t);
