@@ -1,15 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Smartphone, Wallet, Truck, MapPin, ShieldCheck, CheckCircle2, Clock,
-  HeartHandshake, ChevronLeft, ChevronRight,
+  HeartHandshake,
 } from "lucide-react";
 
 /**
- * Single deep-navy sliding info bar.
- * All 8 slides live inside ONE rectangular navy container — content scrolls
- * horizontally inside it. No separate square tiles, no visible borders.
+ * Deep-navy "how it works / why GoDoor" banner.
+ *
+ * One slide is on screen at a time and it cross-fades in place, so the panel
+ * always fits its container. The previous version scrolled a strip of
+ * fixed-width slides sideways, which overflowed narrow phones and left the
+ * next slide half-peeking.
+ *
+ * There are deliberately no side arrows: the progress ticks under the copy are
+ * the navigation, and hovering pauses the rotation.
+ *
+ * The panel is `.navy-banner`, whose colours are literals rather than theme
+ * tokens, so the copy keeps its contrast on the light canvas. The ticks live
+ * *inside* the panel and use `.navy-tick-*`; when they sat outside it on a
+ * themed `bg-border` (#E2E8F0) they were effectively invisible in light mode.
  */
 
 type Slide = {
@@ -30,144 +41,77 @@ const SLIDES: Slide[] = [
   { kicker: "WHY GODOOR", icon: HeartHandshake, title: "Supporting locals", desc: "Your order keeps real Ugandan businesses growing." },
 ];
 
+const ROTATE_MS = 3500;
+
 export function AboutGoDoor() {
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
-  const scroller = useRef<HTMLDivElement>(null);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const total = SLIDES.length;
-
-  const goTo = useCallback((index: number) => {
-    setCurrent(((index % total) + total) % total);
-    const el = scroller.current;
-    if (el) {
-      const child = el.children[((index % total) + total) % total] as HTMLElement | undefined;
-      if (child) el.scrollTo({ left: child.offsetLeft, behavior: "smooth" });
-    }
-  }, [total]);
-
-  const next = useCallback(() => goTo(current + 1), [goTo, current]);
-  const prev = useCallback(() => goTo(current - 1), [goTo, current]);
 
   useEffect(() => {
     if (paused) return;
-    timer.current = setInterval(() => {
-      setCurrent((c) => {
-        const target = (c + 1) % total;
-        const el = scroller.current;
-        if (el) {
-          const child = el.children[target] as HTMLElement | undefined;
-          if (child) el.scrollTo({ left: child.offsetLeft, behavior: "smooth" });
-        }
-        return target;
-      });
-    }, 3500);
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-    };
+    const timer = setInterval(
+      () => setCurrent((c) => (c + 1) % total),
+      ROTATE_MS,
+    );
+    return () => clearInterval(timer);
   }, [paused, total]);
 
-  const onScroll = () => {
-    const el = scroller.current;
-    if (!el) return;
-    const children = Array.from(el.children) as HTMLElement[];
-    let closest = 0;
-    let best = Infinity;
-    children.forEach((child, i) => {
-      const dist = Math.abs(child.offsetLeft - el.scrollLeft);
-      if (dist < best) { best = dist; closest = i; }
-    });
-    setCurrent(closest);
-  };
-
-  // Move scroller to current index when goingTo is called via button
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const child = el.children[current] as HTMLElement | undefined;
-    if (child) el.scrollTo({ left: child.offsetLeft, behavior: "smooth" });
-  }, [current]);
+  const slide = SLIDES[current];
+  const Icon = slide.icon;
 
   return (
     <div
-      className="relative select-none overflow-hidden rounded-3xl"
+      className="navy-banner rounded-2xl px-4 py-5 sm:rounded-3xl sm:px-6 sm:py-7"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      aria-roledescription="carousel"
+      aria-label="How GoDoor works"
     >
-      {/* Deep navy single tile — all slides slide inside this one container */}
-      <div className="relative bg-[#0b0712] px-4 py-6 md:py-8">
-        {/* Subtle gradient accent at top */}
-        <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-go/80 via-primary/60 to-go/80" />
-
-        {/* Section label */}
-        <div className="mb-6 flex items-center gap-2">
-          <span className="inline-flex h-2 w-2 rounded-full bg-go" />
-          <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-go/80">
-            GoDoor
-          </span>
-        </div>
-
-        {/* Sliding content container */}
-        <div
-          ref={scroller}
-          onScroll={onScroll}
-          className="flex gap-6 overflow-x-auto snap-x snap-mandatory"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-        >
-          {SLIDES.map((s) => {
-            const Icon = s.icon;
-            return (
-              <div
-                key={s.title}
-                className="w-72 shrink-0 snap-start"
-              >
-                <div className="flex flex-col gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-go/50">
-                    {s.kicker}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-go/20 text-go transition-colors group-hover:bg-go/30">
-                      <Icon size={20} />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold leading-snug text-white">{s.title}</h3>
-                      <p className="mt-0.5 text-xs leading-snug text-white/50">{s.desc}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Left arrow */}
-        <button
-          onClick={prev}
-          aria-label="Previous"
-          className="absolute left-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-90"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        {/* Right arrow */}
-        <button
-          onClick={next}
-          aria-label="Next"
-          className="absolute right-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-90"
-        >
-          <ChevronRight size={18} />
-        </button>
+      <div className="mb-4 flex items-center gap-2">
+        <span className="inline-flex h-2 w-2 rounded-full bg-go" />
+        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-go/80">
+          GoDoor
+        </span>
       </div>
 
-      {/* Dots */}
-      <div className="mt-3 flex justify-center gap-1.5 px-4">
-        {SLIDES.map((_, i) => (
+      {/* The reserved height is sized for the longest copy at the narrowest
+          supported width, so the panel never resizes mid-rotation. */}
+      <div className="min-h-[6.75rem] sm:min-h-[5.5rem]">
+        <div
+          key={current}
+          className="flex items-start gap-3 sm:gap-4"
+          style={{ animation: "navy-rise 420ms cubic-bezier(0.16, 1, 0.3, 1) both" }}
+        >
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-go/20 text-go">
+            <Icon size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-go/70">
+              {slide.kicker}
+            </p>
+            <h3 className="mt-0.5 text-sm font-bold leading-snug text-white sm:text-[15px]">
+              {slide.title}
+            </h3>
+            <p className="mt-1 text-xs leading-relaxed text-white/70 sm:text-[13px]">
+              {slide.desc}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress ticks — the only navigation, inside the panel so they keep
+          their contrast on the light canvas. */}
+      <div className="mt-4 flex items-center gap-1.5">
+        {SLIDES.map((s, i) => (
           <button
-            key={i}
-            onClick={() => goTo(i)}
-            aria-label={`Slide ${i + 1}`}
-            className={`h-1.5 rounded-full transition-all duration-300 ${
-              i === current ? "w-5 bg-go" : "w-1.5 bg-border hover:bg-muted"
+            key={s.title}
+            type="button"
+            onClick={() => setCurrent(i)}
+            aria-label={s.title}
+            aria-current={i === current}
+            className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
+              i === current ? "navy-tick-on" : "navy-tick-off"
             }`}
           />
         ))}
