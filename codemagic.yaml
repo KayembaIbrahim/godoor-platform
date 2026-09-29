@@ -16,9 +16,6 @@ workflows:
     environment:
       node: 22
       java: 17
-      # Codemagic's Android images ship the SDK; this pins the API levels the
-      # project already targets (minSdk 24, compile/target 36).
-      android_api_level: 36
     scripts:
       - name: Install dependencies
         script: npm ci
