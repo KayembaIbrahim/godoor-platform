@@ -789,11 +789,18 @@ export default function HomePage() {
                     );
                   })}
                 </ul>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <a href="https://play.google.com/store/apps/details?id=com.godoor.app" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-go px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-go/20 transition hover:bg-go-2 active:scale-[0.98]">
-                    <Download className="h-4 w-4" /> Download on Play Store
-                  </a>
-                  <Link href="/app" className="inline-flex items-center gap-2 rounded-xl bg-surface/80 px-5 py-3 text-sm font-medium transition hover:bg-elevated">
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-muted">
+                    <Download className="h-4 w-4" />
+                    Google Play Store
+                    <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">Coming soon</span>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-muted">
+                    <Download className="h-4 w-4" />
+                    iOS Store
+                    <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">Coming soon</span>
+                  </div>
+                  <Link href="/app" className="inline-flex items-center gap-2 rounded-xl bg-go px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-go/20 transition hover:bg-go-2 active:scale-[0.98]">
                     Use web app <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
