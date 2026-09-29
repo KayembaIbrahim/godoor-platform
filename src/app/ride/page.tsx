@@ -6,7 +6,6 @@ import dynamic from "next/dynamic";
 import { ArrowLeft, MapPin, Navigation, Bike, Phone, X, Loader2, Clock, CheckCircle2 } from "lucide-react";
 import { AddressSearchModal } from "@/components/AddressSearchModal";
 import { useSession } from "@/lib/session-store";
-import { useFeeConfig } from "@/lib/use-fee-config";
 import { useGeolocation, distanceKm, type LatLng } from "@/lib/location";
 import { useRoadRoute } from "@/lib/routing";
 import { formatUgx } from "@/lib/utils";
@@ -19,6 +18,18 @@ const LiveTrackingMap = dynamic(() => import("@/components/LiveTrackingMap").the
 
 const BODA_BASE = 2000;
 const BODA_PER_KM = 1200;
+
+/** The service-fee rate actually applied to THIS ride, derived from the
+ *  stored amounts. A ride priced under an older config must keep showing that
+ *  rate, not today's global percentage. Returns null when there is no fee. */
+function appliedFeePct(ride: { total_ugx: number; service_fee_ugx: number } | null): string | null {
+  const fee = Number(ride?.service_fee_ugx ?? 0);
+  const total = Number(ride?.total_ugx ?? 0);
+  const base = total - fee;
+  if (!(base > 0) || !(fee > 0)) return null;
+  const pct = (fee / base) * 100;
+  return Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
+}
 
 function estimateFare(km: number | null): { fare: number; fee: number; total: number } {
   if (km === null || km <= 0) return { fare: 0, fee: 0, total: 0 };
@@ -34,8 +45,6 @@ type Addr = { place: string; lat: number; lng: number };
 const LIVE_RIDE_STATUSES: readonly string[] = ["requested", "accepted", "in_progress"];
 
 function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled: (id: string) => void }) {
-  const feeCfg = useFeeConfig();
-  const feePct = `${Number(feeCfg.service_fee_percent ?? 15)}%`;
   const [ride, setRide] = useState(initial);
   const [riderLoc, setRiderLoc] = useState<LatLng | null>(null);
   const [busy, setBusy] = useState(false);
@@ -103,7 +112,7 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
             <p className="text-sm font-bold">{statusLabel}</p>
             <p className="mt-0.5 text-xs text-muted">{ride.pickup_address || "Pickup"} → {ride.dropoff_address || "Dropoff"}</p>
             <p className="num mt-1 text-sm font-bold text-primary tabular-nums">
-              {formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">incl. {feePct} service fee</span>
+              {formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">{appliedFeePct(ride) ? `incl. ${appliedFeePct(ride)}% service fee` : ""}</span>
             </p>
           </div>
         </div>
@@ -136,7 +145,7 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
           <p className="mt-1 text-xs text-muted">Nearby boda riders have been notified.</p>
         )}
         <div className="mt-2 flex items-center justify-between">
-          <p className="text-sm font-bold text-primary tabular-nums">{formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">incl. {feePct} service fee</span></p>
+          <p className="text-sm font-bold text-primary tabular-nums">{formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">{appliedFeePct(ride) ? `incl. ${appliedFeePct(ride)}% service fee` : ""}</span></p>
           {["requested", "accepted"].includes(ride.status) && (
             <button type="button" onClick={cancel} disabled={busy}
               className="rounded-xl bg-danger/10 px-3 py-2 text-xs font-semibold text-danger disabled:opacity-50">
@@ -152,8 +161,6 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
 export default function RidePage() {
   const { onboarded, profile } = useSession();
   const { coords } = useGeolocation();
-  const feeCfg = useFeeConfig();
-  const feePct = `${Number(feeCfg.service_fee_percent ?? 15)}%`;
   const [pickup, setPickup] = useState<Addr | null>(null);
   const [dropoff, setDropoff] = useState<Addr | null>(null);
   const [modal, setModal] = useState<"pickup" | "dropoff" | null>(null);
@@ -326,7 +333,7 @@ export default function RidePage() {
                   <p className="flex items-center justify-center gap-1 text-sm font-bold"><Clock className="h-3 w-3 text-primary" /> ~10 min</p>
                 </div>
               </div>
-              <p className="px-3 pb-3 text-[10px] text-dim">Includes {feePct} GoDoor service fee. Pay the rider directly (GoDoor Wallet).</p>
+              <p className="px-3 pb-3 text-[10px] text-dim">{appliedFeePct(ride) ? `Includes ${appliedFeePct(ride)}% GoDoor service fee. Pay the rider directly (GoDoor Wallet).` : "Pay the rider directly (GoDoor Wallet)."}</p>
             </div>
           )}
           </div>
