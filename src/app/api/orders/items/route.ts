@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, getMerchantForUser, isUuid } from "@/lib/api-auth";
 import { ensureClinicOrderSchema } from "@/lib/ensure-clinic";
+import { serviceFeeFor } from "@/lib/fees";
 
 /**
  * PATCH /api/orders/items — clinic "medicine delta".
@@ -85,24 +86,12 @@ export async function PATCH(req: NextRequest) {
   // Recompute the order money server-side. Existing delivery fee stays as-is
   // (delivery for the appointment itself may not apply); the medicine delta
   // pays the same proportional service fee.
-  const DEFAULT_FEES = { service_fee_percent: 5, service_fee_min_ugx: 0, service_fee_max_ugx: 10000 };
-  let fees = { ...DEFAULT_FEES };
-  try {
-    const { data: f } = await sb.from("fee_config").select("*").eq("id", "default").single();
-    if (f) {
-      fees = {
-        service_fee_percent: Number((f as Record<string, unknown>).service_fee_percent ?? DEFAULT_FEES.service_fee_percent),
-        service_fee_min_ugx: Number((f as Record<string, unknown>).service_fee_min_ugx ?? DEFAULT_FEES.service_fee_min_ugx),
-        service_fee_max_ugx: Number((f as Record<string, unknown>).service_fee_max_ugx ?? DEFAULT_FEES.service_fee_max_ugx),
-      };
-    }
-  } catch {}
+  const { data: feeRow } = await sb.from("fee_config").select("*").eq("id", "default").maybeSingle();
 
   const prevSubtotal = Number(order.subtotal_ugx || 0);
   const prevDelivery = Number(order.delivery_fee_ugx || 0);
   const prevService = Number(order.service_fee_ugx || 0);
-  const newServiceRaw = Math.round((medicineSubtotal * fees.service_fee_percent) / 100);
-  const newService = Math.min(fees.service_fee_max_ugx, Math.max(fees.service_fee_min_ugx, newServiceRaw));
+  const newService = serviceFeeFor(medicineSubtotal, feeRow as Record<string, unknown> | null);
 
   const subtotalUgx = prevSubtotal + medicineSubtotal;
   const serviceFeeUgx = prevService + newService;

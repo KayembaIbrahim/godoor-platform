@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { releaseEscrow, COMMISSION_PERCENT } from "@/lib/escrow";
+import { releaseEscrow } from "@/lib/escrow";
 import { authorize } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
 
@@ -39,28 +39,27 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await releaseEscrow(sb, parsed.data.orderId, COMMISSION_PERCENT);
+    // release_escrow computes and writes the authoritative split in one
+    // transaction, so these values are reported from the function result
+    // rather than re-read from the order row.
+    const result = await releaseEscrow(sb, parsed.data.orderId);
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
-    const customerFee = Number(order.customer_service_fee_ugx || 0);
-    const businessFee = Number(order.business_service_fee_ugx || 0);
-    const riderFee = Number(order.rider_service_fee_ugx || 0);
-    const totalPlatformFees = customerFee + businessFee + riderFee;
+    const totalPlatformFees = result.customerFee + result.businessFee + result.riderFee;
     await sb.from("orders").update({
       status: "delivered",
       payment_status: "released",
-      platform_fees_ugx: totalPlatformFees,
     }).eq("id", parsed.data.orderId);
     return NextResponse.json({
       ok: true,
-      commission: result.commission,
-      riderPayout: result.riderPayout,
       feeBreakdown: {
-        customerServiceFee: customerFee,
-        businessServiceFee: businessFee,
-        riderServiceFee: riderFee,
-        totalPlatformFees: totalPlatformFees,
+        customerServiceFee: result.customerFee,
+        businessServiceFee: result.businessFee,
+        riderServiceFee: result.riderFee,
+        merchantPayout: result.merchantPayout,
+        riderPayout: result.riderPayout,
+        totalPlatformFees,
       },
     });
   } catch (e) {

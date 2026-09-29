@@ -9,6 +9,11 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  BUSINESS_FEE_PERCENT,
+  CUSTOMER_SERVICE_FEE_PERCENT,
+  RIDER_FEE_PERCENT,
+} from "@/lib/fees";
 
 export type DepositProvider = "morse" | "momo" | "blipply" | "manual";
 export type DepositStatus = "pending" | "confirmed" | "failed" | "expired" | "cancelled";
@@ -57,7 +62,11 @@ export type LedgerEntry = {
 
 // ── Config ──────────────────────────────────────────────────────────
 
-export const COMMISSION_PERCENT = Number(process.env.COMMISSION_PERCENT || 20);
+export {
+  CUSTOMER_SERVICE_FEE_PERCENT,
+  BUSINESS_FEE_PERCENT,
+  RIDER_FEE_PERCENT,
+} from "@/lib/fees";
 export const DEPOSIT_PENDING_EXPIRY_HOURS = Number(process.env.DEPOSIT_PENDING_EXPIRY_HOURS || 12);
 export const GODOR_MORSE_USERNAME = process.env.GODOR_MORSE_USERNAME || "@Godoor";
 
@@ -103,6 +112,14 @@ export async function getDepositByReference(
   return data as Deposit | null;
 }
 
+export async function getDepositById(
+  sb: SupabaseClient,
+  depositId: string,
+): Promise<Deposit | null> {
+  const { data } = await sb.from("deposits").select("*").eq("id", depositId).maybeSingle();
+  return data as Deposit | null;
+}
+
 export async function listPendingDeposits(sb: SupabaseClient): Promise<Deposit[]> {
   const { data } = await sb.from("deposits").select("*").eq("status", "pending").order("created_at", { ascending: false }).limit(100);
   return (data || []) as Deposit[];
@@ -140,7 +157,7 @@ export async function holdEscrow(
   userId: string,
   orderId: string,
   amount: number,
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; holdId?: string | null }> {
   const { data, error } = await sb.rpc("hold_escrow", {
     p_user_id: userId,
     p_order_id: orderId,
@@ -148,22 +165,74 @@ export async function holdEscrow(
   });
   if (error) throw new Error(error.message);
   const row = (data as Array<{ success: boolean; message: string }>)[0];
-  return row || { success: false, message: "No result" };
+  if (!row) return { success: false, message: "No result" };
+  if (!row.success) return { success: false, message: row.message };
+  // The RPC only reports success/message, so resolve the hold id for the order
+  // row. It is unique per order, so this is unambiguous.
+  const { data: hold } = await sb
+    .from("escrow_holds")
+    .select("id")
+    .eq("order_id", orderId)
+    .maybeSingle();
+  return { success: true, message: row.message, holdId: hold?.id ?? null };
 }
 
+export type ReleaseResult = {
+  success: boolean;
+  message: string;
+  customerFee: number;
+  businessFee: number;
+  riderFee: number;
+  merchantPayout: number;
+  riderPayout: number;
+};
+
+/**
+ * Releases the hold and settles the 15% customer / 10% business / 5% rider
+ * split. The percentages are passed explicitly (SQL defaults match) so the
+ * caller and the database can never disagree, and the whole split is computed
+ * inside one transactional function.
+ */
 export async function releaseEscrow(
   sb: SupabaseClient,
   orderId: string,
-  commissionPercent: number = COMMISSION_PERCENT,
-): Promise<{ success: boolean; message: string; commission: number; riderPayout: number }> {
+  percents: {
+    customer?: number;
+    business?: number;
+    rider?: number;
+  } = {},
+): Promise<ReleaseResult> {
   const { data, error } = await sb.rpc("release_escrow", {
     p_order_id: orderId,
-    p_commission_percent: commissionPercent,
+    p_customer_fee_percent: percents.customer ?? CUSTOMER_SERVICE_FEE_PERCENT,
+    p_business_fee_percent: percents.business ?? BUSINESS_FEE_PERCENT,
+    p_rider_fee_percent: percents.rider ?? RIDER_FEE_PERCENT,
   });
   if (error) throw new Error(error.message);
-  const row = (data as Array<{ success: boolean; message: string; commission: number; rider_payout: number }>)[0];
-  if (!row) return { success: false, message: "No result", commission: 0, riderPayout: 0 };
-  return { success: row.success, message: row.message, commission: row.commission, riderPayout: row.rider_payout };
+  const row = (data as Array<{
+    success: boolean;
+    message: string;
+    customer_fee: number;
+    business_fee: number;
+    rider_fee: number;
+    merchant_payout: number;
+    rider_payout: number;
+  }>)[0];
+  if (!row) {
+    return {
+      success: false, message: "No result",
+      customerFee: 0, businessFee: 0, riderFee: 0, merchantPayout: 0, riderPayout: 0,
+    };
+  }
+  return {
+    success: row.success,
+    message: row.message,
+    customerFee: Number(row.customer_fee ?? 0),
+    businessFee: Number(row.business_fee ?? 0),
+    riderFee: Number(row.rider_fee ?? 0),
+    merchantPayout: Number(row.merchant_payout ?? 0),
+    riderPayout: Number(row.rider_payout ?? 0),
+  };
 }
 
 export async function refundEscrow(

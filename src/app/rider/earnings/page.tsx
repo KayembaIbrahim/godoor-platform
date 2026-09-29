@@ -5,6 +5,7 @@ import { Wallet, Package, TrendingUp, Clock } from "lucide-react";
 import { useSession } from "@/lib/session-store";
 import { fetchOrders, type DBOrder } from "@/lib/db";
 import { formatUgx } from "@/lib/utils";
+import { orderFees } from "@/lib/fees";
 
 export default function RiderEarningsPage() {
   const { profile, supabaseUser } = useSession();
@@ -20,7 +21,7 @@ export default function RiderEarningsPage() {
   }, [profile.email, supabaseUser?.id]);
 
   const total = orders.reduce((s, o) => s + (o.delivery_fee_ugx || 3000), 0);
-  const riderFees = orders.reduce((s, o) => s + (o.rider_service_fee_ugx || 0), 0);
+  const riderFees = orders.reduce((s, o) => s + orderFees(o).riderFee, 0);
   const net = total - riderFees;
 
   return (<>
@@ -77,13 +78,13 @@ export default function RiderEarningsPage() {
                     <p className="text-[10px] text-dim">#{o.id.slice(-6)} · {o.items}</p>
                   </div>
                   <div className="ml-3 text-right">
-                    <p className="text-xs font-bold text-success">{formatUgx((o.delivery_fee_ugx || 3000) - (o.rider_service_fee_ugx || 0))}</p>
+                    <p className="text-xs font-bold text-success">{formatUgx(orderFees(o).riderPayout || Math.max((o.delivery_fee_ugx || 3000) - orderFees(o).riderFee, 0))}</p>
                     <p className="text-[9px] text-dim">net</p>
                   </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
                   <span className="text-[10px] text-muted">Gross: {formatUgx(o.delivery_fee_ugx || 3000)}</span>
-                  <span className="text-[10px] text-danger">Fee: -{formatUgx(o.rider_service_fee_ugx || 0)}</span>
+                  <span className="text-[10px] text-danger">Fee: -{formatUgx(orderFees(o).riderFee)}</span>
                   <span className="text-[10px] text-dim">{new Date(o.created_at).toLocaleDateString()}</span>
                 </div>
               </div>

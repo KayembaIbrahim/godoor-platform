@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { serviceFeeFor, type FeeConfigShape } from "@/lib/fees";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -18,10 +19,12 @@ export function formatPriceSplit(amount: number): { primary: string; usd: string
   return { primary: formatUgx(amount), usd: `~$${usd}` };
 }
 
-/** Calculate GoDoor service fee: flat 5% on every order's subtotal. */
-export function calcServiceFee(subtotalUgx: number): number {
-  if (subtotalUgx <= 0) return 0;
-  return Math.round(subtotalUgx * 0.05);
+/** GoDoor service fee the customer pays: 15% of the order subtotal.
+ *  Delegates to the shared fee model so the quoted total can never drift from
+ *  the authoritative server-side amount. Pass the live /api/fees config as the
+ *  second argument once it has loaded. */
+export function calcServiceFee(subtotalUgx: number, cfg?: FeeConfigShape | null): number {
+  return serviceFeeFor(subtotalUgx, cfg);
 }
 
 

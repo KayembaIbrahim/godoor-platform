@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
-import { confirmDeposit, getDepositByReference } from "@/lib/escrow";
+import { confirmDeposit, getDepositById } from "@/lib/escrow";
 
 const ConfirmSchema = z.object({
   depositId: z.string().uuid(),
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Valid depositId required" }, { status: 400 });
   }
 
-  const deposit = await getDepositByReference(sb, parsed.data.depositId);
+  const deposit = await getDepositById(sb, parsed.data.depositId);
   if (!deposit) {
     return NextResponse.json({ error: "Deposit not found" }, { status: 404 });
   }

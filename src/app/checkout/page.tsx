@@ -11,6 +11,7 @@ import {
 import { formatUgx, calcServiceFee, calcDeliveryFee, BULKY_ITEM_SURCHARGE_UGX } from "@/lib/utils";
 import { Price } from "@/components/Price";
 import { useCart } from "@/lib/cart-store";
+import { useFeeConfig } from "@/lib/use-fee-config";
 import { useSession } from "@/lib/session-store";
 import { useGeolocation, distanceKm } from "@/lib/location";
 import { createOrder, fetchMerchantById, type DBMerchant } from "@/lib/db";
@@ -113,6 +114,7 @@ export default function CheckoutPage() {
   const [addrSearchOpen, setAddrSearchOpen] = useState(false);
   const [scheduleMode, setScheduleMode] = useState(false);
   const [scheduleTime, setScheduleTime] = useState("asap");
+  const feeCfg = useFeeConfig();
 
   const [savedAddr, setSavedAddr] = useState<{ place: string; lat: number; lng: number } | null>(null);
   useEffect(() => {
@@ -144,8 +146,8 @@ export default function CheckoutPage() {
     const bulkyCount = lines.reduce((s, l) => s + (l.bulky ? l.quantity : 0), 0);
     const delivery = calcDeliveryFee(distKm, bulkyCount);
     const bulkySurcharge = bulkyCount * BULKY_ITEM_SURCHARGE_UGX;
-    const service = calcServiceFee(subtotal);
-    const serviceLabel = "5%";
+    const service = calcServiceFee(subtotal, feeCfg);
+    const serviceLabel = `${Number(feeCfg.service_fee_percent ?? 15)}%`;
     let discount = 0;
     if (appliedPromo) {
       discount = appliedPromo.type === "percent" ? Math.round(subtotal * appliedPromo.discount / 100) : appliedPromo.discount;
@@ -153,7 +155,7 @@ export default function CheckoutPage() {
     }
     const total = Math.max(0, subtotal + delivery + service - discount);
     return { subtotal, delivery, distKm, bulkyCount, bulkySurcharge, service, serviceLabel, discount, total };
-  }, [lines, dbMerchant, appliedPromo, customerLoc]);
+  }, [lines, dbMerchant, appliedPromo, customerLoc, feeCfg]);
 
   const placeOrder = async () => {
     setError(null);

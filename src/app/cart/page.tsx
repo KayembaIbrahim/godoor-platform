@@ -11,6 +11,7 @@ import { formatUgx, calcServiceFee, calcDeliveryFee, BULKY_ITEM_SURCHARGE_UGX } 
 import { distanceKm } from "@/lib/location";
 import { Price } from "@/components/Price";
 import { useCart } from "@/lib/cart-store";
+import { useFeeConfig } from "@/lib/use-fee-config";
 import { useSession } from "@/lib/session-store";
 import { SignupModal, useSignupPrompt } from "@/components/SignupPrompt";
 
@@ -34,6 +35,7 @@ export default function CartPage() {
   const [merchant, setMerchant] = useState<DBMerchant | null>(null);
   const [suggestions, setSuggestions] = useState<DBProduct[]>([]);
   const [estDistKm, setEstDistKm] = useState(3);
+  const feeCfg = useFeeConfig();
 
   useEffect(() => {
     if (!merchantId) { setMerchant(null); setSuggestions([]); return; }
@@ -49,9 +51,9 @@ export default function CartPage() {
     const subtotal = lines.reduce((s, l) => s + l.unitPriceUgx * l.quantity, 0);
     const bulkyCount = lines.reduce((s, l) => s + (l.bulky ? l.quantity : 0), 0);
     const delivery = calcDeliveryFee(estDistKm, bulkyCount);
-    const service = calcServiceFee(subtotal);
+    const service = calcServiceFee(subtotal, feeCfg);
     return { subtotal, delivery, bulkyCount, service, total: subtotal + delivery + service };
-  }, [lines, estDistKm]);
+  }, [lines, estDistKm, feeCfg]);
 
   if (!lines.length) {
     return (

@@ -4,6 +4,7 @@ import {
   authorize, canTransition, getMerchantForUser, isKnownStatus, isUuid,
 } from "@/lib/api-auth";
 import { calcDeliveryFee } from "@/lib/utils";
+import { resolveFees, serviceFeeFor, splitOrderAmounts } from "@/lib/fees";
 import { ensureClinicOrderSchema } from "@/lib/ensure-clinic";
 import { holdEscrow } from "@/lib/escrow";
 
@@ -260,31 +261,11 @@ export async function POST(req: NextRequest) {
   if (!customerId) return NextResponse.json({ error: "Sign in to place an order" }, { status: 401 });
 
   // ── Server-authoritative pricing ─────────────────────────────────────────
-  // Fees come from the fee_config row (fallback to constants), line-item prices
-  // come from the products table for THIS merchant, and nothing financial is
-  // taken from the request body.
-  const DEFAULT_FEES = {
-    delivery_fee_ugx: 2000,
-    service_fee_percent: 15,
-    service_fee_min_ugx: 0,
-    service_fee_max_ugx: 10000,
-    min_order_ugx: 3000,
-    free_delivery_threshold_ugx: 25000,
-  };
-  let fees = { ...DEFAULT_FEES };
-  try {
-    const { data: f } = await sb.from("fee_config").select("*").eq("id", "default").single();
-    if (f) {
-      fees = {
-        delivery_fee_ugx: Number(f.delivery_fee_ugx ?? DEFAULT_FEES.delivery_fee_ugx),
-        service_fee_percent: Number(f.service_fee_percent ?? DEFAULT_FEES.service_fee_percent),
-        service_fee_min_ugx: Number(f.service_fee_min_ugx ?? DEFAULT_FEES.service_fee_min_ugx),
-        service_fee_max_ugx: Number(f.service_fee_max_ugx ?? DEFAULT_FEES.service_fee_max_ugx),
-        min_order_ugx: Number(f.min_order_ugx ?? DEFAULT_FEES.min_order_ugx),
-        free_delivery_threshold_ugx: Number(f.free_delivery_threshold_ugx ?? DEFAULT_FEES.free_delivery_threshold_ugx),
-      };
-    }
-  } catch {}
+  // Fees come from the fee_config row (fallback to the shared 15% model),
+  // line-item prices come from the products table for THIS merchant, and
+  // nothing financial is taken from the request body.
+  const { data: feeRow } = await sb.from("fee_config").select("*").eq("id", "default").maybeSingle();
+  const fees = resolveFees(feeRow as Record<string, unknown> | null);
 
   // Parse requested line items (only productId, quantity and bulky are taken from the client).
   const requested: Array<{ productId: string; quantity: number; bulky: boolean }> = Array.isArray(body.line_items)
@@ -361,8 +342,7 @@ export async function POST(req: NextRequest) {
         const bulkyCount = lineItems.reduce((s, li) => s + (li.bulky ? li.quantity : 0), 0);
         return calcDeliveryFee(km, bulkyCount, (km / 25) * 60);
       })();
-  const rawService = Math.round((subtotal * fees.service_fee_percent) / 100);
-  const serviceFee = Math.min(fees.service_fee_max_ugx, Math.max(fees.service_fee_min_ugx, rawService));
+  const serviceFee = serviceFeeFor(subtotal, feeRow as Record<string, unknown> | null);
   const totalUgx = subtotal + deliveryFee + serviceFee;
 
   const paymentMethod = typeof body.payment_method === "string" ? body.payment_method : "momo";
@@ -439,24 +419,30 @@ export async function POST(req: NextRequest) {
         code: "ESCROW_HOLD_FAILED",
       }, { status: 402 });
     }
-    // Store the fee breakdown for admin visibility
-    const customerServiceFee = serviceFee; // 15% from customer
-    const businessServiceFee = Math.round(subtotal * 0.10); // 10% from business
-    const riderServiceFee = Math.round(deliveryFee * 0.05); // 5% from rider
+    // Store the fee breakdown for admin visibility. Percentages come from the
+    // shared model so these columns always agree with release_escrow in SQL.
+    const split = splitOrderAmounts(subtotal, deliveryFee);
     await sb.from("orders").update({
       payment_confirmed: true,
       payment_status: "escrowed",
       status: "payment_confirmed",
-      customer_service_fee_ugx: customerServiceFee,
-      business_service_fee_ugx: businessServiceFee,
-      rider_service_fee_ugx: riderServiceFee,
+      service_fee_ugx: split.customerFee,
+      business_fee_ugx: split.businessFee,
+      rider_fee_ugx: split.riderFee,
+      merchant_payout_ugx: split.merchantPayout,
+      rider_payout_ugx: split.riderPayout,
+      escrow_hold_id: escrowResult.holdId ?? null,
     }).eq("id", data.id);
-    (data as Record<string, unknown>).payment_confirmed = true;
-    (data as Record<string, unknown>).payment_status = "escrowed";
-    (data as Record<string, unknown>).status = "payment_confirmed";
-    (data as Record<string, unknown>).customer_service_fee_ugx = customerServiceFee;
-    (data as Record<string, unknown>).business_service_fee_ugx = businessServiceFee;
-    (data as Record<string, unknown>).rider_service_fee_ugx = riderServiceFee;
+    Object.assign(data as Record<string, unknown>, {
+      payment_confirmed: true,
+      payment_status: "escrowed",
+      status: "payment_confirmed",
+      service_fee_ugx: split.customerFee,
+      business_fee_ugx: split.businessFee,
+      rider_fee_ugx: split.riderFee,
+      merchant_payout_ugx: split.merchantPayout,
+      rider_payout_ugx: split.riderPayout,
+    });
   }
   return NextResponse.json({ order: data });
 }

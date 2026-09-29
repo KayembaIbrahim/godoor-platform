@@ -4,6 +4,7 @@ import { Wallet, TrendingUp, Package, ShieldCheck } from "lucide-react";
 import { useSession } from "@/lib/session-store";
 import { fetchOrders, type DBOrder } from "@/lib/db";
 import { formatUgx } from "@/lib/utils";
+import { orderFees } from "@/lib/fees";
 import { Price } from "@/components/Price";
 
 export default function BusinessEarningsPage() {
@@ -36,7 +37,7 @@ export default function BusinessEarningsPage() {
   }, [refresh]);
 
   const totalRevenue = orders.reduce((s, o) => s + o.subtotal_ugx, 0);
-  const totalBusinessFees = orders.reduce((s, o) => s + (o.business_service_fee_ugx || 0), 0);
+  const totalBusinessFees = orders.reduce((s, o) => s + orderFees(o).businessFee, 0);
   const netEarnings = totalRevenue - totalBusinessFees;
 
   const today = Date.now() - 86400000;
@@ -106,13 +107,13 @@ export default function BusinessEarningsPage() {
                     <p className="text-[10px] text-dim">#{o.id.slice(-6)} · {o.items}</p>
                   </div>
                   <div className="ml-3 text-right">
-                    <p className="text-xs font-bold text-success">{formatUgx(o.subtotal_ugx - (o.business_service_fee_ugx || 0))}</p>
+                    <p className="text-xs font-bold text-success">{formatUgx(orderFees(o).merchantPayout || Math.max(o.subtotal_ugx - orderFees(o).businessFee, 0))}</p>
                     <p className="text-[9px] text-dim">net</p>
                   </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
                   <span className="text-[10px] text-muted">Gross: {formatUgx(o.subtotal_ugx)}</span>
-                  <span className="text-[10px] text-danger">Fee: -{formatUgx(o.business_service_fee_ugx || 0)}</span>
+                  <span className="text-[10px] text-danger">Fee: -{formatUgx(orderFees(o).businessFee)}</span>
                   <span className="text-[10px] text-dim">{new Date(o.created_at).toLocaleDateString()}</span>
                 </div>
               </div>

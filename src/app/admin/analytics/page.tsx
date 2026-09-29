@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { fetchOrders, fetchMerchants, fetchUsers, type DBOrder, type DBMerchant } from "@/lib/db";
 import { formatUgx } from "@/lib/utils";
+import { orderFees } from "@/lib/fees";
 
 export default function AdminAnalytics() {
   const [orders, setOrders] = useState<DBOrder[]>([]);
@@ -43,11 +44,11 @@ export default function AdminAnalytics() {
   const serviceRevenue = orders.filter((o) => ["payment_confirmed", "delivered"].includes(o.status))
     .reduce((s, o) => s + o.service_fee_ugx, 0);
   const customerFees = orders.filter((o) => ["payment_confirmed", "delivered"].includes(o.status))
-    .reduce((s, o) => s + (o.customer_service_fee_ugx || 0), 0);
+    .reduce((s, o) => s + orderFees(o).customerFee, 0);
   const businessFees = orders.filter((o) => ["payment_confirmed", "delivered"].includes(o.status))
-    .reduce((s, o) => s + (o.business_service_fee_ugx || 0), 0);
+    .reduce((s, o) => s + orderFees(o).businessFee, 0);
   const riderFees = orders.filter((o) => ["payment_confirmed", "delivered"].includes(o.status))
-    .reduce((s, o) => s + (o.rider_service_fee_ugx || 0), 0);
+    .reduce((s, o) => s + orderFees(o).riderFee, 0);
   const totalPlatformFees = customerFees + businessFees + riderFees;
 
   // Orders by category

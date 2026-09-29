@@ -1,6 +1,7 @@
 "use client";
 
 import { getSupabase, IS_SUPABASE } from "./supabase";
+import { FALLBACK_FEE_CONFIG } from "./fees";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 /* ──────────────────────────────────────────────────────────────────
@@ -82,6 +83,13 @@ export type DBOrder = {
   scheduled_for?: number | null;
   medicine_subtotal_ugx?: number;
   medicine_paid?: boolean;
+  // Written by the escrow settlement path. The *_service_fee_ugx columns below
+  // are the legacy pre-escrow names, kept for historical orders.
+  customer_fee_ugx?: number;
+  business_fee_ugx?: number;
+  rider_fee_ugx?: number;
+  merchant_payout_ugx?: number;
+  rider_payout_ugx?: number;
   customer_service_fee_ugx?: number;
   business_service_fee_ugx?: number;
   rider_service_fee_ugx?: number;
@@ -1204,15 +1212,8 @@ export type FeeConfig = {
 };
 
 const DEFAULT_FEES: FeeConfig = {
+  ...FALLBACK_FEE_CONFIG,
   id: "default",
-  delivery_fee_ugx: 2000,
-  service_fee_percent: 5,
-  service_fee_min_ugx: 0,
-  service_fee_max_ugx: 10000,
-  min_order_ugx: 3000,
-  free_delivery_threshold_ugx: 25000,
-  rider_commission_percent: 80,
-  platform_commission_percent: 20,
   created_at: Date.now(),
   updated_at: Date.now(),
 };

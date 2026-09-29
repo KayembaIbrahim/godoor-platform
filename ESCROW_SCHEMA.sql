@@ -91,6 +91,56 @@ CREATE TABLE IF NOT EXISTS public.payouts (
   UNIQUE (order_id, recipient_role)
 );
 
+-- ── Converge pre-existing tables ──────────────────────────────────────
+-- Production already had these five tables from an earlier rollout, so the
+-- CREATE TABLE IF NOT EXISTS statements above are skipped there and any
+-- column/constraint added since is silently missing. Everything below is
+-- idempotent and makes a partially-migrated database match this file.
+ALTER TABLE public.wallets       ADD COLUMN IF NOT EXISTS escrow_balance BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE public.ledger_entries ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.ledger_entries ADD COLUMN IF NOT EXISTS meta JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.deposits      ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.deposits      ADD COLUMN IF NOT EXISTS provider_ref TEXT;
+ALTER TABLE public.deposits      ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+ALTER TABLE public.deposits      ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE public.escrow_holds  ADD COLUMN IF NOT EXISTS customer_fee    BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE public.escrow_holds  ADD COLUMN IF NOT EXISTS business_fee    BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE public.escrow_holds  ADD COLUMN IF NOT EXISTS rider_fee       BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE public.escrow_holds  ADD COLUMN IF NOT EXISTS merchant_payout BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE public.escrow_holds  ADD COLUMN IF NOT EXISTS rider_payout    BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE public.payouts       ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+ALTER TABLE public.payouts       ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'UGX';
+
+-- Backfill the one timestamp that has no safe default.
+UPDATE public.deposits SET expires_at = created_at + INTERVAL '30 minutes'
+ WHERE expires_at IS NULL;
+
+-- Platform commission rows carry a NULL user_id, so an inherited NOT NULL
+-- from the original rollout has to go.
+ALTER TABLE public.ledger_entries ALTER COLUMN user_id DROP NOT NULL;
+
+-- Re-assert the enumerated CHECK constraints: an older rollout allowed only a
+-- subset of the values used by the current functions.
+ALTER TABLE public.ledger_entries DROP CONSTRAINT IF EXISTS ledger_entries_type_check;
+ALTER TABLE public.ledger_entries ADD CONSTRAINT ledger_entries_type_check
+  CHECK (type IN ('deposit','order_hold','order_release','commission','payout','refund','adjustment'));
+
+ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_provider_check;
+ALTER TABLE public.deposits ADD CONSTRAINT deposits_provider_check
+  CHECK (provider IN ('morse','manual'));
+
+ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_status_check;
+ALTER TABLE public.deposits ADD CONSTRAINT deposits_status_check
+  CHECK (status IN ('pending','confirmed','failed','expired','cancelled'));
+
+ALTER TABLE public.escrow_holds DROP CONSTRAINT IF EXISTS escrow_holds_status_check;
+ALTER TABLE public.escrow_holds ADD CONSTRAINT escrow_holds_status_check
+  CHECK (status IN ('held','released','refunded'));
+
+ALTER TABLE public.payouts DROP CONSTRAINT IF EXISTS payouts_status_check;
+ALTER TABLE public.payouts ADD CONSTRAINT payouts_status_check
+  CHECK (status IN ('pending','paid','cancelled'));
+
 -- ── Order fee / payout columns ───────────────────────────────────────
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS business_fee_ugx BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS rider_fee_ugx BIGINT NOT NULL DEFAULT 0;
@@ -98,6 +148,11 @@ ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS merchant_payout_ugx BIGINT NO
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS rider_payout_ugx BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'unpaid';
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS escrow_hold_id UUID;
+-- Legacy per-role fee columns written by the pre-escrow settlement path.
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_service_fee_ugx BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS business_service_fee_ugx BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS rider_service_fee_ugx BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS platform_fees_ugx BIGINT NOT NULL DEFAULT 0;
 
 -- ── Indexes ──────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_wallets_user ON public.wallets(user_id);
