@@ -251,18 +251,19 @@ DECLARE
   v_merchant_payout BIGINT;
   v_rider_payout BIGINT;
   v_expected BIGINT;
+  v_business_user UUID;
 BEGIN
   SELECT * INTO v_hold FROM public.escrow_holds WHERE order_id = p_order_id FOR UPDATE;
   IF NOT FOUND THEN
-    RETURN QUERY SELECT FALSE, 'No escrow hold for this order'::TEXT, 0,0,0,0,0; RETURN;
+    RETURN QUERY SELECT FALSE, 'No escrow hold for this order'::TEXT, 0::BIGINT,0::BIGINT,0::BIGINT,0::BIGINT,0::BIGINT; RETURN;
   END IF;
   IF v_hold.status <> 'held' THEN
-    RETURN QUERY SELECT FALSE, format('Escrow already %s', v_hold.status)::TEXT, 0,0,0,0,0; RETURN;
+    RETURN QUERY SELECT FALSE, format('Escrow already %s', v_hold.status)::TEXT, 0::BIGINT,0::BIGINT,0::BIGINT,0::BIGINT,0::BIGINT; RETURN;
   END IF;
 
   SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
   IF NOT FOUND THEN
-    RETURN QUERY SELECT FALSE, 'Order not found'::TEXT, 0,0,0,0,0; RETURN;
+    RETURN QUERY SELECT FALSE, 'Order not found'::TEXT, 0::BIGINT,0::BIGINT,0::BIGINT,0::BIGINT,0::BIGINT; RETURN;
   END IF;
 
   v_subtotal := COALESCE(v_order.subtotal_ugx, 0);
@@ -279,7 +280,7 @@ BEGIN
     RETURN QUERY SELECT FALSE,
       format('Hold %s does not match order total %s (subtotal %s + delivery %s + fee %s)',
              v_hold.amount, v_expected, v_subtotal, v_delivery, v_customer_fee)::TEXT,
-      0,0,0,0,0;
+      0::BIGINT,0::BIGINT,0::BIGINT,0::BIGINT,0::BIGINT;
     RETURN;
   END IF;
 
@@ -301,15 +302,20 @@ BEGIN
     (NULL, 'commission', v_rider_fee, 'UGX', 'order', p_order_id::TEXT,
       jsonb_build_object('component','rider_fee','percent',p_rider_fee_percent));
 
-  -- business payout
+  -- business payout. payouts.recipient_id is the MERCHANT id; the ledger must
+  -- reference the merchant's auth user (merchants.owner_id) to satisfy the FK.
   IF v_order.merchant_id IS NOT NULL AND v_merchant_payout > 0 THEN
+    SELECT owner_id INTO v_business_user FROM public.merchants WHERE id = v_order.merchant_id;
+
     INSERT INTO public.payouts (order_id, recipient_id, recipient_role, amount, currency, status)
     VALUES (p_order_id, v_order.merchant_id, 'business', v_merchant_payout, 'UGX', 'pending')
     ON CONFLICT (order_id, recipient_role) DO NOTHING;
 
-    INSERT INTO public.ledger_entries (user_id, type, amount, currency, ref_type, ref_id, meta)
-    VALUES (v_order.merchant_id, 'payout', v_merchant_payout, 'UGX', 'order', p_order_id::TEXT,
-            jsonb_build_object('role','business','fee',v_business_fee));
+    IF v_business_user IS NOT NULL THEN
+      INSERT INTO public.ledger_entries (user_id, type, amount, currency, ref_type, ref_id, meta)
+      VALUES (v_business_user, 'payout', v_merchant_payout, 'UGX', 'order', p_order_id::TEXT,
+              jsonb_build_object('role','business','fee',v_business_fee,'merchant_id',v_order.merchant_id));
+    END IF;
   END IF;
 
   -- rider payout
@@ -356,9 +362,12 @@ BEGIN
     RETURN QUERY SELECT FALSE, format('Payout already %s', v_payout.status)::TEXT; RETURN;
   END IF;
 
+  -- recipient_id is merchants.id for business (resolve to owner_id), and the
+  -- auth user id itself for riders (riders.id IS the auth.users id).
   v_recipient := CASE WHEN v_payout.recipient_role = 'business'
                       THEN (SELECT owner_id FROM public.merchants WHERE id = v_payout.recipient_id)
-                      ELSE v_payout.recipient_id END;
+                      ELSE v_payout.recipient_id
+                   END;
 
   UPDATE public.payouts SET status = 'paid', paid_at = now() WHERE id = p_payout_id;
 
