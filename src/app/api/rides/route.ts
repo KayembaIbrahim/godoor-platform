@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid } from "@/lib/api-auth";
+import { serviceFeeFor } from "@/lib/fees";
 
 /**
  * Boda ride-hailing API (v1).
- * - POST: customer requests a ride (server prices it: base + per-km + 5% service fee).
+ * - POST: customer requests a ride (server prices it: base + per-km + service fee).
  * - GET ?mine=1: my rides (customer) · ?open=1: open requests (verified riders) · ?id=: one ride (participant only).
  * - PATCH {id, action}: accept (verified rider, atomic claim) · start · complete · cancel.
  * All money math is server-authoritative; fee caps reuse fee_config.
@@ -29,17 +30,13 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
   return 2 * r * Math.asin(Math.sqrt(s));
 }
 
-async function feeCaps(sb: NonNullable<ReturnType<typeof getServiceClient>>) {
-  let min = 0;
-  let max = 10000;
+async function feeConfigRow(sb: NonNullable<ReturnType<typeof getServiceClient>>) {
   try {
-    const { data: f } = await sb.from("fee_config").select("service_fee_min_ugx, service_fee_max_ugx").eq("id", "default").single();
-    if (f) {
-      min = Number((f as { service_fee_min_ugx: number }).service_fee_min_ugx ?? 0);
-      max = Number((f as { service_fee_max_ugx: number }).service_fee_max_ugx ?? 10000);
-    }
-  } catch {}
-  return { min, max };
+    const { data } = await sb.from("fee_config").select("*").eq("id", "default").maybeSingle();
+    return (data as Record<string, unknown> | null) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -65,8 +62,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Boda rides are limited to 60 km" }, { status: 400 });
   }
   const fare = Math.max(BODA_MIN_FARE_UGX, Math.round(BODA_BASE_UGX + km * BODA_PER_KM_UGX));
-  const { min, max } = await feeCaps(sb);
-  const serviceFee = Math.min(max, Math.max(min, Math.round((fare * 5) / 100)));
+  // Same shared 15% model as orders — rides must not quote their own rate.
+  const feeRow = await feeConfigRow(sb);
+  const serviceFee = serviceFeeFor(fare, feeRow);
   const total = fare + serviceFee;
 
   const { data, error } = await sb
