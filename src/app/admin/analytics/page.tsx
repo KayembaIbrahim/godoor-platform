@@ -42,6 +42,13 @@ export default function AdminAnalytics() {
     .reduce((s, o) => s + o.total_ugx, 0);
   const serviceRevenue = orders.filter((o) => ["payment_confirmed", "delivered"].includes(o.status))
     .reduce((s, o) => s + o.service_fee_ugx, 0);
+  const customerFees = orders.filter((o) => ["payment_confirmed", "delivered"].includes(o.status))
+    .reduce((s, o) => s + (o.customer_service_fee_ugx || 0), 0);
+  const businessFees = orders.filter((o) => ["payment_confirmed", "delivered"].includes(o.status))
+    .reduce((s, o) => s + (o.business_service_fee_ugx || 0), 0);
+  const riderFees = orders.filter((o) => ["payment_confirmed", "delivered"].includes(o.status))
+    .reduce((s, o) => s + (o.rider_service_fee_ugx || 0), 0);
+  const totalPlatformFees = customerFees + businessFees + riderFees;
 
   // Orders by category
   const categoryStats = merchants.reduce((acc, m) => {
@@ -135,8 +142,22 @@ export default function AdminAnalytics() {
             <p className="mt-1 text-xl font-bold text-fg">{formatUgx(totalRevenue)}</p>
           </div>
           <div className="rounded-xl bg-bg p-3.5">
-            <p className="text-[10px] text-dim uppercase tracking-wider">Platform Service Fees</p>
-            <p className="mt-1 text-xl font-bold text-go">{formatUgx(serviceRevenue)}</p>
+            <p className="text-[10px] text-dim uppercase tracking-wider">Platform Fees (Total)</p>
+            <p className="mt-1 text-xl font-bold text-go">{formatUgx(totalPlatformFees)}</p>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-3">
+          <div className="rounded-xl bg-bg p-2.5 text-center">
+            <p className="text-[10px] text-dim">Customer Fees (15%)</p>
+            <p className="text-sm font-bold text-go">{formatUgx(customerFees)}</p>
+          </div>
+          <div className="rounded-xl bg-bg p-2.5 text-center">
+            <p className="text-[10px] text-dim">Business Fees (10%)</p>
+            <p className="text-sm font-bold text-primary">{formatUgx(businessFees)}</p>
+          </div>
+          <div className="rounded-xl bg-bg p-2.5 text-center">
+            <p className="text-[10px] text-dim">Rider Fees (5%)</p>
+            <p className="text-sm font-bold text-warning">{formatUgx(riderFees)}</p>
           </div>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-3">

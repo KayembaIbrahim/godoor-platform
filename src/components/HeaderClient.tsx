@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Wallet } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { HeaderAuth } from "@/components/HeaderAuth";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -137,6 +137,14 @@ export function HeaderClient() {
           </nav>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/wallet"
+            className="relative grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95"
+            aria-label="GoDoor Wallet"
+            title="GoDoor Wallet"
+          >
+            <Wallet className="h-4 w-4" />
+          </Link>
           <NotificationBell />
           <ThemeToggle />
           <HeaderAuth />

@@ -3,9 +3,7 @@ import { getServiceClient } from "@/lib/supabase-server";
 import {
   authorize, canTransition, getMerchantForUser, isKnownStatus, isUuid,
 } from "@/lib/api-auth";
-import { debitGasFee, snapshotWallet } from "@/lib/wallet-store";
 import { calcDeliveryFee } from "@/lib/utils";
-import { refreshRateUgx, usdtConfig } from "@/lib/momo";
 import { ensureClinicOrderSchema } from "@/lib/ensure-clinic";
 import { holdEscrow } from "@/lib/escrow";
 
@@ -267,7 +265,7 @@ export async function POST(req: NextRequest) {
   // taken from the request body.
   const DEFAULT_FEES = {
     delivery_fee_ugx: 2000,
-    service_fee_percent: 5,
+    service_fee_percent: 15,
     service_fee_min_ugx: 0,
     service_fee_max_ugx: 10000,
     min_order_ugx: 3000,
@@ -386,25 +384,6 @@ export async function POST(req: NextRequest) {
     if (!Number.isNaN(t)) scheduledFor = new Date(t).toISOString();
   }
 
-  // ── Gas fee (GoDoor balance) preflight ───────────────────────────────────
-  // The free 2000 UGX signup bonus + Morse USDT top-ups form the gas-fee
-  // balance. Paying the whole order from it is allowed only when it covers the
-  // total — otherwise the customer tops up via Morse or pays cash/MoMo.
-  if (paymentMethod === "gasfee") {
-    await refreshRateUgx();
-    const rateUgx = usdtConfig().rateUgx;
-    const snap = await snapshotWallet(sb, customerId);
-    const gasUgx = snap.availableUgx + snap.availableUsdt * rateUgx;
-    if (gasUgx < totalUgx) {
-      return NextResponse.json({
-        error: "Your GoDoor gas fee is too low for this order. Top up from your Morse wallet, or pay cash, MTN MoMo or Airtel Money.",
-        code: "INSUFFICIENT_GAS_FEE",
-        availableGasUgx: Math.floor(gasUgx),
-        requiredUgx: totalUgx,
-      }, { status: 402 });
-    }
-  }
-
   // Idempotency: replaying the same key returns the original order instead of a duplicate.
   const idempotencyKeyRaw = typeof body.idempotency_key === "string" ? body.idempotency_key.slice(0, 128) : "";
   const idempotencyKey = idempotencyKeyRaw || "";
@@ -447,31 +426,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // ── Gas fee settlement ───────────────────────────────────────────────────
-  // Balance was preflighted above; now actually move the money (immutable
-  // ledger rows) and mark the order paid. If the debit somehow fails, the
-  // order is cancelled rather than left as an unpaid phantom.
-  if (paymentMethod === "gasfee" && customerId && data) {
-    try {
-      await refreshRateUgx();
-      await debitGasFee(sb, customerId, {
-        amountUgx: totalUgx,
-        reference: String(data.id),
-        note: `Order ${String(data.id).slice(0, 8)} paid from GoDoor gas fee`,
-        rateUgx: usdtConfig().rateUgx,
-      });
-      await sb.from("orders").update({ payment_confirmed: true, status: "payment_confirmed" }).eq("id", data.id);
-      (data as Record<string, unknown>).payment_confirmed = true;
-      (data as Record<string, unknown>).status = "payment_confirmed";
-    } catch (e) {
-      await sb.from("orders").update({ status: "cancelled", notes: "Gas fee payment failed — please order again" }).eq("id", data.id);
-      return NextResponse.json({
-        error: "Could not pay from your GoDoor gas fee. Top up via Morse or pick another payment method.",
-        code: "GAS_FEE_PAY_FAILED",
-      }, { status: 402 });
-    }
-  }
-
   // ── Escrow hold (wallet payment) ─────────────────────────────────────────
   // When the customer pays from their GoDoor wallet, the money moves into
   // escrow immediately. It is released to the platform + rider only on
@@ -485,10 +439,24 @@ export async function POST(req: NextRequest) {
         code: "ESCROW_HOLD_FAILED",
       }, { status: 402 });
     }
-    await sb.from("orders").update({ payment_confirmed: true, payment_status: "escrowed", status: "payment_confirmed" }).eq("id", data.id);
+    // Store the fee breakdown for admin visibility
+    const customerServiceFee = serviceFee; // 15% from customer
+    const businessServiceFee = Math.round(subtotal * 0.10); // 10% from business
+    const riderServiceFee = Math.round(deliveryFee * 0.05); // 5% from rider
+    await sb.from("orders").update({
+      payment_confirmed: true,
+      payment_status: "escrowed",
+      status: "payment_confirmed",
+      customer_service_fee_ugx: customerServiceFee,
+      business_service_fee_ugx: businessServiceFee,
+      rider_service_fee_ugx: riderServiceFee,
+    }).eq("id", data.id);
     (data as Record<string, unknown>).payment_confirmed = true;
     (data as Record<string, unknown>).payment_status = "escrowed";
     (data as Record<string, unknown>).status = "payment_confirmed";
+    (data as Record<string, unknown>).customer_service_fee_ugx = customerServiceFee;
+    (data as Record<string, unknown>).business_service_fee_ugx = businessServiceFee;
+    (data as Record<string, unknown>).rider_service_fee_ugx = riderServiceFee;
   }
   return NextResponse.json({ order: data });
 }

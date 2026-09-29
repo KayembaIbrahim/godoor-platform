@@ -82,6 +82,11 @@ export type DBOrder = {
   scheduled_for?: number | null;
   medicine_subtotal_ugx?: number;
   medicine_paid?: boolean;
+  customer_service_fee_ugx?: number;
+  business_service_fee_ugx?: number;
+  rider_service_fee_ugx?: number;
+  platform_fees_ugx?: number;
+  payment_status?: string;
   created_at: number;
   updated_at: number;
 };

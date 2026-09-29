@@ -413,7 +413,7 @@ export default function CheckoutPage() {
           <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2">
             <MorseLogo className="h-3.5" />
             <p className="text-[10px] text-muted">
-              Top up your Morse wallet from MTN MoMo or Airtel Money, then pay in seconds. Morse-to-Morse transfers are free.
+              Live rate: 1 USD = {formatUgx(3800)} UGX
             </p>
           </div>
         </div>

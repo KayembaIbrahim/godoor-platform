@@ -87,6 +87,11 @@ function MorseTopUpCard() {
     instructions: string;
   } | null>(null);
   const [sent, setSent] = useState(false);
+  const [cfg, setCfg] = useState<{ rateUgx: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/morse").then((r) => r.json()).then((j) => { if (j.config) setCfg(j.config); }).catch(() => {});
+  }, []);
 
   const QUICK_UGX = [5000, 10000, 20000, 50000, 100000];
 
@@ -202,8 +207,9 @@ function MorseTopUpCard() {
       <p className="mt-2 text-sm text-muted">
         Send UGX from your Morse wallet to GoDoor. An admin verifies the transfer, then your wallet is credited.
       </p>
+      <p className="mt-1 text-xs text-dim">Live rate: 1 USD = {formatUgx(cfg?.rateUgx || 3800)} UGX</p>
       <div className="mt-4">
-        <span className="text-sm text-muted">Amount (UGX)</span>
+        <span className="text-sm text-muted">Amount</span>
         <div className="mt-2 flex flex-wrap gap-2">
           {QUICK_UGX.map((q) => (
             <button
@@ -226,6 +232,7 @@ function MorseTopUpCard() {
           onChange={(e) => setAmount(Number(e.target.value) || 0)}
           className="mt-3 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm tabular-nums outline-none ring-go focus:ring-2"
         />
+        <p className="mt-1 text-xs text-dim">≈ ${(amount / (cfg?.rateUgx || 3800)).toFixed(2)} USD</p>
       </div>
       {error && (
         <p className="mt-4 rounded-lg bg-danger/15 px-3 py-2 text-sm text-danger">{error}</p>
@@ -558,23 +565,20 @@ export function WalletPanel() {
   return (
     <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-5">
       <section className="lg:col-span-3 space-y-6">
-        {/* ── Balance: GoDoor Gas Fee + Escrow ── */}
+        {/* ── Balance: GoDoor Wallet ── */}
         <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-muted">GoDoor Gas Fee</p>
-              <p className="mt-2 font-display text-4xl font-semibold tabular-nums tracking-tight">
-                {wallet ? `$${wallet.availableUsdt} USD` : "—"}
+              <p className="text-sm font-medium text-muted">GoDoor Wallet</p>
+              <p className="mt-2 font-display text-4xl font-semibold tabular-nums tracking-tight text-go">
+                {wallet ? formatUgx(wallet.availableUgx) : "—"}
               </p>
               <p className="mt-1 text-sm text-muted tabular-nums">
-                ≈ {formatUgx(Math.floor(gasBalanceUgx()))} spendable
-                {wallet && wallet.availableUgx > 0 && <> · incl. {formatUgx(wallet.availableUgx)} free credit</>}
+                ≈ ${wallet ? (wallet.availableUgx / (cfg?.rateUgx || 3800)).toFixed(2) : "0.00"} USD
               </p>
               {(wallet && (wallet.pendingUgx > 0 || wallet.pendingUsdt > 0)) && (
                 <p className="mt-1 text-sm text-warning">
-                  {wallet.pendingUsdt > 0 ? `$${wallet.pendingUsdt} USD ` : ""}
-                  {(wallet.pendingUgx > 0 ? formatUgx(wallet.pendingUgx) : "")}
-                  {" "}waiting for admin verification
+                  {formatUgx(wallet.pendingUgx)} waiting for admin verification
                 </p>
               )}
             </div>
@@ -583,12 +587,10 @@ export function WalletPanel() {
             </div>
           </div>
           <p className="mt-4 text-sm text-muted">
-            Top up from your <strong className="text-white">Morse partner wallet</strong> to fund your GoDoor gas fee.
-            New customers get <strong className="text-white">2,000 UGX free</strong> (promo{" "}
-            <code className="rounded bg-elevated px-1.5 py-0.5 text-xs text-go">GONEW</code>) to cover service fees on first orders.
+            Top up via <strong className="text-white">Morse</strong> and pay for any order across Uganda.
           </p>
           <p className="mt-2 text-xs text-dim">
-            Morse USD is shown in your local currency in the app · 1 USD ≈ {formatUgx((cfg?.rateUgx || 3800))} covers that much gas fee
+            Live rate: 1 USD = {formatUgx(cfg?.rateUgx || 3800)} UGX
           </p>
         </div>
 

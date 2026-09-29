@@ -43,14 +43,25 @@ export async function POST(req: Request) {
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
+    const customerFee = Number(order.customer_service_fee_ugx || 0);
+    const businessFee = Number(order.business_service_fee_ugx || 0);
+    const riderFee = Number(order.rider_service_fee_ugx || 0);
+    const totalPlatformFees = customerFee + businessFee + riderFee;
     await sb.from("orders").update({
       status: "delivered",
       payment_status: "released",
+      platform_fees_ugx: totalPlatformFees,
     }).eq("id", parsed.data.orderId);
     return NextResponse.json({
       ok: true,
       commission: result.commission,
       riderPayout: result.riderPayout,
+      feeBreakdown: {
+        customerServiceFee: customerFee,
+        businessServiceFee: businessFee,
+        riderServiceFee: riderFee,
+        totalPlatformFees: totalPlatformFees,
+      },
     });
   } catch (e) {
     return NextResponse.json(
