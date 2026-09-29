@@ -427,11 +427,11 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- ── Security: service_role only ──────────────────────────────────────
-ALTER TABLE public.wallets       ENABLE ROWS LEVEL SECURITY;
-ALTER TABLE public.ledger_entries ENABLE ROWS LEVEL SECURITY;
-ALTER TABLE public.deposits      ENABLE ROWS LEVEL SECURITY;
-ALTER TABLE public.escrow_holds  ENABLE ROWS LEVEL SECURITY;
-ALTER TABLE public.payouts       ENABLE ROWS LEVEL SECURITY;
+ALTER TABLE public.wallets       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ledger_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.deposits      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.escrow_holds  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payouts       ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON public.wallets, public.ledger_entries, public.deposits,
               public.escrow_holds, public.payouts FROM anon, authenticated;
