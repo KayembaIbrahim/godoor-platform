@@ -17,6 +17,18 @@ export async function POST(req: Request) {
     rpc(f: string, a: unknown): Promise<{ data: unknown; error: { message: string; code: string } | null }>;
   };
 
+  if (body.introspect === true) {
+    const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+    if (!base || !key) return NextResponse.json({ error: "no supabase config" }, { status: 500 });
+    const r = await fetch(`${base}/rest/v1/`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      cache: "no-store",
+    });
+    if (!r.ok) return NextResponse.json({ error: `spec ${r.status}`, body: await r.text() }, { status: 500 });
+    return NextResponse.json({ ok: true, spec: await r.json() });
+  }
+
   if (typeof body.select === "string") {
     const { data, error } = await sb.from(body.select).select("*").limit(Number(body.limit) || 5);
     if (error) return NextResponse.json({ error: error.message, code: error.code }, { status: 500 });
