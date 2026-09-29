@@ -13,6 +13,9 @@ import { getServiceClient } from "@/lib/supabase-server";
  *
  * It is gated behind a single-use token and is deleted immediately after the
  * migration runs, so it is never a standing SQL-execution endpoint.
+ *
+ * v2 — bumped to force a fresh build; Vercel was serving a cached deployment
+ * that predated this route.
  */
 
 /** Split on `;` while respecting `$$ ... $$` / `$tag$ ... $tag$` dollar quoting,
