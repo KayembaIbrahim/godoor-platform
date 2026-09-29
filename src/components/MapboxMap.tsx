@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import type { LatLng } from "@/lib/location";
 import { useThemeStore } from "@/lib/theme-store";
+import { maneuverGlyph } from "@/lib/routing";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -51,6 +52,43 @@ export type MarkerData = {
   accuracy?: number | null;
 };
 
+/** A turn-by-turn instruction pinned to a point on the route. */
+export type ManeuverMarker = {
+  type: string;
+  instruction: string;
+  position: LatLng;
+};
+
+/** Build a navigation-badge element for one maneuver. */
+function createManeuverElement(m: ManeuverMarker): HTMLDivElement {
+  const el = document.createElement("div");
+  const isArrive = m.type === "arrive";
+  const size = isArrive ? 30 : 26;
+  el.style.cssText = `
+    width: ${size}px;
+    height: ${size}px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 2px solid ${isArrive ? "#16a34a" : "#0f172a"};
+    color: ${isArrive ? "#16a34a" : "#0f172a"};
+    font-family: Inter, system-ui, sans-serif;
+    font-size: ${isArrive ? 13 : 14}px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    cursor: pointer;
+  `;
+  /* A turn arrow beats a bare number at map scale — the shape tells you what
+     the move is before you have read a word. The step number and full text live
+     in the next-turn banner. */
+  el.textContent = maneuverGlyph(m.type);
+  el.title = m.instruction;
+  el.setAttribute("aria-label", m.instruction);
+  return el;
+}
+
 type Props = {
   center: LatLng;
   markers?: MarkerData[];
@@ -61,6 +99,8 @@ type Props = {
   fillHeight?: boolean;
   animatedRider?: LatLng;
   route?: LatLng[];
+  /** Turn-by-turn points along `route`, drawn as numbered navigation badges. */
+  maneuvers?: ManeuverMarker[];
   /** Per-segment congestion (Mapbox 0-4), length = route.length - 1. Paints the
       route line by traffic level; ignored when absent or the wrong length. */
   congestion?: number[] | null;
@@ -109,18 +149,6 @@ function bagMark(): string {
   `;
 }
 
-function riderMark(): string {
-  return `
-    <circle cx="8.9" cy="6.9" r="1.85" fill="#fff"/>
-    <circle cx="8.9" cy="6.9" r="0.65" fill="rgba(255,255,255,0.35)"/>
-    <path d="M6.5 10.2a2.5 2.5 0 0 1 4.9 0v1H6.5z" fill="#fff"/>
-    <path d="M11.6 10.8h2.2l2.3-1.6" stroke="#fff" stroke-width="1" fill="none" stroke-linecap="round"/>
-    <path d="M10.2 11.1h3.8" stroke="#fff" stroke-width="0.95" stroke-linecap="round"/>
-    <circle cx="6.7" cy="13.4" r="1.75" fill="rgba(255,255,255,0.4)" stroke="#fff" stroke-width="0.9"/>
-    <circle cx="14.7" cy="13.4" r="1.75" fill="rgba(255,255,255,0.4)" stroke="#fff" stroke-width="0.9"/>
-  `;
-}
-
 function pinSvg(opts: { size: number; light: string; dark: string; icon: string; id: string; shape?: "teardrop" | "storefront" }): string {
   const body =
     opts.shape === "storefront"
@@ -154,6 +182,84 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
   const isPickup = m.isPickup;
   const isDest = m.isDestination;
 
+  /* The rider is a puck, not a pin. It is the one thing on this map a customer
+     acts on, so it gets the treatment an app like Uber's driver puck gets: a
+     solid disc that rotates to the bearing and carries a directional nose, so
+     "which way are they going" is answerable at a glance. A teardrop pin for
+     the rider made heading ambiguous. */
+  if (isRider) {
+    const size = 44;
+    el.style.cssText = `
+      width: ${size}px;
+      height: ${size}px;
+      display: block;
+      background: transparent;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
+    `;
+
+    const pulse = document.createElement("div");
+    pulse.style.cssText = `
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2.5px solid #EA580C;
+      opacity: 0.7;
+      animation: marker-ring-pulse 1.8s ease-in-out infinite;
+      pointer-events: none;
+    `;
+    el.appendChild(pulse);
+
+    /* Rotating body: holds the nose so the arrow always points down-road. */
+    const rot = document.createElement("div");
+    rot.style.cssText = `
+      position: absolute;
+      inset: 0;
+      transform: ${m.heading != null && Number.isFinite(m.heading) ? `rotate(${m.heading}deg)` : "rotate(0deg)"};
+      transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+    `;
+    rot.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 44 44" fill="none" style="display:block;filter:drop-shadow(0 3px 5px rgba(0,0,0,0.4))">
+      <circle cx="22" cy="22" r="13" fill="#EA580C" stroke="#ffffff" stroke-width="3"/>
+      <path d="M22 12.5 L26.4 20.2 L22 18.4 L17.6 20.2 Z" fill="#ffffff"/>
+    </svg>`;
+    el.appendChild(rot);
+    (el as any).__gdrArrow = rot;
+    (el as any).__gdrIsPuck = true;
+
+    /* Name/ETA chip below the puck. Placed under the disc rather than over it
+       so it never covers the rider's own position. */
+    if (m.label) {
+      const chip = document.createElement("div");
+      chip.textContent = m.label;
+      chip.style.cssText = `
+        position: absolute;
+        left: 50%;
+        top: ${size + 2}px;
+        transform: translateX(-50%);
+        background: rgba(255,255,255,0.97);
+        color: #1a1128;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-family: Inter, system-ui, sans-serif;
+        font-size: 10px;
+        font-weight: 700;
+        white-space: nowrap;
+        max-width: 130px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+        pointer-events: none;
+        z-index: 2;
+      `;
+      el.appendChild(chip);
+    }
+
+    el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.12)"; });
+    el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
+    return el;
+  }
+
   let size = 44;
   let light = "var(--primary)";
   let dark = "var(--primary-hover)";
@@ -169,10 +275,6 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
     size = 48;
     light = "#22c55e"; dark = "#16a34a";
     icon = doorMark();
-  } else if (isRider) {
-    size = 52;
-    light = "#F97316"; dark = "#EA580C";
-    icon = riderMark();
   } else {
     size = 42;
     light = "#6b7280"; dark = "#4b5563";
@@ -210,23 +312,32 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
   `;
   el.appendChild(shadow);
 
-  /* Pulsing ring: destination (always) + rider (live) */
-  if (isDest || isRider) {
-    const pulse = document.createElement("div");
-    pulse.style.cssText = `
+  /* Pulsing ring: drop-off pin only (the rider is a puck and owns its own).
+     The centring lives on a wrapper because the keyframe animates `transform`
+     outright, which would otherwise wipe out the translateX(-50%) and fling
+     the ring off to the right of the pin. */
+  if (isDest) {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = `
       position: absolute;
       left: 50%;
       top: ${Math.round(size * 0.1)}px;
       width: ${Math.round(size * 0.86)}px;
       height: ${Math.round(size * 0.86)}px;
       transform: translateX(-50%);
+      pointer-events: none;
+    `;
+    const pulse = document.createElement("div");
+    pulse.style.cssText = `
+      position: absolute;
+      inset: 0;
       border-radius: 50%;
       border: 2.5px solid ${dark};
       opacity: 0.8;
-      animation: marker-ring-pulse ${isRider ? "1.8s" : "2.6s"} ease-in-out infinite;
-      pointer-events: none;
+      animation: marker-ring-pulse 2.6s ease-in-out infinite;
     `;
-    el.appendChild(pulse);
+    wrap.appendChild(pulse);
+    el.appendChild(wrap);
   }
 
   /* Heading chevron — rotates to the rider's bearing around the pin */
@@ -294,11 +405,13 @@ function lerpCoord(pts: LatLng[], d: number): LatLng {
 
 function MapboxMapInner({
   center, markers = [], onMapClick, zoom = 14, height = 300, fillHeight = false,
-  className, userLocation, userAccuracy, onError, fitBounds, fitPadding: outerPadding, route, congestion = null,
+  className, userLocation, userAccuracy, onError, fitBounds, fitPadding: outerPadding, route, maneuvers,
+  congestion = null,
 }: Props & { onError?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
+  const maneuverRef = useRef<any[]>([]);
   const userMarkerRef = useRef<any>(null);
   const accuracyRef = useRef<any>(null);
   const riderAccuracyRef = useRef<any>(null);
@@ -441,6 +554,46 @@ function MapboxMapInner({
       }
     } catch {}
   }, [ready, route, congestion]);
+
+  /* ── Turn-by-turn navigation badges ──
+     Numbered discs at each maneuver, sitting above the route line but below
+     the rider/drop-off pins. This is what turns a bare polyline into
+     directions a rider can actually follow without guessing. */
+  const maneuverKey = useMemo(
+    () => (maneuvers || [])
+      .map((m) => `${m.type}:${m.position?.lat?.toFixed(5) ?? "x"}:${m.position?.lng?.toFixed(5) ?? "x"}`)
+      .join("|"),
+    [maneuvers],
+  );
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    let cancelled = false;
+
+    import("mapbox-gl").then((mapboxgl) => {
+      if (cancelled || !mapRef.current) return;
+      const m = mapRef.current;
+
+      // Rebuild from scratch: the badge order and count change with the route,
+      // and diffing DOM markers buys nothing for a list capped at a dozen.
+      maneuverRef.current.forEach((mk) => { try { mk.remove(); } catch {} });
+      maneuverRef.current = [];
+
+      (maneuvers || []).forEach((mv, i) => {
+        if (!mv?.position) return;
+        if (Math.abs(mv.position.lat) <= 1e-9 && Math.abs(mv.position.lng) <= 1e-9) return;
+        const el = createManeuverElement(mv);
+        el.style.zIndex = "20";
+        const mk = new mapboxgl.default.Marker({ element: el, anchor: "center" })
+          .setLngLat([mv.position.lng, mv.position.lat])
+          .addTo(m);
+        maneuverRef.current.push(mk);
+      });
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [ready, maneuverKey]); // eslint-disable-line
 
   /* ── Animated "delivery in motion" dot along the route (when no live rider pin) ── */
   useEffect(() => {
@@ -678,7 +831,12 @@ function MapboxMapInner({
           }
           const arrowEl = (marker.getElement() as any)?.__gdrArrow;
           if (arrowEl && m.heading != null && Number.isFinite(m.heading)) {
-            arrowEl.style.transform = `translateX(-50%) rotate(${m.heading}deg)`;
+            // The rider puck centres itself with absolute positioning, so it
+            // rotates alone; the legacy chevron also needed centring.
+            const isPuck = (marker.getElement() as any).__gdrIsPuck;
+            arrowEl.style.transform = isPuck
+              ? `rotate(${m.heading}deg)`
+              : `translateX(-50%) rotate(${m.heading}deg)`;
           }
         } else {
           const el = createMarkerElement(m);

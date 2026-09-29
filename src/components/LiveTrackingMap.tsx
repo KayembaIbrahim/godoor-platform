@@ -38,6 +38,8 @@ type Props = {
   customerName?: string;
   /** Actual road polyline (Mapbox/OSRM). When provided, replaces the straight-line display. */
   roadRoute?: LatLng[] | null;
+  /** Turn-by-turn points, drawn as numbered navigation badges on the route. */
+  maneuvers?: Array<{ type: string; instruction: string; lat: number; lng: number }> | null;
   /** Road distance/time power the fare + ETA so billing counts time, not just distance. */
   roadDistanceKm?: number | null;
   roadDurationMin?: number | null;
@@ -51,7 +53,7 @@ type Props = {
 
 export function LiveTrackingMap({
   riderLoc, riderHeading, riderAccuracy = null, providerLoc, providerName, dropoffLoc, pickupLoc, showPickup = false, label, compact = false, fill = false,
-  userLocation, userAccuracy, merchantName, customerName, roadRoute = null, roadDistanceKm = null, roadDurationMin = null,
+  userLocation, userAccuracy, merchantName, customerName, roadRoute = null, maneuvers = null, roadDistanceKm = null, roadDurationMin = null,
   quotedFeeUgx = null, trafficAware = false, congestion = null,
 }: Props) {
   const UG_DEFAULT: LatLng = { lat: 0.3163, lng: 32.5822 };
@@ -140,11 +142,24 @@ export function LiveTrackingMap({
 
   const kmAway = dist != null && (dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)} km`);
 
+  /* Only the first few maneuvers are worth a badge — a long list of discs turns
+     the route into confetti. Twelve covers a city delivery with room to spare. */
+  const maneuverMarkers = useMemo(
+    () => (maneuvers || []).slice(0, 12).map((m) => ({
+      type: m.type,
+      instruction: m.instruction,
+      position: { lat: m.lat, lng: m.lng },
+    })),
+    [maneuvers],
+  );
+
+  const nextTurn = maneuverMarkers[0] || null;
+
   if (compact) {
     return (
       <div className="space-y-2">
         <div className="relative h-[38vh] min-h-[260px] w-full overflow-hidden rounded-2xl border border-border shadow-lg shadow-black/10">
-          <MapboxMapView center={center} zoom={14} userLocation={userLocation || undefined} userAccuracy={userAccuracy ?? null} height={400} route={route} congestion={congestion} fitBounds={fitBounds} markers={markers} fitPadding={{ top: 56, bottom: 56, left: 48, right: 48 }} />
+          <MapboxMapView center={center} zoom={14} userLocation={userLocation || undefined} userAccuracy={userAccuracy ?? null} height={400} route={route} maneuvers={maneuverMarkers} congestion={congestion} fitBounds={fitBounds} markers={markers} fitPadding={{ top: 56, bottom: 56, left: 48, right: 48 }} />
           <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full border border-border bg-surface/85 px-3 py-1.5 shadow-lg backdrop-blur-md">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-60" />
@@ -175,6 +190,7 @@ export function LiveTrackingMap({
           height={600}
           fillHeight={fill}
           route={route}
+          maneuvers={maneuverMarkers}
           congestion={congestion}
           fitBounds={fitBounds}
           markers={markers}
@@ -190,6 +206,21 @@ export function LiveTrackingMap({
           <span className="text-xs font-semibold">{label || "Tracking delivery"}</span>
           {kmAway && <span className="text-[10px] font-medium text-muted">{kmAway} away</span>}
         </div>
+
+        {/* Next-turn banner — the one instruction the rider needs right now.
+            Sits top-centre so it never collides with the status chip or the
+            metrics card, and is the first thing a glance lands on. */}
+        {nextTurn && (
+          <div className="absolute left-1/2 top-3 z-10 flex max-w-[min(92%,22rem)] -translate-x-1/2 items-center gap-2.5 rounded-2xl border border-border bg-surface/95 px-3.5 py-2.5 shadow-xl backdrop-blur-md">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-go/15 text-sm font-black text-go">
+              {nextTurn.type === "arrive" ? "★" : "1"}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-dim">Next</p>
+              <p className="truncate text-[11px] font-semibold text-fg">{nextTurn.instruction}</p>
+            </div>
+          </div>
+        )}
 
         {/* Bottom-left: legend */}
         <div className="absolute bottom-52 left-3 z-10 hidden items-center gap-3 rounded-xl border border-border bg-surface/85 px-3 py-2 shadow-lg backdrop-blur-md sm:flex">

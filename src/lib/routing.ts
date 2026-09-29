@@ -42,6 +42,12 @@ export type RoadRoute = {
   source: RouteSource;
   steps: string[];
   /**
+   * Turn-by-turn maneuvers WITH coordinates, in travel order. These drive the
+   * numbered navigation markers on the map — the same markings a rider follows
+   * in a turn-by-turn app, rather than a bare polyline they have to interpret.
+   */
+  maneuvers?: Maneuver[];
+  /**
    * Traffic level per leg segment (0 unknown, 1 low, 2 moderate, 3 heavy,
    * 4 severe). Only returned by the mapbox/driving-traffic profile, and only
    * when congestion is requested in `annotations`. Length is coordinates-1
@@ -50,6 +56,16 @@ export type RoadRoute = {
   congestion?: number[];
   /** True when the ETA came from time-dependent traffic rather than free-flow. */
   trafficAware?: boolean;
+};
+
+/** A single turn/arrive instruction pinned to a point on the route. */
+export type Maneuver = {
+  /** Short label for the marker badge, e.g. "Right" / "Arrive". */
+  type: string;
+  /** Full human instruction for the step list. */
+  instruction: string;
+  lat: number;
+  lng: number;
 };
 
 type CacheEntry = { at: number; route: RoadRoute };
@@ -113,10 +129,74 @@ type MapboxRoute = {
   distance?: number;
   duration?: number;
   legs?: {
-    steps?: { maneuver?: { instruction?: string } }[];
+    steps?: { maneuver?: { instruction?: string; type?: string; location?: [number, number] }; name?: string }[];
     annotation?: { congestion?: number[] };
   }[];
 };
+
+/** Glyph for the numbered marker badge. Falls back to a dot for anything the
+    Directions API returns that is not a turn we can name. */
+export function maneuverGlyph(type: string): string {
+  switch (type) {
+    case "turn":
+    case "turn-left":
+    case "turn-right":
+    case "turn-slight-left":
+    case "turn-slight-right":
+    case "turn-sharp-left":
+    case "turn-sharp-right":
+    case "roundabout":
+    case "rotary":
+    case "roundabout-turn":
+    case "rotary-turn":
+    case "exit":
+    case "exit-roundabout":
+    case "exit-rotary":
+      return "↰";
+    case "merge":
+    case "on-ramp":
+    case "off-ramp":
+      return "↗";
+    case "fork":
+      return "⑂";
+    case "continue":
+      return "↑";
+    case "arrive":
+      return "★";
+    case "depart":
+      return "●";
+    case "new name":
+    case "end of road":
+      return "↑";
+    default:
+      return "•";
+  }
+}
+
+/** Glyph for the numbered marker badge. Falls back to a dot for anything the
+    Directions API returns that is not a turn we can name. Keyed on the API's
+    own vocabulary (spaces, not hyphens — "off ramp", not "off-ramp"). */
+
+/** Mapbox congestion annotation values → the 0-4 integers the rest of the app
+    (and the Mapbox `match` paint expression) expects.
+ *
+ * The `driving-traffic` profile returns these as STRINGS ("unknown", "low",
+ * "moderate", "heavy", "severe"). Comparing those as numbers silently failed
+ * every check: `summarizeTraffic` always bailed out, so the congestion chip
+ * never rendered, and the route's `match` expression never matched a label so
+ * the whole line stayed flat orange. Normalising here fixes both at once. */
+function congestionCode(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isInteger(value) && value >= 0 && value <= 4 ? value : 0;
+  }
+  switch (String(value ?? "").trim().toLowerCase()) {
+    case "low": return 1;
+    case "moderate": return 2;
+    case "heavy": return 3;
+    case "severe": return 4;
+    default: return 0; // "unknown" and anything unrecognised
+  }
+}
 
 function parseMapboxRoute(json: { routes?: MapboxRoute[] }, trafficAware: boolean): RoadRoute | null {
   const r = json.routes?.[0];
@@ -128,17 +208,27 @@ function parseMapboxRoute(json: { routes?: MapboxRoute[] }, trafficAware: boolea
     : [];
   if (coords.length < 2) return null;
   const steps: string[] = [];
+  const maneuvers: Maneuver[] = [];
   for (const leg of r.legs || []) {
     for (const st of leg.steps || []) {
       const ins = st.maneuver?.instruction;
       if (ins) steps.push(ins);
+      const loc = st.maneuver?.location;
+      const type = String(st.maneuver?.type || "");
+      if (ins && Array.isArray(loc) && loc.length === 2) {
+        const lat = Number(loc[1]);
+        const lng = Number(loc[0]);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          maneuvers.push({ type, instruction: ins, lat, lng });
+        }
+      }
       if (steps.length >= 12) break;
     }
     if (steps.length >= 12) break;
   }
   const congestion: number[] = [];
   for (const leg of r.legs || []) {
-    for (const c of leg.annotation?.congestion || []) congestion.push(c);
+    for (const c of leg.annotation?.congestion || []) congestion.push(congestionCode(c));
   }
   return {
     coordinates: coords,
@@ -146,6 +236,7 @@ function parseMapboxRoute(json: { routes?: MapboxRoute[] }, trafficAware: boolea
     durationMin: (r.duration || 0) / 60,
     source: "mapbox",
     steps,
+    maneuvers: maneuvers.length ? maneuvers : undefined,
     // Free-flow responses carry no congestion array, so a successful fallback
     // must not claim to be traffic-aware.
     congestion: congestion.length ? congestion : undefined,

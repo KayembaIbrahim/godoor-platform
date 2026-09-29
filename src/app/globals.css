@@ -667,6 +667,17 @@ h1, h2, h3 {
   animation: pulse-ring 1.5s ease-out infinite;
 }
 
+/* Map marker pulse. The rider puck, the drop-off pin and the "you are here"
+   dot all reference this by name from inline styles inside MapboxMap (which
+   mounts outside the styled tree, so a utility class cannot reach it). It was
+   never defined, so every one of those rings rendered completely static — the
+   markers looked like flat stickers with a dead circle baked in. */
+@keyframes marker-ring-pulse {
+  0%   { transform: scale(0.82); opacity: 0.85; }
+  70%  { transform: scale(1.35); opacity: 0; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
 /* Button micro-interactions */
 .btn-lift, .btn {
   transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;

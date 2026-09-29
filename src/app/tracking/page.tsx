@@ -692,6 +692,7 @@ function OrderTracker({ order }: { order: DBOrder }) {
                   pickupLoc={pickupLoc}
                   showPickup={pickupReady}
                   roadRoute={roadCoords}
+                  maneuvers={roadRoute?.maneuvers ?? null}
                   roadDistanceKm={roadRoute?.distanceKm ?? null}
                   roadDurationMin={roadRoute?.durationMin ?? null}
                   congestion={roadRoute?.congestion ?? null}
@@ -977,6 +978,7 @@ function RoleOverview() {
             pickupLoc={shop}
             showPickup={!!shop}
             roadRoute={overviewRoadCoords}
+            maneuvers={overviewRoadRoute?.maneuvers ?? null}
             roadDistanceKm={overviewRoadRoute?.distanceKm ?? null}
             roadDurationMin={overviewRoadRoute?.durationMin ?? null}
             congestion={overviewRoadRoute?.congestion ?? null}

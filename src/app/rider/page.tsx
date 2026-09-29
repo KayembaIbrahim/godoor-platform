@@ -985,6 +985,7 @@ export default function RiderDashboard() {
                     pickupLoc={merchantLoc}
                     showPickup={!!merchantLoc}
                     roadRoute={riderRoadRoute && riderRoadRoute.coordinates.length >= 2 ? riderRoadRoute.coordinates : null}
+                    maneuvers={riderRoadRoute?.maneuvers ?? null}
                     congestion={riderRoadRoute?.congestion ?? null}
                     trafficAware={!!riderRoadRoute?.trafficAware}
                     quotedFeeUgx={activeDelivery.delivery_fee_ugx}

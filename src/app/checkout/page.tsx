@@ -67,26 +67,20 @@ function deliveryEstimate(distKm: number): string {
 
 /* ─── Map preview via Mapbox ─── */
 function MapPreview({ lat, lng, hasLoc }: { lat: number; lng: number; hasLoc: boolean }) {
-  if (!hasLoc) {
-    return (
-      <div className="mt-2 grid h-[120px] w-full place-items-center rounded-xl border border-border bg-surface">
-        <div className="text-center">
-          <MapPin className="mx-auto h-5 w-5 text-dim" />
-          <p className="mt-1 text-[11px] text-muted">Set your address to see it on the map</p>
-        </div>
-      </div>
-    );
-  }
   return (
-    <div className="relative mt-2 h-[160px] w-full overflow-hidden rounded-xl border border-border">
+    <div className="relative mt-2 h-[180px] w-full overflow-hidden rounded-xl border border-border">
       <MapboxMapView
         center={{ lat, lng }}
-        zoom={15}
-        height={160}
-        markers={[{ id: "delivery", position: { lat, lng }, isDestination: true, label: "Delivery" }]}
-        fitBounds={[{ lat, lng }]}
-        fitPadding={{ top: 40, bottom: 40, left: 40, right: 40 }}
+        zoom={hasLoc ? 15 : 12}
+        height={180}
+        markers={[{ id: "delivery", position: { lat, lng }, isDestination: true, label: hasLoc ? "Delivery" : "Kampala" }]}
       />
+      {!hasLoc && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2.5 pt-6">
+          <MapPin className="h-3.5 w-3.5 shrink-0 text-go" />
+          <p className="text-[11px] font-medium text-white">Set your address to place the drop-off pin</p>
+        </div>
+      )}
     </div>
   );
 }

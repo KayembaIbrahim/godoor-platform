@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowLeft, MapPin, Navigation, Bike, Phone, X, Loader2, Clock } from "lucide-react";
+import { ArrowLeft, MapPin, Navigation, Bike, Phone, X, Loader2, Clock, CheckCircle2 } from "lucide-react";
 import { AddressSearchModal } from "@/components/AddressSearchModal";
 import { useSession } from "@/lib/session-store";
 import { useGeolocation, distanceKm, type LatLng } from "@/lib/location";
@@ -28,18 +28,31 @@ function estimateFare(km: number | null): { fare: number; fee: number; total: nu
 
 type Addr = { place: string; lat: number; lng: number };
 
-function ActiveRideCard({ ride: initial }: { ride: DBRide }) {
+/** Statuses that keep a trip in the customer's "active" slot. Anything else
+    (completed / cancelled) is history and must free the booking form. */
+const LIVE_RIDE_STATUSES: readonly string[] = ["requested", "accepted", "in_progress"];
+
+function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled: (id: string) => void }) {
   const [ride, setRide] = useState(initial);
   const [riderLoc, setRiderLoc] = useState<LatLng | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { setRide(initial); }, [initial.id]); // eslint-disable-line
 
+  /* Hand the ride back to the parent the moment it settles, so the booking
+     form unlocks without waiting for the parent's next poll. */
+  useEffect(() => {
+    if (!LIVE_RIDE_STATUSES.includes(ride.status)) {
+      onSettled(ride.id);
+    }
+  }, [ride.status, ride.id, onSettled]);
+
   useEffect(() => {
     const unsub = subscribeToRide(ride.id, (r) => setRide(r));
     const id = setInterval(() => {
+      if (document.hidden) return;
       fetchRideById(ride.id).then((r) => { if (r) setRide(r); });
-    }, 15000);
+    }, 10000);
     return () => { unsub(); clearInterval(id); };
   }, [ride.id]);
 
@@ -64,11 +77,36 @@ function ActiveRideCard({ ride: initial }: { ride: DBRide }) {
     setBusy(false);
   };
 
+  const settled = !LIVE_RIDE_STATUSES.includes(ride.status);
   const statusLabel =
     ride.status === "requested" ? "Finding your rider…" :
     ride.status === "accepted" ? "Rider on the way to you" :
     ride.status === "in_progress" ? "Trip in progress" :
-    ride.status === "completed" ? "Trip completed" : "Cancelled";
+    ride.status === "completed" ? "Trip completed" : "Ride cancelled";
+
+  /* A settled ride keeps its receipt on screen briefly (so the customer sees
+     the outcome) but no longer shows live tracking, which is what made a
+     finished trip look like it was still running. */
+  if (settled) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-success/30 bg-surface">
+        <div className="flex items-start gap-3 p-4">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-success/15">
+            {ride.status === "completed"
+              ? <CheckCircle2 className="h-5 w-5 text-success" />
+              : <X className="h-5 w-5 text-danger" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold">{statusLabel}</p>
+            <p className="mt-0.5 text-xs text-muted">{ride.pickup_address || "Pickup"} → {ride.dropoff_address || "Dropoff"}</p>
+            <p className="num mt-1 text-sm font-bold text-primary tabular-nums">
+              {formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">incl. 5% service fee</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-hidden rounded-2xl border border-primary/40 bg-surface">
@@ -80,6 +118,7 @@ function ActiveRideCard({ ride: initial }: { ride: DBRide }) {
           pickupLoc={pickup}
           showPickup
           roadRoute={roadCoords}
+          maneuvers={route?.maneuvers ?? null}
           label={statusLabel}
           merchantName="Pickup"
           customerName="You"
@@ -125,13 +164,40 @@ export default function RidePage() {
   const loadMine = useCallback(() => {
     fetchMyRides().then((rs) => {
       setMyRides(rs);
-      const active = rs.find((r) => ["requested", "accepted", "in_progress"].includes(r.status));
+      const active = rs.find((r) => LIVE_RIDE_STATUSES.includes(r.status));
       setActiveId(active ? active.id : null);
     }).catch(() => {});
   }, []);
-  useEffect(() => { if (onboarded) loadMine(); }, [onboarded, loadMine]);
+
+  /* The active ride is derived from a poll, not a one-time read.
+     `loadMine` used to run only on mount, so when the rider tapped "Delivered"
+     the customer kept seeing "Trip in progress" and the booking form stayed
+     blocked behind a trip that no longer existed. Realtime can also silently
+     drop, so a poll is the guarantee; it pauses on a hidden tab. */
+  useEffect(() => {
+    if (!onboarded) return;
+    loadMine();
+    const tick = () => { if (!document.hidden) loadMine(); };
+    const id = setInterval(tick, 10000);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
+  }, [onboarded, loadMine]);
 
   const activeRide = myRides.find((r) => r.id === activeId) || null;
+
+  /* A ride that reached a terminal state must release the booking form. This
+     is belt-and-braces on top of the poll above, so the user is never trapped
+     even if the next poll lands late. */
+  useEffect(() => {
+    if (activeId && activeRide && !LIVE_RIDE_STATUSES.includes(activeRide.status)) {
+      setActiveId(null);
+    }
+  }, [activeId, activeRide]);
 
   const km = pickup && dropoff ? distanceKm(pickup, dropoff) : null;
   const est = useMemo(() => estimateFare(km), [km]);
@@ -190,7 +256,7 @@ export default function RidePage() {
       {/* Active ride first — tracking is the hero */}
       {activeRide ? (
         <div className="mt-4">
-          <ActiveRideCard ride={activeRide} />
+          <ActiveRideCard ride={activeRide} onSettled={setActiveId} />
           <button type="button" onClick={() => setActiveId(null)}
             className="mt-3 w-full rounded-xl border border-border bg-surface py-2.5 text-xs font-semibold text-muted">
             Book another ride
@@ -235,6 +301,7 @@ export default function RidePage() {
                   pickupLoc={{ lat: pickup.lat, lng: pickup.lng }}
                   showPickup
                   roadRoute={previewCoords}
+      maneuvers={previewRoute.route?.maneuvers ?? null}
                   label="Your route"
                   merchantName="Pickup"
                   customerName="Dropoff"
