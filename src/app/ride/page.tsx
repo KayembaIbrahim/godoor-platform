@@ -22,9 +22,9 @@ const BODA_PER_KM = 1200;
 /** The service-fee rate actually applied to THIS ride, derived from the
  *  stored amounts. A ride priced under an older config must keep showing that
  *  rate, not today's global percentage. Returns null when there is no fee. */
-function appliedFeePct(ride: { total_ugx: number; service_fee_ugx: number } | null): string | null {
-  const fee = Number(ride?.service_fee_ugx ?? 0);
-  const total = Number(ride?.total_ugx ?? 0);
+function appliedFeePct(total: number | null | undefined, fee: number | null | undefined): string | null {
+  fee = Number(fee ?? 0);
+  total = Number(total ?? 0);
   const base = total - fee;
   if (!(base > 0) || !(fee > 0)) return null;
   const pct = (fee / base) * 100;
@@ -112,7 +112,7 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
             <p className="text-sm font-bold">{statusLabel}</p>
             <p className="mt-0.5 text-xs text-muted">{ride.pickup_address || "Pickup"} → {ride.dropoff_address || "Dropoff"}</p>
             <p className="num mt-1 text-sm font-bold text-primary tabular-nums">
-              {formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">{appliedFeePct(ride) ? `incl. ${appliedFeePct(ride)}% service fee` : ""}</span>
+              {formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">{appliedFeePct(ride.total_ugx, ride.service_fee_ugx) ? `incl. ${appliedFeePct(ride.total_ugx, ride.service_fee_ugx)}% service fee` : ""}</span>
             </p>
           </div>
         </div>
@@ -145,7 +145,7 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
           <p className="mt-1 text-xs text-muted">Nearby boda riders have been notified.</p>
         )}
         <div className="mt-2 flex items-center justify-between">
-          <p className="text-sm font-bold text-primary tabular-nums">{formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">{appliedFeePct(ride) ? `incl. ${appliedFeePct(ride)}% service fee` : ""}</span></p>
+          <p className="text-sm font-bold text-primary tabular-nums">{formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">{appliedFeePct(ride.total_ugx, ride.service_fee_ugx) ? `incl. ${appliedFeePct(ride.total_ugx, ride.service_fee_ugx)}% service fee` : ""}</span></p>
           {["requested", "accepted"].includes(ride.status) && (
             <button type="button" onClick={cancel} disabled={busy}
               className="rounded-xl bg-danger/10 px-3 py-2 text-xs font-semibold text-danger disabled:opacity-50">
@@ -333,7 +333,7 @@ export default function RidePage() {
                   <p className="flex items-center justify-center gap-1 text-sm font-bold"><Clock className="h-3 w-3 text-primary" /> ~10 min</p>
                 </div>
               </div>
-              <p className="px-3 pb-3 text-[10px] text-dim">{appliedFeePct(ride) ? `Includes ${appliedFeePct(ride)}% GoDoor service fee. Pay the rider directly (GoDoor Wallet).` : "Pay the rider directly (GoDoor Wallet)."}</p>
+              <p className="px-3 pb-3 text-[10px] text-dim">{appliedFeePct(est.total, est.fee) ? `Includes ${appliedFeePct(est.total, est.fee)}% GoDoor service fee. Pay the rider directly (GoDoor Wallet).` : "Pay the rider directly (GoDoor Wallet)."}</p>
             </div>
           )}
           </div>
