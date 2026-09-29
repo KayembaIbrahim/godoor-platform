@@ -27,8 +27,8 @@ const BUSINESS_LINKS = [
 
 const RIDER_LINKS = [
   { label: "Available", href: "/rider" },
-  { label: "Map", href: "/tracking" },
   { label: "Earnings", href: "/rider/earnings" },
+  { label: "History", href: "/rider/history" },
 ];
 
 export function HeaderClient() {
@@ -104,11 +104,6 @@ export function HeaderClient() {
                     </Link>
                   </>
                 )}
-                {onboarded && (
-                  <Link href={dashboardHref} className="nav-pill nav-pill-cta active:scale-95">
-                    Dashboard
-                  </Link>
-                )}
               </>
             ) : isBusiness ? (
               <>
@@ -123,7 +118,6 @@ export function HeaderClient() {
                     >{link.label}</Link>
                   );
                 })}
-                <Link href={dashboardHref} className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition">Business</Link>
               </>
             ) : isRider ? (
               <>
@@ -138,7 +132,6 @@ export function HeaderClient() {
                     >{link.label}</Link>
                   );
                 })}
-                <Link href={dashboardHref} className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition">Rider</Link>
               </>
             ) : null}
           </nav>
@@ -161,9 +154,24 @@ export function HeaderClient() {
       {menuOpen && (
         <div className="nav-glass border-t border-border lg:hidden">
           <nav className="mx-auto flex max-w-5xl flex-col gap-1 px-4 py-3" aria-label="Mobile">
-            {isCustomer && NAV_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-fg hover:bg-elevated transition">{link.label}</Link>
-            ))}
+            {isCustomer && (
+              <>
+                {NAV_LINKS.map((link) => (
+                  <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-fg hover:bg-elevated transition">{link.label}</Link>
+                ))}
+                {/* The dashboard CTA used to point at /app, which is the same
+                    page as "Browse". These are the destinations a signed-in
+                    customer actually opens from here. */}
+                {onboarded && (
+                  <>
+                    <Link href="/orders" onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-fg hover:bg-elevated transition">My orders</Link>
+                    <Link href="/cart" onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-fg hover:bg-elevated transition">Cart</Link>
+                    <Link href="/wallet" onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-fg hover:bg-elevated transition">Wallet</Link>
+                    <Link href="/account" onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-fg hover:bg-elevated transition">Account</Link>
+                  </>
+                )}
+              </>
+            )}
             {isBusiness && BUSINESS_LINKS.map((link) => (
               <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/10 transition">{link.label}</Link>
             ))}
@@ -176,8 +184,6 @@ export function HeaderClient() {
                 <Link href="/partner?role=rider" onClick={() => setMenuOpen(false)} className="rounded-xl bg-success/10 px-3 py-2.5 text-sm font-semibold text-success hover:bg-success/15 transition">Become a rider</Link>
                 <Link href="/app" onClick={() => setMenuOpen(false)} className="rounded-xl border border-border px-3 py-2.5 text-sm font-medium text-muted hover:bg-elevated hover:text-fg transition">Browse merchants</Link>
               </>
-            ) : isCustomer ? (
-              <Link href={dashboardHref} onClick={() => setMenuOpen(false)} className="rounded-xl bg-go px-3 py-2.5 text-sm font-semibold text-white hover:bg-go-2 transition">Go to dashboard</Link>
             ) : isBusiness ? (
               <Link href={dashboardHref} onClick={() => setMenuOpen(false)} className="rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 transition">Business dashboard</Link>
             ) : isRider ? (

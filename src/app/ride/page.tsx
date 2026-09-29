@@ -254,7 +254,7 @@ export default function RidePage() {
                   <p className="flex items-center justify-center gap-1 text-sm font-bold"><Clock className="h-3 w-3 text-primary" /> ~10 min</p>
                 </div>
               </div>
-              <p className="px-3 pb-3 text-[10px] text-dim">Includes 5% GoDoor service fee. Pay the rider directly (cash / MoMo).</p>
+              <p className="px-3 pb-3 text-[10px] text-dim">Includes 5% GoDoor service fee. Pay the rider directly (GoDoor Wallet).</p>
             </div>
           )}
           </div>

@@ -5,13 +5,13 @@ import { useState, useEffect, Suspense, Component, useCallback, useMemo, useRef,
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Phone, MessageCircle, CheckCircle2, Package, Truck, Clock,
-  MapPin, Navigation, Star, Bike, Car, CreditCard, Banknote,
+  MapPin, Navigation, Star, Bike, Car, CreditCard,
   ExternalLink, AlertCircle, PartyPopper, X, ClipboardList,
 } from "lucide-react";
 import { LiveTrackingMap } from "@/components/LiveTrackingMap";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { subscribeToRiderLocation, fetchRiderLocation, fetchProviderLocation, subscribeToProviderLocation, fetchOrderById, fetchOrders, type DBOrder } from "@/lib/db";
+import { subscribeToOrder, subscribeToRiderLocation, fetchRiderLocation, fetchProviderLocation, subscribeToProviderLocation, fetchOrderById, fetchOrders, type DBOrder } from "@/lib/db";
 import { useSession } from "@/lib/session-store";
 import { formatUgx } from "@/lib/utils";
 import { useGeolocation, distanceKm, formatDistance, type LatLng } from "@/lib/location";
@@ -447,13 +447,9 @@ function OrderSummary({ order, status }: { order: DBOrder; status: string }) {
               <Package className="h-3 w-3" />
               {items} item{items !== 1 ? "s" : ""}
             </span>
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${
-              order.payment_method === "cash"
-                ? "bg-warning/15 text-warning"
-                : "bg-go/15 text-go"
-            }`}>
-              {order.payment_method === "cash" ? <Banknote className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}
-              {order.payment_method === "momo" ? "MoMo" : order.payment_method === "airtel" ? "Airtel" : "Cash"}
+            <span className="inline-flex items-center gap-1 rounded-full bg-go/15 px-2 py-0.5 text-[10px] font-bold text-go">
+              <CreditCard className="h-3 w-3" />
+              GoDoor Wallet
             </span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${
               order.payment_confirmed ? "bg-success/15 text-success" : "bg-warning/15 text-warning"
@@ -607,12 +603,19 @@ function OrderTracker({ order }: { order: DBOrder }) {
     return () => clearInterval(id);
   }, [order.rider_id, pollMs, isRiderOnRoute]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll order status every 10s
+  /* Order status — realtime first, poll as the safety net.
+     The rider tapping "Delivered" writes one row, and the customer has to see
+     it the moment it lands: a 10s poll left the old status on screen long
+     enough to look like the tap had not registered at all. */
   useEffect(() => {
+    let cancelled = false;
+    const unsub = subscribeToOrder(order.id, (o) => {
+      if (!cancelled && o?.status) setStatus(o.status);
+    });
     const interval = setInterval(() => {
-      fetchOrderById(order.id).then((o) => { if (o) setStatus(o.status); });
+      fetchOrderById(order.id).then((o) => { if (!cancelled && o) setStatus(o.status); });
     }, 10000);
-    return () => clearInterval(interval);
+    return () => { cancelled = true; unsub(); clearInterval(interval); };
   }, [order.id]);
 
   // Honest on-time detection: delayed only once ETA exceeds baseline by >25% (and is real).
@@ -682,6 +685,7 @@ function OrderTracker({ order }: { order: DBOrder }) {
                   fill
                   riderLoc={liveRiderLoc}
                   riderHeading={riderHeading}
+                  riderAccuracy={riderAccuracy}
                   providerLoc={providerLoc}
                   providerName={order.merchant_name}
                   dropoffLoc={dropoffLoc}
@@ -835,13 +839,9 @@ function OrderTracker({ order }: { order: DBOrder }) {
       <div className="mx-4 mt-4 rounded-2xl border border-border bg-surface p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {order.payment_method === "cash" ? (
-              <Banknote className="h-4 w-4 text-muted" />
-            ) : (
-              <CreditCard className="h-4 w-4 text-muted" />
-            )}
+            <CreditCard className="h-4 w-4 text-muted" />
             <span className="text-xs font-medium text-muted">
-              {order.payment_method === "momo" ? "MTN MoMo" : order.payment_method === "airtel" ? "Airtel Money" : "Cash on delivery"}
+              GoDoor Wallet
             </span>
           </div>
           <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${

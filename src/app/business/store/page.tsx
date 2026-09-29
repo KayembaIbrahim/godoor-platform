@@ -16,8 +16,6 @@ export default function BusinessStorePage() {
   const [tagline, setTagline] = useState(profile.tagline || "");
   const [area, setArea] = useState(profile.area || "");
   const [district, setDistrict] = useState(profile.district || profile.area || "");
-  const [momoNumber, setMomoNumber] = useState(profile.momoNumber || "");
-  const [momoName, setMomoName] = useState(profile.momoName || "");
   const [morseTag, setMorseTag] = useState("");
   const [morseTagConfirm, setMorseTagConfirm] = useState("");
   const [morseConfirmed, setMorseConfirmed] = useState(false);
@@ -27,7 +25,7 @@ export default function BusinessStorePage() {
   const [changeTag, setChangeTag] = useState("");
   const [changePhone, setChangePhone] = useState("");
   const [changeReason, setChangeReason] = useState("");
-  const [accepted, setAccepted] = useState<string[]>(["morse", "cash", "momo"]);
+  const [accepted, setAccepted] = useState<string[]>(["wallet"]);
   const [opensAt, setOpensAt] = useState(profile.opensAt || "08:00");
   const [closesAt, setClosesAt] = useState(profile.closesAt || "22:00");
   const [category, setCategory] = useState(profile.category || CATEGORIES[0]?.id || "Food & Restaurants");
@@ -76,11 +74,9 @@ export default function BusinessStorePage() {
         setTagline(m.tagline || "");
         setArea(m.area || "");
         setDistrict(m.district || "");
-        setMomoNumber(m.momo_number || "");
-        setMomoName(m.momo_name || "");
         setMorseTag(m.morse_tag || "");
         setMorseConfirmed(Boolean(m.morse_tag));
-        setAccepted(m.accepted_payments && m.accepted_payments.length ? m.accepted_payments : ["morse", "cash", "momo"]);
+        setAccepted(m.accepted_payments && m.accepted_payments.length ? m.accepted_payments : ["wallet"]);
         setOpensAt(m.opens_at || "08:00");
         setClosesAt(m.closes_at || "22:00");
         setCategory(m.category || "");
@@ -113,14 +109,14 @@ export default function BusinessStorePage() {
     setSavingDb(true);
     // Always save to session store (reliable local persistence)
     setProfile({
-      businessName: bName, tagline, area, district, momoNumber, momoName,
+      businessName: bName, tagline, area, district,
       opensAt, closesAt, category, storeLogoUrl: logoUrl,
       businessType,
       businessLat: loc.lat,
       businessLng: loc.lng,
     });
     await saveToDb({
-      tagline, area, district, momo_number: momoNumber, momo_name: momoName,
+      tagline, area, district,
       opens_at: opensAt, closes_at: closesAt, category, logo_url: logoUrl,
       accepted_payments: accepted,
       business_type: businessType,
@@ -198,14 +194,12 @@ export default function BusinessStorePage() {
   const toggleAccepted = (id: string) => {
     setAccepted((prev) => {
       const next = prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id];
-      return next.length ? next : ["cash"];
+      return next.length ? next : ["wallet"];
     });
   };
 
   const PAYMENT_OPTIONS = [
-    { id: "morse", label: "Morse (USD) · recommended" },
-    { id: "cash", label: "Cash on delivery" },
-    { id: "momo", label: "Mobile Money" },
+    { id: "wallet", label: "GoDoor Wallet" },
   ];
 
   const submitNameRequest = async () => {
@@ -388,9 +382,7 @@ export default function BusinessStorePage() {
         {/* Payment */}
         <div className="rounded-2xl border border-border bg-surface p-4 space-y-3">
           <h3 className="text-xs font-semibold text-dim uppercase tracking-wider">Payment</h3>
-          <div><label className="text-xs text-muted">MoMo number</label><input value={momoNumber} onChange={(e) => setMomoNumber(e.target.value)} placeholder="0772 100 200" className="mt-1 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm outline-none ring-primary focus:ring-2" /></div>
-          <div><label className="text-xs text-muted">Registered name</label><input value={momoName} onChange={(e) => setMomoName(e.target.value)} placeholder="Business name on MoMo" className="mt-1 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm outline-none ring-primary focus:ring-2" /></div>
-          <p className="flex items-center gap-1.5 text-[10px] text-dim"><Info className="h-3 w-3" />Customers will see this number to send payment</p>
+          <p className="flex items-center gap-1.5 text-[10px] text-dim"><Info className="h-3 w-3" />Customers pay you via GoDoor Wallet — held in escrow until delivery</p>
         </div>
 
         {/* Morse partner wallet (fixed payment tag) */}

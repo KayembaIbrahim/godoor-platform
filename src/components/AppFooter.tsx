@@ -49,7 +49,7 @@ export function AppFooter() {
           <div className="col-span-2 md:col-span-1">
             <Logo size="md" />
             <p className="mt-3 text-xs text-dim leading-relaxed">Delivering possibilities across Uganda.</p>
-            <p className="mt-2 text-[10px] text-dim">MTN MoMo · Airtel Money · Cash</p>
+            <p className="mt-2 text-[10px] text-dim">GoDoor Wallet</p>
           </div>
           {Object.entries(FOOTER_LINKS).map(([title, links]) => (
             <div key={title}>

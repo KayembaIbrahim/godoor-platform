@@ -7,6 +7,7 @@ import { debitGasFee, snapshotWallet } from "@/lib/wallet-store";
 import { calcDeliveryFee } from "@/lib/utils";
 import { refreshRateUgx, usdtConfig } from "@/lib/momo";
 import { ensureClinicOrderSchema } from "@/lib/ensure-clinic";
+import { holdEscrow } from "@/lib/escrow";
 
 const ENSURE_SCHEDULE_COLUMN = `ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ;`;
 
@@ -469,6 +470,25 @@ export async function POST(req: NextRequest) {
         code: "GAS_FEE_PAY_FAILED",
       }, { status: 402 });
     }
+  }
+
+  // ── Escrow hold (wallet payment) ─────────────────────────────────────────
+  // When the customer pays from their GoDoor wallet, the money moves into
+  // escrow immediately. It is released to the platform + rider only on
+  // delivery confirmation, or refunded to the customer on cancel.
+  if (paymentMethod === "wallet" && customerId && data) {
+    const escrowResult = await holdEscrow(sb, customerId, String(data.id), totalUgx);
+    if (!escrowResult.success) {
+      await sb.from("orders").update({ status: "cancelled", notes: "Wallet payment failed — please order again" }).eq("id", data.id);
+      return NextResponse.json({
+        error: escrowResult.message,
+        code: "ESCROW_HOLD_FAILED",
+      }, { status: 402 });
+    }
+    await sb.from("orders").update({ payment_confirmed: true, payment_status: "escrowed", status: "payment_confirmed" }).eq("id", data.id);
+    (data as Record<string, unknown>).payment_confirmed = true;
+    (data as Record<string, unknown>).payment_status = "escrowed";
+    (data as Record<string, unknown>).status = "payment_confirmed";
   }
   return NextResponse.json({ order: data });
 }

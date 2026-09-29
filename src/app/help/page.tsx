@@ -6,14 +6,14 @@ import { Headphones, MessageCircle, Mail, Phone, ChevronDown, ArrowLeft, Shield,
 import { Logo } from "@/components/Logo";
 
 const FAQ_ITEMS = [
-  { q: "How do I pay for my order?", a: "Pay via MTN MoMo or Airtel Money directly to the merchant's mobile money number. After paying, confirm your payment in the app and your order will be processed. Cash on delivery is also available for some orders." },
+  { q: "How do I pay for my order?", a: "Pay with your GoDoor Wallet. Your payment is held safely in escrow until the merchant confirms delivery. Top up your wallet via Morse to get started." },
   { q: "How long does delivery take?", a: "Most orders arrive within 30 minutes. Exact timing depends on your location and the merchant's preparation time. You can track your rider in real-time on the map." },
   { q: "Can I cancel my order?", a: "You can cancel an order before the merchant starts preparing it. Once preparation begins, cancellation may not be possible. Contact support for help." },
   { q: "What if my order is wrong or damaged?", a: "Contact the merchant directly via in-app chat or file a dispute from your order history. Our team reviews disputes within 24 hours and will resolve the issue." },
   { q: "How do I become a GoDoor merchant?", a: "Sign up as a business, complete verification with your trade licence and shop photos, and start receiving orders. GoDoor charges a small service fee per delivery." },
   { q: "How do I become a GoDoor rider?", a: "Register as a rider, upload your vehicle details and national ID, get verified by our team, and start accepting deliveries. You earn per delivery and keep your own schedule." },
   { q: "Is GoDoor available in my area?", a: "GoDoor is live across Uganda — Kampala, Masaka, Jinja, Mbale, Mbarara, Gulu, Fort Portal, and more. We're expanding every month." },
-  { q: "How do I top up my GoDoor wallet?", a: "Go to your Wallet in the app and select 'Top up'. Enter the amount and you'll be redirected to MTN MoMo or Airtel Money to complete the payment." },
+  { q: "How do I top up my GoDoor wallet?", a: "Go to your Wallet in the app and select 'Top up'. Enter the amount and you'll be redirected to Morse to complete the payment." },
   { q: "What are the delivery fees?", a: "Delivery fees vary by distance. They start from UGX 2,000 for nearby deliveries. The exact fee is shown before you place your order." },
   { q: "How do I get a refund?", a: "If your order wasn't delivered or had issues, file a dispute or contact support. Refunds are processed to your GoDoor wallet or mobile money account within 48 hours." },
 ];

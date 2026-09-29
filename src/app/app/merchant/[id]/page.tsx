@@ -156,9 +156,8 @@ export default function MerchantPage() {
 
         {/* Accepted payment methods + fixed Morse tag */}
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          {((merchant.accepted_payments && merchant.accepted_payments.length ? [...merchant.accepted_payments].sort((a, b) => (a === "morse" ? -1 : b === "morse" ? 1 : 0)) : ["morse", "cash", "momo"]) as string[]).map((p) => {
-            if (p === "cash") return <span key="cash" className="rounded-full bg-elevated px-2 py-0.5 text-[10px] font-medium text-muted">Cash on delivery</span>;
-            if (p === "momo") return <span key="momo" className="rounded-full bg-elevated px-2 py-0.5 text-[10px] font-medium text-muted">Mobile Money</span>;
+          {((merchant.accepted_payments && merchant.accepted_payments.length ? [...merchant.accepted_payments].sort((a, b) => (a === "morse" ? -1 : b === "morse" ? 1 : 0)) : ["wallet"]) as string[]).map((p) => {
+            if (p === "wallet") return <span key="wallet" className="rounded-full bg-go/15 px-2 py-0.5 text-[10px] font-semibold text-go">GoDoor Wallet</span>;
             if (p === "morse") return (merchant as any).morse_tag ? (
               <span key="morse" className="inline-flex items-center gap-1 rounded-full bg-go/15 px-2 py-0.5 text-[10px] font-semibold text-go">
                 <MorseLogo markOnly className="h-2.5 w-2.5" />

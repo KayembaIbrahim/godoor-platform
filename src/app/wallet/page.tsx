@@ -3,6 +3,7 @@
 import { WalletPanel } from "@/components/WalletPanel";
 import { useSession } from "@/lib/session-store";
 import { SignupModal, useSignupPrompt } from "@/components/SignupPrompt";
+import { MorseLogo } from "@/components/MorseLogo";
 import { Wallet, LogIn } from "lucide-react";
 
 export default function WalletPage() {
@@ -22,11 +23,11 @@ export default function WalletPage() {
         <div className="mx-auto max-w-lg px-4 pt-8">
           <div className="rounded-2xl border border-border bg-surface p-6 text-center">
             <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-go/15 ring-1 ring-go/20">
-              <Wallet className="h-6 w-6 text-go" />
+              <MorseLogo markOnly className="h-8 w-8 text-go" />
             </div>
             <h2 className="font-display text-lg font-semibold">Create your GoDoor wallet</h2>
             <p className="mt-2 text-sm text-muted">
-              Sign up with your phone number to get a GoDoor wallet. Top up with MTN MoMo or Airtel Money and pay for any delivery across Uganda.
+              Sign up with your phone number to get a GoDoor wallet. Top up via Morse and pay for any delivery across Uganda.
             </p>
             <button
               type="button"
@@ -37,6 +38,10 @@ export default function WalletPage() {
               Create wallet — free
             </button>
             <p className="mt-3 text-xs text-dim">No card needed. Phone + PIN only.</p>
+            <div className="mt-4 flex items-center justify-center gap-2 text-[10px] text-dim">
+              <MorseLogo className="h-2.5" />
+              <span>Powered by Morse</span>
+            </div>
           </div>
         </div>
       ) : (

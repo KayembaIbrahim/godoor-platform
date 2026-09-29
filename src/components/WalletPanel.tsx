@@ -73,6 +73,270 @@ function copyToClipboard(text: string) {
   if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(text);
 }
 
+// ── Morse Top-Up Card (Escrow) ───────────────────────────────────────
+function MorseTopUpCard() {
+  const [amount, setAmount] = useState(5000);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deposit, setDeposit] = useState<{
+    depositId: string;
+    referenceCode: string;
+    amount: number;
+    status: string;
+    morseUsername: string;
+    instructions: string;
+  } | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const QUICK_UGX = [5000, 10000, 20000, 50000, 100000];
+
+  async function startDeposit() {
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/wallet/topup/morse/init", {
+        method: "POST",
+        headers: await apiAuthHeaders(true),
+        body: JSON.stringify({ amount }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || "Could not start deposit");
+        return;
+      }
+      setDeposit(json.data);
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reportSent() {
+    if (!deposit) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/wallet/topup/morse/i-have-sent", {
+        method: "POST",
+        headers: await apiAuthHeaders(true),
+        body: JSON.stringify({ referenceCode: deposit.referenceCode }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || "Could not report");
+        return;
+      }
+      setSent(true);
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (deposit && sent) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6">
+        <div className="flex items-center gap-2 text-go-2">
+          <CheckCircle2 className="h-5 w-5" />
+          <h2 className="font-display text-lg font-semibold">Deposit reported</h2>
+        </div>
+        <p className="mt-2 text-sm text-muted">
+          We&apos;ve received your report for reference{" "}
+          <span className="font-mono font-semibold text-go">{deposit.referenceCode}</span>. The GoDoor team will
+          verify the Morse transfer and credit your wallet shortly.
+        </p>
+        <button
+          type="button"
+          onClick={() => { setDeposit(null); setSent(false); }}
+          className="mt-4 text-sm font-medium text-go hover:text-go-2"
+        >
+          Make another deposit
+        </button>
+      </div>
+    );
+  }
+
+  if (deposit) {
+    return (
+      <div className="rounded-2xl border border-go/40 bg-elevated p-6">
+        <div className="flex items-center gap-2 text-go-2">
+          <Smartphone className="h-5 w-5" />
+          <h2 className="font-display text-lg font-semibold">Send the money on Morse</h2>
+        </div>
+        <p className="mt-2 text-sm text-muted">{deposit.instructions}</p>
+        <dl className="mt-4 space-y-2 text-sm">
+          <div className="flex items-center justify-between rounded-xl bg-bg px-3 py-2.5">
+            <dt className="text-muted">Send to (Morse)</dt>
+            <dd className="font-medium">{deposit.morseUsername}</dd>
+          </div>
+          <div className="flex items-center justify-between rounded-xl bg-bg px-3 py-2.5">
+            <dt className="text-muted">Amount</dt>
+            <dd className="font-medium tabular-nums">{formatUgx(deposit.amount)}</dd>
+          </div>
+          <div className="flex items-center justify-between rounded-xl bg-bg px-3 py-2.5">
+            <dt className="text-muted">Your reference</dt>
+            <dd className="font-mono text-xs font-semibold text-go">{deposit.referenceCode}</dd>
+          </div>
+        </dl>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void reportSent()}
+          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-go px-4 py-3 text-sm font-semibold text-white hover:bg-go-2 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          I&apos;ve sent the money
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-6">
+      <div className="flex items-center gap-2">
+        <MorseLogo markOnly className="h-5" />
+        <h2 className="font-display text-lg font-semibold">Top up your wallet</h2>
+      </div>
+      <p className="mt-2 text-sm text-muted">
+        Send UGX from your Morse wallet to GoDoor. An admin verifies the transfer, then your wallet is credited.
+      </p>
+      <div className="mt-4">
+        <span className="text-sm text-muted">Amount (UGX)</span>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {QUICK_UGX.map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => setAmount(q)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium tabular-nums ${
+                amount === q ? "bg-go text-white" : "bg-panel text-muted hover:text-white"
+              }`}
+            >
+              {formatUgx(q)}
+            </button>
+          ))}
+        </div>
+        <input
+          type="number"
+          min={1000}
+          step={500}
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value) || 0)}
+          className="mt-3 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm tabular-nums outline-none ring-go focus:ring-2"
+        />
+      </div>
+      {error && (
+        <p className="mt-4 rounded-lg bg-danger/15 px-3 py-2 text-sm text-danger">{error}</p>
+      )}
+      <button
+        type="button"
+        disabled={busy || amount < 1000}
+        onClick={() => void startDeposit()}
+        className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-go py-3 text-sm font-semibold text-white hover:bg-go-2 disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownLeft className="h-4 w-4" />}
+        Get reference · {formatUgx(amount)}
+      </button>
+    </div>
+  );
+}
+
+// ── Escrow Balance Card ──────────────────────────────────────────────
+function EscrowBalanceCard() {
+  const { supabaseUser } = useSession();
+  const [wallet, setWallet] = useState<{ available_balance: number; escrow_balance: number } | null>(null);
+  const [ledger, setLedger] = useState<Array<{ id: string; type: string; amount: number; ref_type: string | null; created_at: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const headers = await apiAuthHeaders(false);
+      const [balRes, ledRes] = await Promise.all([
+        fetch("/api/wallet/balance", { headers }),
+        fetch("/api/wallet/ledger", { headers }),
+      ]);
+      if (balRes.ok) setWallet((await balRes.json()).data);
+      if (ledRes.ok) setLedger((await ledRes.json()).data || []);
+    } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6">
+        <div className="h-4 w-32 animate-pulse rounded bg-elevated" />
+        <div className="mt-3 h-8 w-48 animate-pulse rounded bg-elevated" />
+      </div>
+    );
+  }
+
+  const available = wallet?.available_balance || 0;
+  const escrow = wallet?.escrow_balance || 0;
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-muted">Wallet Balance</p>
+          <p className="mt-2 font-display text-3xl font-semibold tabular-nums tracking-tight text-go">
+            {formatUgx(available)}
+          </p>
+          <p className="mt-1 text-sm text-muted tabular-nums">
+            Available to spend
+          </p>
+        </div>
+        <div className="grid h-12 w-12 place-items-center rounded-xl bg-go/15 text-go">
+          <Wallet className="h-6 w-6" />
+        </div>
+      </div>
+
+      {escrow > 0 && (
+        <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
+          <p className="text-sm font-semibold text-warning tabular-nums">{formatUgx(escrow)} in escrow</p>
+          <p className="text-xs text-muted">Held safely until your delivery is confirmed</p>
+        </div>
+      )}
+
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="text-xs font-medium text-go hover:text-go-2"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {ledger.length > 0 && (
+        <div className="mt-4 border-t border-border pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-dim">Recent activity</p>
+          <ul className="mt-2 space-y-2">
+            {ledger.slice(0, 5).map((e) => (
+              <li key={e.id} className="flex items-center justify-between text-sm">
+                <span className="text-muted">
+                  {e.type === "deposit" && "Deposit"}
+                  {e.type === "order_hold" && "Order payment (escrow)"}
+                  {e.type === "order_release" && "Escrow released"}
+                  {e.type === "refund" && "Refund"}
+                  {e.type === "commission" && "Commission"}
+                  {e.type === "rider_payout" && "Rider payout"}
+                </span>
+                <span className={`font-semibold tabular-nums ${e.type === "deposit" || e.type === "refund" ? "text-success" : "text-fg"}`}>
+                  {e.type === "deposit" || e.type === "refund" ? "+" : ""}{formatUgx(e.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function WalletPanel() {
   const { supabaseUser, profile, setProfile } = useSession();
   const [wallet, setWallet] = useState<WalletData | null>(null);
@@ -294,7 +558,7 @@ export function WalletPanel() {
   return (
     <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-5">
       <section className="lg:col-span-3 space-y-6">
-        {/* ── Balance: GoDoor Gas Fee ── */}
+        {/* ── Balance: GoDoor Gas Fee + Escrow ── */}
         <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -327,6 +591,9 @@ export function WalletPanel() {
             Morse USD is shown in your local currency in the app · 1 USD ≈ {formatUgx((cfg?.rateUgx || 3800))} covers that much gas fee
           </p>
         </div>
+
+        {/* ── Escrow Balance ── */}
+        <EscrowBalanceCard />
 
         {/* ── Confirm Morse wallet (compulsory, every role) ── */}
         {!profile.morseTag && (
@@ -629,6 +896,9 @@ export function WalletPanel() {
             </button>
           </div>
         )}
+
+        {/* ── Morse Top-Up (Escrow) ── */}
+        <MorseTopUpCard />
 
         {/* ── No Morse wallet yet → referral ── */}
         <div className="rounded-2xl border border-go/30 bg-go/10 p-6">

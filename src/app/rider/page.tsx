@@ -5,7 +5,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   Truck, MapPin, Navigation, Phone, CheckCircle2, X, Clock,
-  DollarSign, LogOut, ShieldCheck, Radio, Package, ChevronRight, ExternalLink, Store, History, Bike, User
+  DollarSign, LogOut, ShieldCheck, Radio, Package, ChevronRight, ExternalLink, Store, History, Bike, User,
+  MessageCircle
 } from "lucide-react";
 import { useSession } from "@/lib/session-store";
 import { useNotifications, orderSummary, requestNotificationPermission } from "@/lib/notifications-store";
@@ -173,13 +174,19 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
       ) : (
         rides.map((r) => (
           <div key={r.id} className="rounded-2xl border border-border bg-surface p-4">
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold flex items-center gap-1.5">
                   <User className="h-3.5 w-3.5 text-muted shrink-0" /> {r.customer_name || "Passenger"}
                 </p>
-                <p className="mt-1 text-xs text-muted truncate">📍 {r.pickup_address || "Pickup point"}</p>
-                <p className="text-xs text-muted truncate">🏁 {r.dropoff_address || "Destination"}</p>
+                <div className="mt-1.5 flex items-start gap-2">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
+                  <p className="min-w-0 flex-1 text-xs leading-snug text-muted break-words">{r.pickup_address || "Pickup point"}</p>
+                </div>
+                <div className="mt-1 flex items-start gap-2">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-go" />
+                  <p className="min-w-0 flex-1 text-xs leading-snug text-muted break-words">{r.dropoff_address || "Destination"}</p>
+                </div>
               </div>
               <div className="shrink-0 text-right">
                 <p className="text-sm font-bold text-primary tabular-nums">{formatUgx(r.total_ugx)}</p>
@@ -750,25 +757,46 @@ export default function RiderDashboard() {
           ) : (
             available.map((d) => (
               <div key={d.order.id} className="tile shadow-xs card-hover p-4 hover:!border-primary/30 animate-spring-in">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold">{d.order.merchant_name}</p>
-                    <p className="text-xs text-muted truncate">{d.order.items}</p>
+                    <p className="text-sm font-semibold leading-snug">{d.order.merchant_name}</p>
+                    <p className="mt-0.5 text-xs leading-snug text-muted line-clamp-2 break-words">{d.order.items}</p>
                   </div>
-                  <div className="text-right shrink-0 ml-3">
+                  <div className="text-right shrink-0">
                     <div><Price amount={d.fareUgx} className="num text-lg font-bold text-primary" /></div>
-                    <p className="num text-[10px] text-dim">{d.distanceKm.toFixed(1)} km trip · ~{d.etaMin} min</p>
+                    <p className="num text-[10px] text-dim whitespace-nowrap">{d.distanceKm.toFixed(1)} km trip</p>
+                    <p className="num text-[10px] text-dim whitespace-nowrap">~{d.etaMin} min</p>
                   </div>
                 </div>
-                <div className="mt-3 rounded-xl bg-bg ring-1 ring-border/50 px-3 py-2.5 text-[11px] space-y-2">
-                  <div className="flex items-center gap-2 text-dim"><span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-go/15"><span className="h-1.5 w-1.5 rounded-full bg-go" /></span>
-                    <span className="min-w-0 flex-1 truncate">Pickup: {d.pickupName}</span>
-                    {d.pickupMin > 0 && <span className="num shrink-0 text-primary font-medium">~{d.pickupMin} min away · {d.pickupKm.toFixed(1)} km</span>}
+                {/* Each row stacks its own meta under the value. The travel
+                    estimate used to sit on the same flex line as the pickup
+                    name, which squeezed long shop names down to a few
+                    characters. */}
+                <div className="mt-3 rounded-xl bg-bg ring-1 ring-border/50 px-3 py-2.5 text-[11px] space-y-2.5">
+                  <div className="flex items-start gap-2 text-dim">
+                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded bg-go/15"><span className="h-1.5 w-1.5 rounded-full bg-go" /></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="leading-snug break-words"><span className="text-muted">Pickup</span> · {d.pickupName}</p>
+                      {d.pickupMin > 0 && (
+                        <p className="num mt-0.5 leading-snug text-primary font-medium">~{d.pickupMin} min away · {d.pickupKm.toFixed(1)} km</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-dim"><span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-success/15"><span className="h-1.5 w-1.5 rounded-full bg-success" /></span>Drop-off: {d.order.delivery_address || "Uganda"}</div>
+                  <div className="flex items-start gap-2 text-dim">
+                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded bg-success/15"><span className="h-1.5 w-1.5 rounded-full bg-success" /></span>
+                    <p className="min-w-0 flex-1 leading-snug break-words">
+                      <span className="text-muted">Drop-off</span> · {d.order.delivery_address || "Uganda"}
+                    </p>
+                  </div>
                   {d.customerPhone && (
-                    <div className="flex items-center gap-2 text-dim"><Phone className="h-3.5 w-3.5 shrink-0 text-primary" />
-                      <span className="min-w-0 flex-1 truncate">Customer: {d.order.customer_name || "Customer"} · {d.customerPhone}</span>
+                    <div className="flex items-start gap-2 text-dim">
+                      <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                      <div className="min-w-0 flex-1">
+                        <p className="leading-snug break-words">
+                          <span className="text-muted">Customer</span> · {d.order.customer_name || "Customer"}
+                        </p>
+                        <p className="num mt-0.5 leading-snug text-muted/80">{d.customerPhone}</p>
+                      </div>
                       <a href={`tel:${d.customerPhone.replace(/[^0-9]/g, "")}`} className="chip shrink-0 bg-primary/15 text-primary">Call</a>
                     </div>
                   )}
@@ -799,49 +827,120 @@ export default function RiderDashboard() {
                   <Truck className="h-4 w-4 text-go animate-pulse" />
                   <p className="text-sm font-semibold text-go">Active delivery</p>
                 </div>
-                <p className="text-sm font-medium">{activeDelivery.merchant_name}</p>
-                <p className="text-xs text-muted">{activeDelivery.items}</p>
-                <div className="mt-2 space-y-2">
-                  <div className="flex items-center gap-2 text-xs text-dim"><MapPin className="h-3 w-3 text-warning" />Pickup: {activeDelivery.merchant_name}</div>
-                  <div className="flex items-center gap-2 text-xs text-dim"><Navigation className="h-3 w-3 text-success" />Drop-off: {activeDelivery.delivery_address || "Uganda"}</div>
-                  <div className="flex items-center gap-2 text-xs text-dim"><Phone className="h-3 w-3" />Customer: {activeDelivery.customer_name}{activeDelivery.customer_phone ? ` · ${activeDelivery.customer_phone}` : ""}</div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold leading-snug">{activeDelivery.merchant_name}</p>
+                    <p className="mt-0.5 text-xs leading-snug text-muted line-clamp-2 break-words">{activeDelivery.items}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <Price amount={activeDelivery.delivery_fee_ugx || 3000} className="num text-lg font-bold text-primary" />
+                    <p className="num text-[10px] text-dim">#{activeDelivery.id.slice(-6)}</p>
+                  </div>
                 </div>
-                <div className="mt-3 flex gap-2">
-                  <a href={`tel:${activeDelivery.customer_phone || activeDelivery.customer_email || ""}`} className="btn flex-1 bg-surface text-muted !border-border min-w-0 truncate">
-                    <Phone className="h-3 w-3 shrink-0" /> Call {activeDelivery.customer_phone ? "" : "(no phone)"}
+
+                {/* Route and contact stack vertically and wrap. They used to sit
+                    on a single flex line each, which clipped long shop names
+                    and addresses mid-word on a narrow phone. */}
+                <div className="mt-3 space-y-2.5 rounded-xl bg-bg px-3 py-2.5 text-[11px] ring-1 ring-border/50">
+                  <div className="flex items-start gap-2 text-dim">
+                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded bg-warning/15">
+                      <MapPin className="h-3 w-3 text-warning" />
+                    </span>
+                    <p className="min-w-0 flex-1 leading-snug break-words">
+                      <span className="text-muted">Pickup</span> · {activeDelivery.merchant_name}
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2 text-dim">
+                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded bg-success/15">
+                      <Navigation className="h-3 w-3 text-success" />
+                    </span>
+                    <p className="min-w-0 flex-1 leading-snug break-words">
+                      <span className="text-muted">Drop-off</span> · {activeDelivery.delivery_address || "Uganda"}
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2 text-dim">
+                    <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="leading-snug break-words">
+                        <span className="text-muted">Customer</span> · {activeDelivery.customer_name || "Customer"}
+                      </p>
+                      {activeDelivery.customer_phone && (
+                        <p className="num mt-0.5 leading-snug text-muted/80">{activeDelivery.customer_phone}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* The primary step gets a full-width button to itself. It used
+                    to share one flex row with three other buttons, which left
+                    roughly 80px each and truncated "Confirming…" mid-word. */}
+                {activeDelivery.status === "rider_assigned" ? (
+                  <button
+                    type="button"
+                    onClick={pickupDelivery}
+                    disabled={deliveryBusy === activeDelivery.id}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3.5 text-sm font-semibold text-white shadow-glow transition active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {deliveryBusy === activeDelivery.id ? (
+                      <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Confirming…</>
+                    ) : (
+                      <><Package className="h-4 w-4" /> I have picked it up</>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={completeDelivery}
+                    disabled={deliveryBusy === activeDelivery.id}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-success px-4 py-3.5 text-sm font-semibold text-white shadow-glow transition active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {deliveryBusy === activeDelivery.id ? (
+                      <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Confirming…</>
+                    ) : (
+                      <><CheckCircle2 className="h-4 w-4" /> Delivered</>
+                    )}
+                  </button>
+                )}
+
+                {/* Secondary actions never share a row three-up; two columns
+                    keep every label whole on a 360px screen. */}
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {activeDelivery.customer_lat != null && activeDelivery.customer_lng != null ? (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${activeDelivery.customer_lat},${activeDelivery.customer_lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn flex min-w-0 items-center justify-center gap-1.5 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25"
+                    >
+                      <Navigation className="h-3.5 w-3.5 shrink-0" /> Navigate
+                    </a>
+                  ) : (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeDelivery.delivery_address || "Uganda")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn flex min-w-0 items-center justify-center gap-1.5 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25"
+                    >
+                      <Navigation className="h-3.5 w-3.5 shrink-0" /> Navigate
+                    </a>
+                  )}
+                  <a
+                    href={`tel:${(activeDelivery.customer_phone || "").replace(/[^0-9]/g, "")}`}
+                    className={`btn flex min-w-0 items-center justify-center gap-1.5 ${activeDelivery.customer_phone ? "bg-surface text-muted !border-border" : "pointer-events-none bg-elevated/60 text-dim opacity-60"}`}
+                    aria-disabled={!activeDelivery.customer_phone}
+                  >
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    {activeDelivery.customer_phone ? "Call" : "No phone"}
                   </a>
                   {activeDelivery.customer_phone && (
-                    <a href={`https://wa.me/${activeDelivery.customer_phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer" className="btn flex-1 bg-success/10 text-success !border-success/20 min-w-0 truncate">
-                      WhatsApp
+                    <a
+                      href={`https://wa.me/${activeDelivery.customer_phone.replace(/[^0-9]/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn col-span-2 flex min-w-0 items-center justify-center gap-1.5 bg-success/10 text-success !border-success/20"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5 shrink-0" /> WhatsApp customer
                     </a>
-                  )}
-                  {(activeDelivery.customer_lat && activeDelivery.customer_lng) ? (
-                    <a href={`https://www.google.com/maps/dir/?api=1&destination=${activeDelivery.customer_lat},${activeDelivery.customer_lng}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="btn flex-1 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25">
-                      <Navigation className="h-3 w-3 shrink-0" /> Navigate
-                    </a>
-                  ) : (
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeDelivery.delivery_address || "Uganda")}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="btn flex-1 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25">
-                      <Navigation className="h-3 w-3 shrink-0" /> Navigate
-                    </a>
-                  )}
-                  {activeDelivery?.status === "rider_assigned" ? (
-                    <button type="button" onClick={pickupDelivery} disabled={deliveryBusy === activeDelivery?.id}
-                      className="btn flex-1 bg-primary text-white hover:bg-primary-2 shadow-glow disabled:opacity-60">
-                      {deliveryBusy === activeDelivery?.id
-                        ? <><span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white border-t-transparent" /> Confirming…</>
-                        : <><Package className="h-3.5 w-3.5 shrink-0" /> Picked up</>}
-                    </button>
-                  ) : (
-                    <button type="button" onClick={completeDelivery} disabled={deliveryBusy === activeDelivery?.id}
-                      className="btn flex-1 bg-success text-white hover:bg-success/90 disabled:opacity-60">
-                      {deliveryBusy === activeDelivery?.id
-                        ? <><span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white border-t-transparent" /> Confirming…</>
-                        : <><CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Delivered</>}
-                    </button>
                   )}
                 </div>
 
@@ -879,6 +978,7 @@ export default function RiderDashboard() {
                   <LiveTrackingMap
                     riderLoc={coords ? { lat: coords.lat, lng: coords.lng } : null}
                     riderHeading={heading}
+                    riderAccuracy={accuracy ?? null}
                     dropoffLoc={activeDelivery.customer_lat && activeDelivery.customer_lng
                       ? { lat: activeDelivery.customer_lat, lng: activeDelivery.customer_lng }
                       : null}
@@ -939,13 +1039,13 @@ export default function RiderDashboard() {
           ) : (
             myOrders.map((o) => (
               <div key={o.id} className="tile shadow-xs animate-spring-in p-4">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold">{o.merchant_name}</p>
-                    <p className="text-xs text-muted truncate">{o.items}</p>
-                    <p className="num text-[10px] text-dim">#{o.id.slice(-6)} · {o.customer_name || "Customer"}</p>
+                    <p className="text-sm font-semibold leading-snug">{o.merchant_name}</p>
+                    <p className="mt-0.5 text-xs leading-snug text-muted line-clamp-2 break-words">{o.items}</p>
+                    <p className="num mt-0.5 text-[10px] text-dim break-words">#{o.id.slice(-6)} · {o.customer_name || "Customer"}</p>
                   </div>
-                  <div className="text-right shrink-0 ml-3">
+                  <div className="text-right shrink-0">
                     <div><Price amount={o.delivery_fee_ugx || 3000} className="num text-sm font-bold text-primary" /></div>
                     <span className={`chip mt-1.5 ${
                       o.status === "rider_assigned" ? "bg-primary/15 text-primary" :

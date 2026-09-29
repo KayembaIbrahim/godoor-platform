@@ -29,7 +29,7 @@ export default function PrivacyPage() {
         </section>
         <section>
           <h2 className="font-semibold text-fg mb-2">5. Data Security</h2>
-          <p>We use industry-standard encryption and security measures to protect your data. Payment information is processed securely via MTN MoMo and Airtel Money — we do not store card details.</p>
+          <p>We use industry-standard encryption and security measures to protect your data. Payment information is processed securely via GoDoor Wallet — we do not store card details.</p>
         </section>
         <section>
           <h2 className="font-semibold text-fg mb-2">6. Your Rights</h2>

@@ -265,8 +265,6 @@ function BusinessDashboardInner() {
   }
 
   const merchantName = merchantRecord?.name || profile.businessName || "My Business";
-  const momoNumber = merchantRecord?.momo_number || profile.momoNumber || "Set MoMo number";
-
   // Orders are already filtered by merchant_id from fetchOrders
   const allRelevant = orders;
 
@@ -429,18 +427,18 @@ function BusinessDashboardInner() {
           </div>
         </div>
 
-        {/* MoMo display */}
+        {/* GoDoor Wallet info */}
         <div className="tile p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-dim">Receive payments on</p>
-              <p className="mt-0.5 text-lg font-bold num">{momoNumber}</p>
+              <p className="text-[10px] uppercase tracking-wider text-dim">Receive payments via</p>
+              <p className="mt-0.5 text-lg font-bold num">GoDoor Wallet</p>
             </div>
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10">
               <Phone className="h-5 w-5 text-primary" />
             </div>
           </div>
-          <p className="mt-2 text-[10px] text-dim">Customers pay you directly via MTN MoMo or Airtel Money</p>
+          <p className="mt-2 text-[10px] text-dim">Customers pay you directly via GoDoor Wallet — held in escrow until delivery</p>
         </div>
 
         {/* Pipeline stats — horizontal */}
@@ -572,11 +570,11 @@ function BusinessDashboardInner() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm font-semibold">Payment from {o.customer_name || "Customer"}</p>
-                    <p className="text-xs text-muted">{o.payment_method === "momo" ? "MTN MoMo" : o.payment_method === "airtel" ? "Airtel Money" : "Cash"} · Order #{o.id.slice(-6)}</p>
+                    <p className="text-xs text-muted">GoDoor Wallet · Order #{o.id.slice(-6)}</p>
                   </div>
                   <div><Price amount={o.total_ugx} className="num text-lg font-bold text-primary" /></div>
                 </div>
-                <p className="mt-2 text-[10px] text-dim">Check your MoMo for the payment, then confirm below.</p>
+                <p className="mt-2 text-[10px] text-dim">Check for the GoDoor Wallet payment, then confirm below.</p>
                 <div className="mt-3 flex gap-2">
                   <button type="button" onClick={() => confirmPayment(o.id)}
                     className="btn btn-primary flex-1">

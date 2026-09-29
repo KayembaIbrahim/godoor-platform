@@ -32,7 +32,7 @@ const TUTORIALS: Record<TutorialRole, { label: string; desc: string; icon: typeo
     slides: [
       { icon: Search, title: "Browse merchants", desc: "Open GoDoor and explore local restaurants, pharmacies, shops near you. Use GPS — merchants are sorted by distance.", color: "text-go", bg: "bg-go/10" },
       { icon: ShoppingCart, title: "Add to cart", desc: "Pick items from a merchant's menu. Adjust quantities and review your cart before checkout.", color: "text-go", bg: "bg-go/10" },
-      { icon: CreditCard, title: "Pay via Mobile Money", desc: "Choose MTN MoMo, Airtel Money, or Cash. Send payment to the merchant's displayed number.", color: "text-primary", bg: "bg-primary/10", tip: "The merchant's MoMo number is shown at checkout." },
+      { icon: CreditCard, title: "Pay with GoDoor Wallet", desc: "Pay securely from your GoDoor Wallet balance. Your payment is held in escrow until delivery is confirmed.", color: "text-primary", bg: "bg-primary/10", tip: "Top up your wallet via Morse to get started." },
       { icon: MessageCircle, title: "Confirm in chat", desc: "After paying, send a screenshot or confirmation message in the order chat. The merchant verifies your payment.", color: "text-success", bg: "bg-success/10" },
       { icon: MapPin, title: "Track your delivery", desc: "Once a rider picks up your order, watch them move toward you on the live map — like Uber, but for everything.", color: "text-go", bg: "bg-go/10", tip: "The GoDoor marker shows the rider's exact position in real-time." },
       { icon: CheckCircle, title: "Receive & enjoy!", desc: "Your order arrives at your door. Rate your experience to help other customers.", color: "text-success", bg: "bg-success/10" },
@@ -44,10 +44,10 @@ const TUTORIALS: Record<TutorialRole, { label: string; desc: string; icon: typeo
     icon: Store,
     color: "text-primary",
     slides: [
-      { icon: Store, title: "Register your business", desc: "Sign up as a business. Add your name, category, location, MoMo number, and operating hours.", color: "text-primary", bg: "bg-primary/10" },
+      { icon: Store, title: "Register your business", desc: "Sign up as a business. Add your name, category, location, and operating hours.", color: "text-primary", bg: "bg-primary/10" },
       { icon: Package, title: "Add your products", desc: "Open your dashboard → Products → Add items with names, descriptions, and prices in UGX.", color: "text-primary", bg: "bg-primary/10", tip: "Customers will see these products when they open your store." },
       { icon: Bell, title: "Receive orders", desc: "When a customer places an order, you'll see it in your dashboard with their details and items ordered.", color: "text-go", bg: "bg-go/10" },
-      { icon: DollarSign, title: "Verify payment", desc: "Check your MoMo for the customer's payment. Open the order chat, view their screenshot, and confirm payment.", color: "text-success", bg: "bg-success/10", tip: "Never prepare an order before confirming payment." },
+      { icon: DollarSign, title: "Verify payment", desc: "Check for the customer's GoDoor Wallet payment. Open the order chat, view their confirmation, and confirm payment.", color: "text-success", bg: "bg-success/10", tip: "Never prepare an order before confirming payment." },
       { icon: Clock, title: "Prepare & hand off", desc: "Mark the order as 'Preparing' → 'Ready for pickup'. A nearby rider will claim the delivery.", color: "text-go", bg: "bg-go/10" },
       { icon: TrendingUp, title: "Track earnings", desc: "View your revenue, completed orders, and fee breakdown in the Earnings tab.", color: "text-success", bg: "bg-success/10" },
     ],

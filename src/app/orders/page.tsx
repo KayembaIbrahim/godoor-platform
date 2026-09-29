@@ -6,7 +6,7 @@ import { Package, MessageCircle, ArrowLeft, MapPin, Navigation, Star, RotateCcw,
 import { useSession } from "@/lib/session-store";
 import { fetchOrders, subscribeToOrderStatus, apiAuthHeaders, type DBOrder } from "@/lib/db";
 import { useNotifications, orderSummary } from "@/lib/notifications-store";
-import { useTrackingStore } from "@/lib/tracking-store";
+import { useActiveOrder } from "@/lib/use-active-order";
 import { formatUgx } from "@/lib/utils";
 import { Price } from "@/components/Price";
 import { CustomerNav } from "@/components/CustomerNav";
@@ -38,7 +38,9 @@ export default function OrdersPage() {
   }, [role, onboarded]);
   const [orders, setOrders] = useState<DBOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const { active: trackedDelivery } = useTrackingStore();
+  // Derived from the order rows, not a localStorage snapshot — the banner used
+  // to outlive the delivery it was pointing at.
+  const activeOrder = useActiveOrder(orders.length ? orders : null);
   const { ratings, rate } = useRatings();
   const addToCart = useCart((s) => s.add);
   const [ratingOrder, setRatingOrder] = useState<string | null>(null);
@@ -120,17 +122,24 @@ export default function OrdersPage() {
         <h1 className="font-display text-lg font-semibold">My Orders</h1>
       </div>
 
-      {trackedDelivery && trackedDelivery.status !== "delivered" && (
+      {activeOrder && (
         <div className="mx-4 mt-3">
-          <Link href={trackedDelivery ? `/tracking?orderId=${trackedDelivery.deliveryId}` : "/tracking"} className="flex items-center gap-3 rounded-2xl border border-go/30 bg-go/10 p-4 transition hover:bg-go/15">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-go/20">
+          <Link
+            href={`/tracking?orderId=${activeOrder.id}`}
+            className="flex items-center gap-3 rounded-2xl border border-go/30 bg-go/10 p-4 transition hover:bg-go/15"
+          >
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-go/20">
               <Navigation className="h-5 w-5 text-go animate-pulse" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-go">Live delivery in progress</p>
-              <p className="text-xs text-muted truncate">{trackedDelivery.merchantName} → {trackedDelivery.dropoffAddr}</p>
+              <p className="text-sm font-semibold text-go">
+                {activeOrder.rider_name ? `${activeOrder.rider_name} is on the way` : "Order in progress"}
+              </p>
+              <p className="truncate text-xs text-muted">
+                {activeOrder.merchant_name || "Your order"} → {activeOrder.delivery_address || "your address"}
+              </p>
             </div>
-            <Navigation className="h-4 w-4 text-go" />
+            <Navigation className="h-4 w-4 shrink-0 text-go" />
           </Link>
         </div>
       )}

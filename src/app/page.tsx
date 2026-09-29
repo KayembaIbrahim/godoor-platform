@@ -55,7 +55,7 @@ function useInView(threshold = 0.2) {
 }
 
 const FAQ_ITEMS = [
-  { q: "How do I pay for my order?", a: "We recommend the Morse wallet for the swiftest checkout — top it up easily from MTN MoMo or Airtel Money, then pay in seconds. Morse-to-Morse transfers are free. You can also pay direct with MTN MoMo / Airtel Money, or cash on delivery." },
+  { q: "How do I pay for my order?", a: "Pay with your GoDoor Wallet for the swiftest checkout — top it up easily via Morse, then pay in seconds. Your payment is held safely in escrow until delivery is confirmed." },
   { q: "How long does delivery take?", a: "Most orders are delivered within 30 minutes. You can track your rider in real-time on the map." },
   { q: "Can I return an item?", a: "If your order is incorrect or damaged, contact the merchant via in-app chat or file a dispute. Our team will resolve within 24 hours." },
   { q: "How do I become a GoDoor merchant?", a: "Submit a quick application — our team reviews it and, once approved, sets up your shop, products and delivery so you can start taking orders." },
@@ -78,7 +78,7 @@ function FaqAccordion({ q, a }: { q: string; a: string }) {
 
 const HOW_IT_WORKS_STEPS = [
   { icon: Smartphone, title: "Browse & Order", desc: "Discover local shops and restaurants near you. Browse menus, compare prices, and add items to your cart in seconds.", color: "from-go/20 to-go/5" },
-  { icon: Wallet, title: "Pay swiftly with Morse", desc: "Our recommended wallet — top up easily from MTN MoMo or Airtel Money and check out in seconds. Morse-to-Morse transfers are free.", color: "from-primary/20 to-primary/5" },
+  { icon: Wallet, title: "Pay with GoDoor Wallet", desc: "Fund your wallet via Morse and check out in seconds. Your payment is held in escrow until delivery.", color: "from-primary/20 to-primary/5" },
   { icon: Truck, title: "Track & Receive", desc: "Watch your rider in real-time on the map. Average delivery in under 30 minutes, right to your door.", color: "from-success/20 to-success/5" },
 ];
 
@@ -342,11 +342,8 @@ export default function HomePage() {
               </div>
               <div className="h-6 w-px bg-border hidden sm:block" />
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 rounded-lg bg-surface/80 px-2.5 py-1.5">
-                  <span className="text-[11px] font-bold text-yellow-500">MoMo</span>
-                </div>
-                <div className="flex items-center gap-1.5 rounded-lg bg-surface/80 px-2.5 py-1.5">
-                  <span className="text-[11px] font-bold text-red-500">Airtel</span>
+                <div className="flex items-center gap-1.5 rounded-lg bg-go/10 px-2.5 py-1.5">
+                  <span className="text-[11px] font-bold text-go">GoDoor Wallet</span>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-go/10 px-2.5 py-1.5">
                   <MorseLogo markOnly className="h-3.5 text-go" />
@@ -619,7 +616,7 @@ export default function HomePage() {
           <p className="mt-2 text-center text-sm text-muted">Built for Uganda, designed for everyone</p>
           <div className="mt-8 grid gap-4 md:grid-cols-2 stagger">
             {[
-              { icon: Wallet, title: "Morse wallet — recommended", desc: "Swift payments for everyone. Top up easily from MTN MoMo or Airtel Money. Morse-to-Morse transfers and deposits are free." },
+              { icon: Wallet, title: "GoDoor Wallet — escrow protected", desc: "Fund your wallet via Morse and pay with confidence. Every payment is held safely in escrow until delivery is confirmed." },
               { icon: MapPin, title: "Live GPS Tracking", desc: "Watch your delivery in real-time on the map. Know exactly where your order is." },
               { icon: ShieldCheck, title: "Verified Merchants & Riders", desc: "Every business and rider is verified for your safety and trust." },
               { icon: Clock, title: "Fast Delivery", desc: "Average delivery in under 30 minutes. Track every step of the way." },
@@ -658,13 +655,13 @@ export default function HomePage() {
                 </div>
                 <p className="mt-3 text-sm text-muted leading-relaxed max-w-md">
                   The fastest way to enjoy GoDoor. Top up your Morse wallet simply and easily
-                  from MTN MoMo or Airtel Money, then check out in seconds —
+                  via Morse, then check out in seconds —
                   no delays at the till, no failed prompts.
                 </p>
                 <ul className="mt-5 space-y-2.5">
                   {[
                     { icon: Zap, text: "Swift transactions — pay for any order in seconds" },
-                    { icon: Smartphone, text: "Recharge easily from MTN MoMo or Airtel Money" },
+                    { icon: Smartphone, text: "Recharge easily via Morse" },
                     { icon: Users, text: "Free Morse-to-Morse transfers — send money for free" },
                     { icon: BadgePercent, text: "Free deposits — more of your money stays yours" },
                   ].map((f) => {

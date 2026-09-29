@@ -26,6 +26,17 @@ interface TopupRequest {
   created_at: string;
 }
 
+interface EscrowDeposit {
+  id: string;
+  user_id: string;
+  provider: string;
+  amount: number;
+  currency: string;
+  status: string;
+  reference_code: string;
+  created_at: string;
+}
+
 export default function AdminWalletCreditsPage() {
   const [pending, setPending] = useState<TopupRequest[]>([]);
   const [history, setHistory] = useState<TopupRequest[]>([]);
@@ -35,6 +46,8 @@ export default function AdminWalletCreditsPage() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [escrowDeposits, setEscrowDeposits] = useState<EscrowDeposit[]>([]);
+  const [escrowBusy, setEscrowBusy] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -45,9 +58,35 @@ export default function AdminWalletCreditsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+    fetch("/api/admin/deposits", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setEscrowDeposits(d.pending || []);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const confirmEscrowDeposit = async (depositId: string) => {
+    setEscrowBusy(depositId);
+    setErr(null);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/deposits/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ depositId }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setErr(json.error || "Confirm failed"); setEscrowBusy(null); return; }
+      setMsg("Deposit confirmed — wallet credited.");
+      load();
+    } catch {
+      setErr("Network error. Try again.");
+      setEscrowBusy(null);
+    }
+  };
 
   const settle = async (id: string, status: "credited" | "rejected") => {
     setBusyId(id);

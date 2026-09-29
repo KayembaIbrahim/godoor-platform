@@ -18,6 +18,26 @@ function validCenter(c: LatLng): LatLng {
   return Math.abs(c.lat) <= 1e-9 && Math.abs(c.lng) <= 1e-9 ? KAMPALA_DEFAULT : c;
 }
 
+/** GeoJSON polygon approximating a circle of `metres` around a point. */
+function accuracyCircleFeature(lat: number, lng: number, metres: number) {
+  const ring: [number, number][] = [];
+  const steps = 64;
+  for (let i = 0; i <= steps; i++) {
+    const bearing = (i / steps) * Math.PI * 2;
+    const dLat = (metres * Math.cos(bearing)) / 111_320;
+    const dLng = (metres * Math.sin(bearing)) / (111_320 * Math.cos((lat * Math.PI) / 180));
+    ring.push([lng + dLng, lat + dLat]);
+  }
+  return {
+    type: "FeatureCollection" as const,
+    features: [{
+      type: "Feature" as const,
+      properties: {},
+      geometry: { type: "Polygon" as const, coordinates: [ring] },
+    }],
+  };
+}
+
 export type MarkerData = {
   id: string;
   position: LatLng;
@@ -27,6 +47,8 @@ export type MarkerData = {
   isDestination?: boolean;
   isPickup?: boolean;
   heading?: number | null;
+  /** Reported GPS fix radius in metres. Only the rider marker draws a halo. */
+  accuracy?: number | null;
 };
 
 type Props = {
@@ -279,6 +301,8 @@ function MapboxMapInner({
   const markersRef = useRef<Map<string, any>>(new Map());
   const userMarkerRef = useRef<any>(null);
   const accuracyRef = useRef<any>(null);
+  const riderAccuracyRef = useRef<any>(null);
+  const glideRef = useRef<Map<string, number>>(new Map());
   const dotMarkerRef = useRef<any>(null);
   const animFrameRef = useRef<number | null>(null);
   const userMovedRef = useRef(false);
@@ -595,8 +619,32 @@ function MapboxMapInner({
     try { map.zoomTo(map.getZoom() + delta, { duration: 300 }); } catch {}
   }, []);
 
+  /* Ease a marker between two fixes. Restarting mid-flight blends from
+     wherever the pin currently is, so rapid updates never snap backwards. */
+  const glideTo = useCallback((m: MarkerData, marker: any, from: [number, number], to: [number, number]) => {
+    const running = glideRef.current.get(m.id);
+    if (running) cancelAnimationFrame(running);
+    const dist = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    if (dist < 1e-6) return;
+    const duration = Math.min(6000, Math.max(900, dist * 100_000));
+    const started = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - started) / duration);
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      try {
+        marker.setLngLat([from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e]);
+      } catch {
+        glideRef.current.delete(m.id);
+        return;
+      }
+      if (t < 1) glideRef.current.set(m.id, requestAnimationFrame(step));
+      else glideRef.current.delete(m.id);
+    };
+    glideRef.current.set(m.id, requestAnimationFrame(step));
+  }, []);
+
   const markerKey = useMemo(
-    () => markers.map((m) => `${m.id}:${m.position?.lat?.toFixed(5) ?? "x"}:${m.position?.lng?.toFixed(5) ?? "x"}:${m.isRider}:${m.isPickup}:${m.isDestination}:${m.heading ?? "h"}`).join("|"),
+    () => markers.map((m) => `${m.id}:${m.position?.lat?.toFixed(5) ?? "x"}:${m.position?.lng?.toFixed(5) ?? "x"}:${m.isRider}:${m.isPickup}:${m.isDestination}:${m.heading ?? "h"}:${m.accuracy ?? "a"}`).join("|"),
     [markers]
   );
 
@@ -619,8 +667,16 @@ function MapboxMapInner({
       markers.forEach((m) => {
         if (!m?.position || Math.abs(m.position.lat) <= 1e-9 && Math.abs(m.position.lng) <= 1e-9) return;
         if (markersRef.current.has(m.id)) {
-          markersRef.current.get(m.id).setLngLat([m.position.lng, m.position.lat]);
-          const arrowEl = (markersRef.current.get(m.id)?.getElement() as any)?.__gdrArrow;
+          const marker = markersRef.current.get(m.id);
+          if (m.isRider) {
+            // GPS fixes land every few seconds. Snapping the pin to each one
+            // reads as a fake, stuttering dot, so it eases across the gap.
+            const cur = marker.getLngLat();
+            glideTo(m, marker, [cur.lng, cur.lat], [m.position.lng, m.position.lat]);
+          } else {
+            marker.setLngLat([m.position.lng, m.position.lat]);
+          }
+          const arrowEl = (marker.getElement() as any)?.__gdrArrow;
           if (arrowEl && m.heading != null && Number.isFinite(m.heading)) {
             arrowEl.style.transform = `translateX(-50%) rotate(${m.heading}deg)`;
           }
@@ -688,24 +744,7 @@ function MapboxMapInner({
     import("mapbox-gl").then((mapboxgl) => {
       const map = mapRef.current;
       if (!map) return;
-      const circle: [number, number][] = [];  // GeoJSON positions are [lng, lat]
-      const steps = 64;
-      for (let i = 0; i <= steps; i++) {
-        const bearing = (i / steps) * Math.PI * 2;
-        // Metres → degrees, corrected for latitude so the ring stays round.
-        const dLat = (metres * Math.cos(bearing)) / 111_320;
-        const dLng = (metres * Math.sin(bearing)) / (111_320 * Math.cos((userLocation.lat * Math.PI) / 180));
-        circle.push([userLocation.lng + dLng, userLocation.lat + dLat]);
-      }
-
-      const data = {
-        type: "FeatureCollection" as const,
-        features: [{
-          type: "Feature" as const,
-          properties: {},
-          geometry: { type: "Polygon" as const, coordinates: [circle] },
-        }],
-      };
+      const data = accuracyCircleFeature(userLocation.lat, userLocation.lng, metres);
 
       if (accuracyRef.current) {
         const src = map.getSource("gdr-accuracy") as any;
@@ -734,6 +773,53 @@ function MapboxMapInner({
       }
     }).catch(() => {});
   }, [userLocation?.lat, userLocation?.lng, userAccuracy, ready]); // eslint-disable-line
+
+  /* ── Rider fix-radius halo ──
+     The rider pin is the one thing on this map a customer will act on, so it
+     wears its reported uncertainty. A 12 m fix draws a tight disc; a 180 m fix
+     draws a wide one, which is the truth rather than a confident-looking dot. */
+  useEffect(() => {
+    if (!mapRef.current || !ready) return;
+    const rider = markers.find((m) => m.isRider && m.position);
+    const metres = Number(rider?.accuracy);
+    const hasRider = !!rider && Math.abs(rider.position.lat) > 1e-9;
+    if (!hasRider || !Number.isFinite(metres) || metres <= 0 || metres < 8 || metres > 1500) {
+      const src = riderAccuracyRef.current;
+      if (src?.setData) src.setData({ type: "FeatureCollection", features: [] });
+      return;
+    }
+
+    import("mapbox-gl").then((mapboxgl) => {
+      const map = mapRef.current;
+      if (!map) return;
+      const data = accuracyCircleFeature(rider.position.lat, rider.position.lng, metres);
+      if (riderAccuracyRef.current) {
+        const src = map.getSource("gdr-rider-accuracy") as any;
+        if (src?.setData) src.setData(data);
+      } else {
+        if (!map.getSource("gdr-rider-accuracy")) {
+          map.addSource("gdr-rider-accuracy", { type: "geojson", data });
+        }
+        if (!map.getLayer("gdr-rider-accuracy-fill")) {
+          map.addLayer({
+            id: "gdr-rider-accuracy-fill",
+            type: "fill",
+            source: "gdr-rider-accuracy",
+            paint: { "fill-color": "#F97316", "fill-opacity": 0.12 },
+          });
+        }
+        if (!map.getLayer("gdr-rider-accuracy-line")) {
+          map.addLayer({
+            id: "gdr-rider-accuracy-line",
+            type: "line",
+            source: "gdr-rider-accuracy",
+            paint: { "line-color": "#F97316", "line-width": 1.5, "line-opacity": 0.45 },
+          });
+        }
+        riderAccuracyRef.current = map.getSource("gdr-rider-accuracy");
+      }
+    }).catch(() => {});
+  }, [markerKey, ready]); // eslint-disable-line
 
   /* ── Recentre on the user ──
      Panning is never punished: the map keeps the manual view, and one tap

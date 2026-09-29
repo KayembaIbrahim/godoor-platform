@@ -21,6 +21,8 @@ const MapboxMapView = dynamic(() => import("@/components/MapboxMap"), {
 type Props = {
   riderLoc: LatLng | null;
   riderHeading?: number | null;
+  /** Rider-reported GPS fix radius in metres — drawn as a halo round the pin. */
+  riderAccuracy?: number | null;
   providerLoc?: LatLng | null;
   providerName?: string;
   dropoffLoc: LatLng | null;
@@ -48,7 +50,7 @@ type Props = {
 };
 
 export function LiveTrackingMap({
-  riderLoc, riderHeading, providerLoc, providerName, dropoffLoc, pickupLoc, showPickup = false, label, compact = false, fill = false,
+  riderLoc, riderHeading, riderAccuracy = null, providerLoc, providerName, dropoffLoc, pickupLoc, showPickup = false, label, compact = false, fill = false,
   userLocation, userAccuracy, merchantName, customerName, roadRoute = null, roadDistanceKm = null, roadDurationMin = null,
   quotedFeeUgx = null, trafficAware = false, congestion = null,
 }: Props) {
@@ -128,13 +130,13 @@ export function LiveTrackingMap({
     }
 
     if (hasCoords(riderLoc)) {
-      m.push({ id: "rider-live", position: riderLoc as LatLng, isRider: true, label: "Rider", heading: riderHeading || null });
+      m.push({ id: "rider-live", position: riderLoc as LatLng, isRider: true, label: "Rider", heading: riderHeading || null, accuracy: riderAccuracy ?? null });
     } else if (hasCoords(providerLoc)) {
       m.push({ id: "provider-live", position: providerLoc as LatLng, isRider: true, label: providerName || "Provider", heading: null });
     }
 
     return m;
-  }, [showPickup, validPickup, validDropoff, riderLoc, riderHeading, providerLoc, providerName, merchantName, customerName]);
+  }, [showPickup, validPickup, validDropoff, riderLoc, riderHeading, riderAccuracy, providerLoc, providerName, merchantName, customerName]);
 
   const kmAway = dist != null && (dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)} km`);
 

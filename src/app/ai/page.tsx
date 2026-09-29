@@ -26,7 +26,7 @@ const FAQ_SECTIONS: FAQSection[] = [
     icon: ShoppingBag,
     color: "text-go",
     items: [
-      { q: "How do I place an order on GoDoor?", a: "Browse merchants on the home page, tap on a store, add items to your cart, then go to checkout. Choose your payment method (MoMo, Airtel Money, or Cash), enter your delivery address, and tap \"Place Order\". The business will confirm and a rider will be assigned to deliver your order." },
+      { q: "How do I place an order on GoDoor?", a: "Browse merchants on the home page, tap on a store, add items to your cart, then go to checkout. Pay with your GoDoor Wallet, enter your delivery address, and tap \"Place Order\". The business will confirm and a rider will be assigned to deliver your order." },
       { q: "How do I track my order?", a: "Go to Orders in the navigation bar. Tap on any active order to see its status — pending, confirmed, out for delivery, or completed. You can also chat with the business and rider directly from the order page." },
       { q: "What if my order is late?", a: "Check the order status in your Orders page. If the order is stuck, you can message the business or rider in the chat. If there's a problem, you can raise a dispute from the order page and the GoDoor admin team will review it." },
       { q: "How do I cancel an order?", a: "You can cancel an order while it's still in \"pending\" status. Open the order, tap the cancel button, and confirm. Once a rider has been assigned, cancellation is no longer possible — please chat with the business instead." },
@@ -39,11 +39,11 @@ const FAQ_SECTIONS: FAQSection[] = [
     icon: CreditCard,
     color: "text-primary",
     items: [
-      { q: "How does payment work?", a: "GoDoor uses a P2P (peer-to-peer) payment model. When you place an order, you pay the business directly via their displayed MoMo or Airtel Money number. After sending money, send a confirmation screenshot in the chat. The business confirms payment and starts preparing your order." },
-      { q: "What payment methods are accepted?", a: "You can pay via MTN Mobile Money (MoMo), Airtel Money, or Cash on delivery. Select your preferred method at checkout. Wallet payments will be available soon." },
+      { q: "How does payment work?", a: "GoDoor uses the GoDoor Wallet (escrow) payment model. When you place an order, you pay from your GoDoor Wallet balance. Your payment is held safely in escrow until the merchant confirms delivery." },
+      { q: "What payment methods are accepted?", a: "You can pay via GoDoor Wallet. Your payment is held in escrow until delivery is confirmed, keeping both you and the merchant protected." },
       { q: "Is my payment secure?", a: "Your payment goes directly to the business's mobile money account — GoDoor never holds your money. Always confirm payment in the chat with a screenshot so there's a record for both you and the business." },
       { q: "What if I sent money but the business hasn't confirmed?", a: "Go to the order chat and send a screenshot of your payment confirmation. The business should confirm within minutes. If they don't respond, you can raise a dispute from the order page and our admin team will investigate." },
-      { q: "What about delivery fees?", a: "Delivery fees are set by each business and shown at checkout. You pay the delivery fee separately to the rider in cash when they deliver, or via P2P mobile money." },
+      { q: "What about delivery fees?", a: "Delivery fees are set by each business and shown at checkout. You pay the delivery fee via GoDoor Wallet when you place your order." },
     ],
   },
   {
@@ -52,7 +52,7 @@ const FAQ_SECTIONS: FAQSection[] = [
     icon: Store,
     color: "text-primary",
     items: [
-      { q: "How do I register my business?", a: "Tap \"Sign In\" on the homepage, select \"Business\", create an account with your email, then complete the business onboarding — enter your business name, category, location, MoMo number, and upload your verification documents (shop photo, trade licence, national ID)." },
+      { q: "How do I register my business?", a: "Tap \"Sign In\" on the homepage, select \"Business\", create an account with your email, then complete the business onboarding — enter your business name, category, location, and upload your verification documents (shop photo, trade licence, national ID)." },
       { q: "How do I add products?", a: "After registering, go to your Business Dashboard → Products tab. Tap \"Add Product\" to add items with names, prices, descriptions, and images. Products appear immediately for customers to order." },
       { q: "How do I get paid?", a: "Customers pay you directly to your displayed MoMo or Airtel Money number. When an order comes in, check the chat for the payment confirmation screenshot. Once you confirm payment, prepare the order and assign a rider for delivery." },
       { q: "How do I confirm an order?", a: "When a customer places an order, you'll see it in your Orders tab. Open the order, check the chat for payment confirmation, then tap \"Confirm\" to accept the order. Assign a rider to deliver it." },

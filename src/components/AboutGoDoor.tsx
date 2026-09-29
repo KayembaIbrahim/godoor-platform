@@ -14,6 +14,11 @@ import {
  * fixed-width slides sideways, which overflowed narrow phones and left the
  * next slide half-peeking.
  *
+ * The band is deliberately full-bleed: it is rendered outside the page's
+ * horizontal padding, so it reaches both screen edges instead of floating as
+ * an inset card. Title and description share a single paragraph so the band
+ * stays two lines tall on every slide.
+ *
  * There are deliberately no side arrows: the progress ticks under the copy are
  * the navigation, and hovering pauses the rotation.
  *
@@ -32,7 +37,7 @@ type Slide = {
 
 const SLIDES: Slide[] = [
   { kicker: "HOW IT WORKS", icon: Smartphone, title: "Browse & order", desc: "Find local shops near you and add to cart in seconds." },
-  { kicker: "HOW IT WORKS", icon: Wallet, title: "Pay your way", desc: "Morse wallet first, or MTN MoMo, Airtel Money, cash — no bank card needed." },
+  { kicker: "HOW IT WORKS", icon: Wallet, title: "Pay your way", desc: "GoDoor Wallet — fund via Morse, pay securely with escrow protection. No bank card needed." },
   { kicker: "HOW IT WORKS", icon: Truck, title: "Track & receive", desc: "Watch your rider live on the map until it reaches your door." },
   { kicker: "WHY GODOOR", icon: MapPin, title: "Live GPS tracking", desc: "See exactly where your rider is, in real time." },
   { kicker: "WHY GODOOR", icon: ShieldCheck, title: "Verified & trusted", desc: "Every business and rider is verified for your safety." },
@@ -62,47 +67,36 @@ export function AboutGoDoor() {
 
   return (
     <div
-      className="navy-banner rounded-2xl px-4 py-5 sm:rounded-3xl sm:px-6 sm:py-7"
+      className="navy-banner w-full px-4 py-3 sm:px-5 sm:py-3.5"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       aria-roledescription="carousel"
       aria-label="How GoDoor works"
     >
-      <div className="mb-4 flex items-center gap-2">
-        <span className="inline-flex h-2 w-2 rounded-full bg-go" />
-        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-go/80">
-          GoDoor
-        </span>
-      </div>
-
-      {/* The reserved height is sized for the longest copy at the narrowest
-          supported width, so the panel never resizes mid-rotation. */}
-      <div className="min-h-[6.75rem] sm:min-h-[5.5rem]">
-        <div
-          key={current}
-          className="flex items-start gap-3 sm:gap-4"
-          style={{ animation: "navy-rise 420ms cubic-bezier(0.16, 1, 0.3, 1) both" }}
-        >
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-go/20 text-go">
-            <Icon size={20} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-go/70">
-              {slide.kicker}
-            </p>
-            <h3 className="mt-0.5 text-sm font-bold leading-snug text-white sm:text-[15px]">
-              {slide.title}
-            </h3>
-            <p className="mt-1 text-xs leading-relaxed text-white/70 sm:text-[13px]">
-              {slide.desc}
-            </p>
-          </div>
+      <div
+        key={current}
+        className="flex items-start gap-2.5 sm:gap-3"
+        style={{ animation: "navy-rise 420ms cubic-bezier(0.16, 1, 0.3, 1) both" }}
+      >
+        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-go/20 text-go sm:h-9 sm:w-9">
+          <Icon size={16} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-go/80">
+            <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-go" />
+            {slide.kicker}
+          </p>
+          <p className="mt-0.5 text-[12px] leading-snug text-white/75 sm:text-[13px]">
+            <span className="font-bold text-white">{slide.title}</span>
+            <span className="mx-1 text-white/30">—</span>
+            <span className="line-clamp-2">{slide.desc}</span>
+          </p>
         </div>
       </div>
 
       {/* Progress ticks — the only navigation, inside the panel so they keep
           their contrast on the light canvas. */}
-      <div className="mt-4 flex items-center gap-1.5">
+      <div className="mt-2 flex items-center gap-1">
         {SLIDES.map((s, i) => (
           <button
             key={s.title}
@@ -110,7 +104,7 @@ export function AboutGoDoor() {
             onClick={() => setCurrent(i)}
             aria-label={s.title}
             aria-current={i === current}
-            className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
+            className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
               i === current ? "navy-tick-on" : "navy-tick-off"
             }`}
           />

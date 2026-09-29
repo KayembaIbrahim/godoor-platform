@@ -17,7 +17,7 @@ export default function TermsPage() {
         </section>
         <section>
           <h2 className="font-semibold text-fg mb-2">2. Services</h2>
-          <p>GoDoor connects customers with local merchants and riders for delivery of food, groceries, pharmacy items, and packages across Uganda. Payments are made via MTN MoMo, Airtel Money, or cash on delivery.</p>
+          <p>GoDoor connects customers with local merchants and riders for delivery of food, groceries, pharmacy items, and packages across Uganda. Payments are made via GoDoor Wallet (escrow).</p>
         </section>
         <section>
           <h2 className="font-semibold text-fg mb-2">3. User Accounts</h2>
@@ -25,7 +25,7 @@ export default function TermsPage() {
         </section>
         <section>
           <h2 className="font-semibold text-fg mb-2">4. Payments</h2>
-          <p>All payments are processed via mobile money (MTN MoMo or Airtel Money) or cash on delivery. GoDoor charges a service fee on completed deliveries. Fees are displayed before order confirmation.</p>
+          <p>All payments are processed via GoDoor Wallet (escrow). GoDoor charges a service fee on completed deliveries. Fees are displayed before order confirmation.</p>
         </section>
         <section>
           <h2 className="font-semibold text-fg mb-2">5. Disputes & Refunds</h2>

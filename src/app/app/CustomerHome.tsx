@@ -19,12 +19,23 @@ import { useGeolocation, distanceKm, formatDistance, detectDistrict, type LatLng
 import { useMerchants } from "@/lib/hooks";
 import { CustomerNav } from "@/components/CustomerNav";
 import { SignupModal, useSignupPrompt } from "@/components/SignupPrompt";
-import { useTrackingStore } from "@/lib/tracking-store";
+import { useActiveOrder } from "@/lib/use-active-order";
 import { useFavorites } from "@/lib/customer-stores";
 import { getCategoryIcon } from "@/lib/categories";
 import { AddressSearchModal, getLastAddress } from "@/components/AddressSearchModal";
 
 type SortMode = "nearest" | "rating" | "popular";
+
+/** Plain-language progress for the live-order banner, per order status. */
+const LIVE_HEADLINE: Record<string, string> = {
+  pending: "Waiting for payment",
+  payment_submitted: "Payment submitted",
+  payment_confirmed: "Payment confirmed",
+  preparing: "Shop is preparing your order",
+  medicines_ready: "Medicines ready",
+  rider_assigned: "Rider assigned",
+  delivering: "Live delivery in progress",
+};
 
 export default function CustomerHome() {
   const { role, onboarded } = useSession();
@@ -56,7 +67,9 @@ export default function CustomerHome() {
   const cartCount = useCart((s) => s.count());
   const signup = useSignupPrompt();
   const { coords: gpsLoc, status: locStatus } = useGeolocation();
-  const { active: trackedDelivery } = useTrackingStore();
+  // Server-truth live order. The old localStorage snapshot never cleared, so a
+  // delivered order kept showing "Live delivery in progress" forever.
+  const activeOrder = useActiveOrder();
   const { merchantIds: favIds, toggle: toggleFav } = useFavorites();
   const { merchants, loading: merchantsLoading } = useMerchants();
 
@@ -191,15 +204,22 @@ export default function CustomerHome() {
             <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
           </button>
 
-          {/* Active delivery banner */}
-          {trackedDelivery && trackedDelivery.status !== "delivered" && (
-            <Link href="/tracking" className="flex items-center gap-2 rounded-xl bg-go/10 px-3 py-2.5 shadow-xs transition hover:bg-go/15">
-              <Truck className="h-4 w-4 text-go animate-pulse" />
+          {/* Active delivery banner — only while the order row is genuinely
+              still moving, so it disappears the moment the rider completes it. */}
+          {activeOrder && (
+            <Link
+              href={`/tracking?orderId=${activeOrder.id}`}
+              className="flex items-center gap-2.5 rounded-xl bg-go/10 px-3 py-2.5 shadow-xs transition hover:bg-go/15"
+            >
+              <Truck className="h-4 w-4 shrink-0 text-go animate-pulse" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-go">Live delivery in progress</p>
-                <p className="text-[10px] text-muted truncate">{trackedDelivery.merchantName}</p>
+                <p className="text-xs font-semibold text-go">{LIVE_HEADLINE[activeOrder.status] || "Order in progress"}</p>
+                <p className="truncate text-[10px] text-muted">
+                  {activeOrder.merchant_name || "Your order"}
+                  {activeOrder.rider_name ? ` · ${activeOrder.rider_name}` : ""}
+                </p>
               </div>
-              <Navigation className="h-3.5 w-3.5 text-go" />
+              <Navigation className="h-3.5 w-3.5 shrink-0 text-go" />
             </Link>
           )}
 
@@ -409,11 +429,12 @@ export default function CustomerHome() {
         </Link>
       )}
 
+      {/* How GoDoor works / why GoDoor. It sits outside the page padding so the
+          navy band reaches both screen edges instead of floating inset. */}
+      <AboutGoDoor />
+
       <div className="space-y-4 px-4 pt-4">
         <StoriesStrip stories={stories} onOpen={(idx) => setStoryViewerIdx(idx)} />
-
-        {/* How GoDoor works / why GoDoor — shown instead of promo ads while no promotions are live */}
-        <AboutGoDoor />
 
         {/* Quick reorder from past orders */}
         <QuickReorder />

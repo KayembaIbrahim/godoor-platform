@@ -7,12 +7,12 @@ import { MorseLogo } from "@/components/MorseLogo";
 
 export const metadata = {
   title: "GoDoor — How it works",
-  description: "Order food and shops, ride boda, sell as a business, or earn as a rider. Pay with Morse wallet, MoMo or cash.",
+  description: "Order food and shops, ride boda, sell as a business, or earn as a rider. Pay with GoDoor Wallet.",
 };
 
 const CUSTOMER_STEPS = [
   { icon: ShoppingBag, title: "Browse & order", desc: "Find verified shops near you, add to cart in seconds — or book a Boda ride to go anywhere." },
-  { icon: Wallet, title: "Pay your way", desc: "Morse wallet first, or MTN MoMo, Airtel Money, cash. Every order shows its 5% service fee up front." },
+  { icon: Wallet, title: "Pay with GoDoor Wallet", desc: "Fund your wallet via Morse and pay securely. Every order shows its 5% service fee up front." },
   { icon: MapPin, title: "Track live", desc: "Watch your rider — or your makeup artist — move on the map until they reach your door." },
 ];
 
@@ -79,14 +79,13 @@ export default function HowItWorksPage() {
           <MorseLogo markOnly className="h-5 w-5" /> Pay with Morse first
         </h2>
         <p className="mt-1 text-sm text-muted leading-relaxed">
-          Morse wallet is our featured way to pay — send USD straight to the store&apos;s tag,
-          then MTN MoMo, Airtel Money, or cash on delivery. Every total shows the 5% service fee before you confirm.
+          GoDoor Wallet is our featured way to pay — fund it via Morse and pay securely
+          with escrow protection. Every total shows the 5% service fee before you confirm.
         </p>
         <ul className="mt-3 space-y-1.5 text-sm">
           {[
-            "Morse: instant USD to the business, receipt in chat",
-            "MTN MoMo & Airtel Money: pay the number shown at checkout",
-            "Cash: pay the rider at your door",
+            "GoDoor Wallet: pay securely from your wallet balance",
+            "Escrow protected: funds held until delivery is confirmed",
           ].map((t) => (
             <li key={t} className="flex items-start gap-2 text-muted">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-go" /> {t}
