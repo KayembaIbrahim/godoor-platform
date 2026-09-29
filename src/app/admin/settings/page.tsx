@@ -6,7 +6,7 @@ import {
   TrendingUp, AlertTriangle, CheckCircle2, Loader2, KeyRound, LogOut
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { resolveFees, type FeeConfigShape } from "@/lib/fees";
+import { resolveFees, type ResolvedFees } from "@/lib/fees";
 import { formatUgx } from "@/lib/utils";
 import { evaluatePassword } from "@/lib/password-strength";
 import AdminTwoFactor from "@/components/AdminTwoFactor";
@@ -15,7 +15,7 @@ const STRENGTH_COLORS = ["bg-danger", "bg-red-500", "bg-warning", "bg-success/70
 const STRENGTH_LABELS = ["", "Very weak", "Weak", "Fair", "Good", "Strong"];
 
 export default function AdminSettings() {
-  const [fees, setFees] = useState<FeeConfigShape | null>(null);
+  const [fees, setFees] = useState<ResolvedFees | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -31,7 +31,7 @@ export default function AdminSettings() {
     // Admin-authed read; the anon client has no SELECT grant on fee_config.
     fetch("/api/admin/fees", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((b: { fees?: FeeConfigShape }) => { setFees(resolveFees(b.fees)); setLoading(false); })
+      .then((b: { fees?: ResolvedFees }) => { setFees(resolveFees(b.fees)); setLoading(false); })
       .catch(() => { setFees(resolveFees(null)); setLoading(false); });
   }, []);
 
@@ -42,7 +42,7 @@ export default function AdminSettings() {
       .catch(() => {});
   }, []);
 
-  const update = (key: keyof FeeConfigShape, value: number) => {
+  const update = (key: keyof ResolvedFees, value: number) => {
     if (!fees) return;
     setFees({ ...fees, [key]: value });
     setSaved(false);
@@ -59,7 +59,7 @@ export default function AdminSettings() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((body as { error?: string }).error || "Save failed");
-      setFees(resolveFees((body as { fees?: FeeConfigShape }).fees));
+      setFees(resolveFees((body as { fees?: ResolvedFees }).fees));
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
@@ -143,19 +143,19 @@ export default function AdminSettings() {
           <div>
             <label className="text-xs font-medium text-muted">Service Fee (%)</label>
             <div className="relative mt-1.5">
-              <input type="number" value={fees.service_fee_percent ?? 0} onChange={(e) => update("service_fee_percent", Number(e.target.value))}
+              <input type="number" value={fees.service_fee_percent} onChange={(e) => update("service_fee_percent", Number(e.target.value))}
                 className="w-full rounded-xl border border-border bg-bg px-3 py-2.5 pr-8 text-sm outline-none ring-go focus:ring-2" />
               <Percent className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-dim" />
             </div>
           </div>
           <div>
             <label className="text-xs font-medium text-muted">Min Service Fee</label>
-            <input type="number" value={fees.service_fee_min_ugx ?? 0} onChange={(e) => update("service_fee_min_ugx", Number(e.target.value))}
+            <input type="number" value={fees.service_fee_min_ugx} onChange={(e) => update("service_fee_min_ugx", Number(e.target.value))}
               className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm outline-none ring-go focus:ring-2" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted">Max Service Fee</label>
-            <input type="number" value={fees.service_fee_max_ugx ?? 0} onChange={(e) => update("service_fee_max_ugx", Number(e.target.value))}
+            <input type="number" value={fees.service_fee_max_ugx} onChange={(e) => update("service_fee_max_ugx", Number(e.target.value))}
               className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm outline-none ring-go focus:ring-2" />
           </div>
         </div>
@@ -173,17 +173,17 @@ export default function AdminSettings() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className="text-xs font-medium text-muted">Default Delivery Fee (UGX)</label>
-            <input type="number" value={fees.delivery_fee_ugx ?? 0} onChange={(e) => update("delivery_fee_ugx", Number(e.target.value))}
+            <input type="number" value={fees.delivery_fee_ugx} onChange={(e) => update("delivery_fee_ugx", Number(e.target.value))}
               className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm outline-none ring-go focus:ring-2" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted">Free Delivery Over (UGX)</label>
-            <input type="number" value={fees.free_delivery_threshold_ugx ?? 0} onChange={(e) => update("free_delivery_threshold_ugx", Number(e.target.value))}
+            <input type="number" value={fees.free_delivery_threshold_ugx} onChange={(e) => update("free_delivery_threshold_ugx", Number(e.target.value))}
               className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm outline-none ring-go focus:ring-2" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted">Minimum Order (UGX)</label>
-            <input type="number" value={fees.min_order_ugx ?? 0} onChange={(e) => update("min_order_ugx", Number(e.target.value))}
+            <input type="number" value={fees.min_order_ugx} onChange={(e) => update("min_order_ugx", Number(e.target.value))}
               className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm outline-none ring-go focus:ring-2" />
           </div>
         </div>
@@ -202,7 +202,7 @@ export default function AdminSettings() {
           <div>
             <label className="text-xs font-medium text-muted">Rider Commission (%)</label>
             <div className="mt-1.5 flex items-center gap-2">
-              <input type="range" min={0} max={100} value={fees.rider_commission_percent ?? 0}
+              <input type="range" min={0} max={100} value={fees.rider_commission_percent}
                 onChange={(e) => {
                   const v = Number(e.target.value);
                   update("rider_commission_percent", v);
@@ -215,7 +215,7 @@ export default function AdminSettings() {
           <div>
             <label className="text-xs font-medium text-muted">Platform Commission (%)</label>
             <div className="mt-1.5 flex items-center gap-2">
-              <input type="range" min={0} max={100} value={fees.platform_commission_percent ?? 0}
+              <input type="range" min={0} max={100} value={fees.platform_commission_percent}
                 onChange={(e) => {
                   const v = Number(e.target.value);
                   update("platform_commission_percent", v);

@@ -49,8 +49,12 @@ const num = (v: unknown, fallback: number): number => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+/** Fully-populated fee config: every field is a real number, never null. */
+export type ResolvedFees = ReturnType<typeof resolveFees>;
+
 export function resolveFees(row?: FeeConfigShape | null) {
   const f = FALLBACK_FEE_CONFIG;
+  const rider = Math.trunc(num(row?.rider_commission_percent, f.rider_commission_percent));
   return {
     delivery_fee_ugx: Math.trunc(num(row?.delivery_fee_ugx, f.delivery_fee_ugx)),
     service_fee_percent: num(row?.service_fee_percent, f.service_fee_percent),
@@ -60,6 +64,8 @@ export function resolveFees(row?: FeeConfigShape | null) {
     free_delivery_threshold_ugx: Math.trunc(
       num(row?.free_delivery_threshold_ugx, f.free_delivery_threshold_ugx),
     ),
+    rider_commission_percent: rider,
+    platform_commission_percent: Math.trunc(num(row?.platform_commission_percent, 100 - rider)),
   };
 }
 
