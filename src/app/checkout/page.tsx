@@ -209,7 +209,13 @@ export default function CheckoutPage() {
       });
       setOrderCreated(order.id);
       clear();
-      router.push(`/chat/${order.id}`);
+      /* Do NOT redirect here. The success screen is the confirmation the
+         customer needs — order number, ETA and payment instructions all live
+         on it. router.push() used to fire in the same tick as setOrderCreated,
+         so the screen mounted and was immediately torn down, dropping the user
+         into the chat room with no idea their order had registered. The screen
+         now stays until the customer picks "Chat with merchant" or
+         "Track your order". */
       return;
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : "Failed to place order. Try again.");

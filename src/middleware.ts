@@ -1,11 +1,76 @@
-import { proxy } from "./proxy";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { ADMIN_COOKIE, verifySession } from "@/lib/admin-session";
 
 /**
  * Hides the GoDoor admin portal behind an unguessable path.
  *
- * `proxy.ts` holds the logic; this file is what actually invokes it. The two
- * were split in 94b985d, but the wiring was never added back, so the admin
- * secret path silently served the public homepage and every `/api/admin/*`
- * route 404'd for anonymous visitors. Restoring it is the whole fix.
+ * The portal's canonical address is `/${ADMIN_PATH_SECRET}` (server-rewritten
+ * to the `/admin` app). Bare `/admin` and `/admin/...` are NOT public:
+ *  - anonymous visitors get a hard 404 (probing leaks nothing)
+ *  - signed-in admins are bounced with a 307 to the secret path
+ *  - `/api/admin/*` stays locked (404 anonymous, allowed with a session)
+ *
+ * The secret never leaves the server — it is only read from an env var here.
+ * When `ADMIN_PATH_SECRET` is unset (local dev), admin behaves as before.
+ *
+ * NOTE: this is inlined rather than imported from `src/proxy.ts`. That file
+ * holds the same logic but was never wired up after it replaced this file in
+ * 94b985d, which silently broke admin access. Keeping it inline means the
+ * middleware cannot be orphaned by a refactor again.
  */
-export default proxy;
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // The auth endpoint is public — it validates the password itself.
+  if (pathname.startsWith("/api/admin/auth")) {
+    return NextResponse.next();
+  }
+
+  const secret = process.env.ADMIN_PATH_SECRET || "admin";
+
+  // 1) The real admin address. Rewrite server-side so the app renders the
+  //    /admin page but the browser only ever sees the secret path.
+  if (secret !== "admin") {
+    if (pathname === `/${secret}` || pathname.startsWith(`/${secret}/`)) {
+      const rest = pathname.slice(secret.length + 1);
+      const target = rest ? `/admin${rest}` : "/admin";
+      return NextResponse.rewrite(
+        new URL(target + request.nextUrl.search, request.url),
+      );
+    }
+  }
+
+  // 2) The admin API. Checked BEFORE the /admin branch: "/api/admin/..." does
+  //    not start with "/admin", so a guard nested there is unreachable and
+  //    every route would fall through unprotected.
+  if (pathname.startsWith("/api/admin/")) {
+    const token = request.cookies.get(ADMIN_COOKIE)?.value || "";
+    return (await verifySession(token))
+      ? NextResponse.next()
+      : new NextResponse("Not Found", { status: 404 });
+  }
+
+  // 3) Hardcoded /admin references (nav links, redirects after login).
+  if (pathname.startsWith("/admin")) {
+    const token = request.cookies.get(ADMIN_COOKIE)?.value || "";
+    const authorized = await verifySession(token);
+
+    if (secret !== "admin") {
+      // Canonical location is the secret path — send signed-in admins there.
+      if (!authorized) return new NextResponse("Not Found", { status: 404 });
+      const rest = pathname.slice("/admin".length) + request.nextUrl.search;
+      return NextResponse.redirect(new URL(`/${secret}${rest}`, request.url));
+    }
+
+    // Local dev (no secret): keep the old behaviour.
+    if (!authorized) {
+      if (pathname !== "/admin") {
+        return NextResponse.redirect(new URL("/admin", request.url));
+      }
+    }
+    return NextResponse.next();
+  }
+
+  return NextResponse.next();
+}
