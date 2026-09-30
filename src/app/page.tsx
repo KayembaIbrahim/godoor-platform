@@ -773,7 +773,7 @@ export default function HomePage() {
                   <span className="text-go">everywhere.</span>
                 </h2>
                 <p className="mt-3 text-sm text-muted leading-relaxed max-w-sm">
-                  Download the native app for the fastest experience. Push notifications for delivery updates, offline browsing, and one-tap reordering.
+                  Download the native app for the fastest experience. Offline browsing, one-tap reordering, and the GoDoor wallet in your pocket.
                 </p>
                 <ul className="mt-4 space-y-2">
                   {[

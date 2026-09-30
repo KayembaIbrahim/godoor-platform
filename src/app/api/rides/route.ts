@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid } from "@/lib/api-auth";
 import { serviceFeeFor } from "@/lib/fees";
+import { pushToUser } from "@/lib/web-push-server";
 
 /**
  * Boda ride-hailing API (v1).
@@ -148,6 +149,35 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ error: "Use ?mine=1, ?open=1 or ?id=" }, { status: 400 });
 }
 
+
+/** Best-effort browser push on a ride status change. Never blocks the request. */
+async function notifyRide(
+  sb: NonNullable<ReturnType<typeof getServiceClient>>,
+  ride: Record<string, unknown>,
+  next: string,
+): Promise<void> {
+  try {
+    const customerId = ride.customer_id as string | null;
+    const riderId = ride.rider_id as string | null;
+    const where = ride.dropoff_address || ride.pickup_address || "your Boda ride";
+    const head =
+      next === "accepted" ? "Rider accepted your ride"
+      : next === "in_progress" ? "Your ride is on the way"
+      : next === "completed" ? "Ride completed"
+      : next === "cancelled" ? "Ride cancelled"
+      : "Ride update";
+    const url = `/ride?rideId=${ride.id}`;
+    if (customerId) {
+      await pushToUser(sb, customerId, { title: head, body: `To ${where}`, url, tag: `ride-${ride.id}` });
+    }
+    if (riderId && next === "requested") {
+      await pushToUser(sb, riderId, { title: "New ride request", body: `Pickup near ${where}`, url: "/rider", tag: `ridereq-${ride.id}` });
+    }
+  } catch {
+    // Push is a convenience, never a dependency.
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   const sb = getServiceClient();
   if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
@@ -194,6 +224,7 @@ export async function PATCH(req: NextRequest) {
       .select("*")
       .maybeSingle();
     if (error || !claimed) return NextResponse.json({ error: "This ride was already taken" }, { status: 409 });
+    void notifyRide(sb, claimed as Record<string, unknown>, "accepted");
     return NextResponse.json({ ride: claimed });
   }
 
@@ -208,6 +239,7 @@ export async function PATCH(req: NextRequest) {
       .select("*")
       .maybeSingle();
     if (error || !data) return NextResponse.json({ error: "Could not start ride" }, { status: 409 });
+    void notifyRide(sb, data as Record<string, unknown>, "in_progress");
     return NextResponse.json({ ride: data });
   }
 
@@ -230,6 +262,7 @@ export async function PATCH(req: NextRequest) {
       .select("*")
       .maybeSingle();
     if (error || !data) return NextResponse.json({ error: "Could not complete ride" }, { status: 409 });
+    void notifyRide(sb, data as Record<string, unknown>, "completed");
     return NextResponse.json({ ride: data });
   }
 

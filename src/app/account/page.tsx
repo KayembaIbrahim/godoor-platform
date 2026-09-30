@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useSession, type Role } from "@/lib/session-store";
+
+import PushToggle from "@/components/PushToggle";import { useSession, type Role } from "@/lib/session-store";
 import { uploadFile, getUserVerificationStatus, fetchMerchants, fetchRiders, updateRider, apiAuthHeaders } from "@/lib/db";
 import { useGeolocation, formatAccuracy } from "@/lib/location";
 import {
@@ -505,6 +506,12 @@ export default function AccountPage() {
             <Clock className="h-3 w-3" /> Under review
           </span>
         )}
+      </div>
+
+      {/* Browser push opt-in. Renders nothing where push is unavailable,
+          notably inside the Android WebView used by the APK. */}
+      <div className="mt-4">
+        <PushToggle />
       </div>
 
       {/* Editable Profile Fields */}

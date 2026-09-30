@@ -7,6 +7,7 @@ import { calcDeliveryFee } from "@/lib/utils";
 import { resolveFees, serviceFeeFor, splitOrderAmounts } from "@/lib/fees";
 import { ensureClinicOrderSchema } from "@/lib/ensure-clinic";
 import { holdEscrow } from "@/lib/escrow";
+import { pushToUser } from "@/lib/web-push-server";
 
 const ENSURE_SCHEDULE_COLUMN = `ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ;`;
 
@@ -148,6 +149,57 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ orders: data || [] });
 }
 
+const HEADLINE: Record<string, string> = {
+  payment_confirmed: "Payment confirmed",
+  preparing: "Your order is being prepared",
+  ready: "Ready for pickup",
+  medicines_ready: "Medicines ready",
+  rider_assigned: "A rider has been assigned",
+  delivering: "Your order is on the way",
+  delivered: "Delivered",
+  cancelled: "Order cancelled",
+};
+
+/** Best-effort browser push for a status change. Never blocks or fails the
+ *  request: a push that does not go out must not stop a delivery progressing. */
+async function notifyStatusChange(
+  sb: NonNullable<ReturnType<typeof getServiceClient>>,
+  orderId: string,
+  nextStatus: string,
+): Promise<void> {
+  try {
+    const { data: o } = await sb
+      .from("orders")
+      .select("id, customer_id, rider_id, merchant_name, items, status")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (!o) return;
+    const customerId = o.customer_id as string | null;
+    const riderId = o.rider_id as string | null;
+    const trackUrl = `/tracking?orderId=${o.id}`;
+    const head = HEADLINE[nextStatus] || "Order update";
+
+    if (customerId) {
+      await pushToUser(sb, customerId, {
+        title: head,
+        body: o.items || "Your order was updated",
+        url: trackUrl,
+        tag: `order-${o.id}`,
+      });
+    }
+    if (riderId && (nextStatus === "ready" || nextStatus === "medicines_ready")) {
+      await pushToUser(sb, riderId, {
+        title: "New delivery available",
+        body: `${o.items || "An order"} at ${o.merchant_name || "a business"} is ready for pickup`,
+        url: "/rider",
+        tag: `pickup-${o.id}`,
+      });
+    }
+  } catch {
+    // Push is a convenience, never a dependency.
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   const sb = getServiceClient();
   if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
@@ -189,6 +241,7 @@ export async function PATCH(req: NextRequest) {
     }
     const { error } = await sb.from("orders").update(upd).eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (upd.status) void notifyStatusChange(sb, id, String(upd.status));
     return NextResponse.json({ ok: true });
   }
 
@@ -219,6 +272,7 @@ export async function PATCH(req: NextRequest) {
     console.error("updateOrder API error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  if (userUpd.status) void notifyStatusChange(sb, id, String(userUpd.status));
   return NextResponse.json({ ok: true });
 }
 
