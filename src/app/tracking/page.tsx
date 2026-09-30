@@ -326,7 +326,7 @@ function StatusTimeline({ status, statusOrder, STATUS_STEPS }: {
         <div
           className="absolute left-[15px] top-4 w-0.5 bg-gradient-to-b from-success to-go transition-all duration-700 ease-out"
           style={{
-            height: `${Math.max(0, (currentIdx / (STATUS_STEPS.length - 1)) * 100)}%`,
+            height: `${Math.max(0, (Math.max(currentIdx, 0) / (STATUS_STEPS.length - 1)) * 100)}%`,
             maxHeight: "calc(100% - 32px)",
           }}
         />
@@ -649,6 +649,24 @@ function OrderTracker({ order }: { order: DBOrder }) {
     "preparing", "ready", "rider_assigned", "delivering", "delivered",
   ];
 
+  /* The server's status machine (api-auth STATUSES) has eleven states, but the
+     timeline shows seven. `payment_submitted` — the state a customer sits in
+     right after paying — and clinic `medicines_ready` matched nothing here, so
+     indexOf returned -1: the rail rendered empty and no step showed as done.
+     Fold every real status onto the step the customer should be looking at. */
+  const STEP_FOR_STATUS: Record<string, string> = {
+    pending: "pending",
+    payment_submitted: "pending",
+    payment_confirmed: "payment_confirmed",
+    preparing: "preparing",
+    ready: "ready",
+    medicines_ready: "ready",
+    rider_assigned: "rider_assigned",
+    delivering: "delivering",
+    delivered: "delivered",
+  };
+  const currentStep = STEP_FOR_STATUS[status] ?? "pending";
+
   const isDelivered = status === "delivered";
 
   const riderToDropoffKm = etaMinutes !== null ? (etaMinutes / 60) * 25 : null;
@@ -794,7 +812,7 @@ function OrderTracker({ order }: { order: DBOrder }) {
 
       {/* Status timeline */}
       <StatusTimeline
-        status={status}
+        status={currentStep}
         statusOrder={statusOrder}
         STATUS_STEPS={STATUS_STEPS}
       />
