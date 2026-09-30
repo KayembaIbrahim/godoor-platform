@@ -11,7 +11,7 @@ import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
  * silently never fire, with no client-side error - the app just falls back to
  * polling and tracking looks dead.
  */
-export async function GET(req: Request) {
+export async function GET() {
   const jar = await cookies();
   if (!(await verifySession(jar.get(ADMIN_COOKIE)?.value || ""))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -39,51 +39,75 @@ export async function GET(req: Request) {
     "clinic_queue",
   ];
 
-  /* POST repairs the publication. Supabase never watches a table unless it is
-     explicitly added, and a missing table makes postgres_changes silently
-     never fire - no client error, the app just polls and tracking looks dead.
-     Every statement is idempotent (`if not exists` / guarded add). */
-  if (req.method === "POST") {
-    const applied: { statement: string; ok: boolean; error?: string }[] = [];
-
-    const pub = await sb.rpc("exec_sql", {
-      query: "alter publication supabase_realtime add table public.orders",
-    });
-    applied.push({
-      statement: "create publication if not exists + add orders",
-      ok: !pub.error,
-      error: pub.error?.message,
-    });
-
-    for (const t of watched) {
-      // The publication is created by adding the first table, so only attempt
-      // the add when the table is not already present.
-      if (live.has(t)) {
-        applied.push({ statement: `add ${t}`, ok: true });
-        continue;
-      }
-      const r = await sb.rpc("exec_sql", {
-        query: `alter publication supabase_realtime add table public.${t}`,
-      });
-      applied.push({ statement: `add ${t}`, ok: !r.error, error: r.error?.message });
-    }
-
-    const after = await sb.rpc("exec_sql", {
-      query:
-        "select tablename from pg_publication_tables where pubname = 'supabase_realtime' order by tablename",
-    });
-    const nowLive = ((after.data ?? []) as Record<string, unknown>[]).map((r) => String(r.tablename));
-
-    return NextResponse.json({
-      applied,
-      in_publication: nowLive,
-      still_missing: watched.filter((t) => !nowLive.includes(t)),
-    });
-  }
-
   return NextResponse.json({
     in_publication: [...live].sort(),
     watched: watched.map((t) => ({ table: t, in_publication: live.has(t) })),
     missing: watched.filter((t) => !live.has(t)),
+  });
+}
+
+
+/**
+ * Adds every watched table to the supabase_realtime publication.
+ *
+ * Supabase never watches a table unless it is explicitly added, and a table
+ * missing from the publication makes postgres_changes silently never fire - no
+ * client-side error, the app just falls back to polling and live tracking looks
+ * frozen. The publication was found completely empty, so every realtime
+ * subscription in the app was dead.
+ */
+export async function POST() {
+  const jar = await cookies();
+  if (!(await verifySession(jar.get(ADMIN_COOKIE)?.value || ""))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const sb = getServiceClient();
+  if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
+
+  const WATCHED = [
+    "orders",
+    "rider_locations",
+    "provider_locations",
+    "ride_requests",
+    "riders",
+    "payments",
+    "chat_messages",
+    "clinic_queue",
+  ];
+
+  const before = await sb.rpc("exec_sql", {
+    query:
+      "select tablename from pg_publication_tables where pubname = 'supabase_realtime'",
+  });
+  const live = new Set(
+    ((before.data ?? []) as Record<string, unknown>[]).map((r) => String(r.tablename)),
+  );
+
+  const applied: { statement: string; ok: boolean; error?: string }[] = [];
+  for (const t of WATCHED) {
+    if (live.has(t)) {
+      applied.push({ statement: `add ${t}`, ok: true });
+      continue;
+    }
+    // `alter publication ... add table` errors with 42710 if the table is
+    // already a member, so guard on the membership read above.
+    const r = await sb.rpc("exec_sql", {
+      query: `alter publication supabase_realtime add table public.${t}`,
+    });
+    applied.push({ statement: `add ${t}`, ok: !r.error, error: r.error?.message });
+  }
+
+  const after = await sb.rpc("exec_sql", {
+    query:
+      "select tablename from pg_publication_tables where pubname = 'supabase_realtime' order by tablename",
+  });
+  const nowLive = ((after.data ?? []) as Record<string, unknown>[]).map((r) =>
+    String(r.tablename),
+  );
+
+  return NextResponse.json({
+    applied,
+    in_publication: nowLive,
+    still_missing: WATCHED.filter((t) => !nowLive.includes(t)),
   });
 }
