@@ -1,217 +1,262 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  DollarSign, CheckCircle2, Clock, Truck, Store, Search,
-  Download, Loader2, AlertTriangle, Filter, ArrowUpRight,
+  Copy, Check, TriangleAlert, RefreshCw, ShieldCheck, BanknoteArrowDown,
 } from "lucide-react";
-import { fetchOrders, fetchMerchants, fetchRiders, type DBOrder, type DBMerchant, type DBRider } from "@/lib/db";
 import { formatUgx } from "@/lib/utils";
 
-type PayoutEntry = {
-  id: string;
-  name: string;
-  email: string;
-  role: "merchant" | "rider";
-  totalEarned: number;
-  ordersCount: number;
-  status: "pending" | "paid";
-  lastOrderDate: number;
+/**
+ * Admin payouts.
+ *
+ * Built for speed at the till: one row per order, each party's Morse tag with a
+ * single tap to copy, and the exact split (rider / business / platform) so
+ * nothing has to be recalculated by hand.
+ *
+ * Read-only. This screen tells an operator who is owed what; it does not move
+ * money. Refunds are recorded here and executed over Morse.
+ */
+
+type Party = { name: string; phone?: string | null; morse_tag?: string | null } | null;
+
+type Row = {
+  order_id: string;
+  order_status: string;
+  payment_status: string;
+  escrowed: boolean;
+  created_at: string;
+  amounts: {
+    subtotal_ugx: number;
+    delivery_fee_ugx: number;
+    service_fee_ugx: number;
+    platform_fees_ugx: number;
+    merchant_payout_ugx: number;
+    rider_payout_ugx: number;
+  };
+  parties: { customer: Party; business: Party; rider: Party };
+  payouts: { id: string; role: string; amount: number; status: string; paid_at: string | null }[];
+  settled: boolean;
+  refundable_to_wallet: boolean;
 };
 
-export default function AdminPayouts() {
-  const [orders, setOrders] = useState<DBOrder[]>([]);
-  const [merchants, setMerchants] = useState<DBMerchant[]>([]);
-  const [riders, setRiders] = useState<DBRider[]>([]);
-  const [paidIds, setPaidIds] = useState<Set<string>>(new Set());
+type Totals = {
+  orders: number;
+  unsettled: number;
+  owed_merchant_ugx: number;
+  owed_rider_ugx: number;
+  platform_fees_ugx: number;
+};
+
+function CopyTag({ value, label }: { value?: string | null; label: string }) {
+  const [done, setDone] = useState(false);
+  if (!value) {
+    return <span className="text-[10px] text-dim">no {label} tag</span>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setDone(true);
+          setTimeout(() => setDone(false), 1400);
+        } catch {
+          // Clipboard blocked (insecure context / iframe) — the tag is still
+          // visible on screen to copy by hand.
+        }
+      }}
+      className="flex max-w-[9rem] items-center gap-1 rounded-md bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-fg transition hover:bg-navy hover:text-white"
+      title={`Copy ${label} Morse tag`}
+    >
+      <span className="truncate">{value}</span>
+      {done ? <Check className="h-3 w-3 shrink-0 text-success" /> : <Copy className="h-3 w-3 shrink-0 opacity-60" />}
+    </button>
+  );
+}
+
+function PartyRow({ role, party }: { role: string; party: Party }) {
+  if (!party) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="w-14 shrink-0 text-[10px] uppercase tracking-wide text-dim">{role}</span>
+        <span className="text-[11px] text-dim">unassigned</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-14 shrink-0 text-[10px] uppercase tracking-wide text-dim">{role}</span>
+      <span className="min-w-0 flex-1 truncate text-[11px] text-muted">{party.name}</span>
+      <CopyTag value={party.morse_tag} label={role} />
+    </div>
+  );
+}
+
+export default function AdminPayoutsPage() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [totals, setTotals] = useState<Totals | null>(null);
+  const [scope, setScope] = useState<"all" | "unsettled" | "settled">("unsettled");
   const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState("");
-  const [tab, setTab] = useState<"merchant" | "rider">("merchant");
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/admin/payouts?scope=${scope}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: { rows?: Row[]; totals?: Totals }) => {
+        setRows(d.rows ?? []);
+        setTotals(d.totals ?? null);
+        setErr(null);
+      })
+      .catch((e) => setErr(e instanceof Error ? e.message : "Could not load payouts"))
+      .finally(() => setLoading(false));
+  }, [scope]);
 
   useEffect(() => {
-    Promise.all([
-      fetchOrders().then(setOrders),
-      fetchMerchants().then(setMerchants),
-      fetchRiders().then(setRiders),
-    ]).then(() => setLoading(false));
-    // Load paid IDs from localStorage
-    try {
-      const stored = JSON.parse(localStorage.getItem("godoor-paid-payouts") || "[]");
-      setPaidIds(new Set(stored));
-    } catch {}
-  }, []);
+    load();
+  }, [load]);
 
-  const markPaid = (id: string) => {
-    setPaidIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      localStorage.setItem("godoor-paid-payouts", JSON.stringify([...next]));
-      return next;
-    });
-  };
-
-  const payouts = useMemo(() => {
-    const delivered = orders.filter((o) => ["delivered", "payment_confirmed"].includes(o.status));
-    const map = new Map<string, PayoutEntry>();
-
-    // Merchant earnings
-    for (const o of delivered) {
-      if (!o.merchant_id) continue;
-      const merchant = merchants.find((m) => m.id === o.merchant_id);
-      const merchantEarning = o.total_ugx || 0;
-      const key = `m_${o.merchant_id}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.totalEarned += merchantEarning;
-        existing.ordersCount += 1;
-        existing.lastOrderDate = Math.max(existing.lastOrderDate, o.created_at);
-      } else {
-        map.set(key, {
-          id: o.merchant_id, name: merchant?.name || o.merchant_name || "Unknown",
-          email: merchant?.owner_id || "", role: "merchant",
-          totalEarned: merchantEarning, ordersCount: 1,
-          status: paidIds.has(key) ? "paid" : "pending",
-          lastOrderDate: o.created_at,
-        });
-      }
-    }
-
-    // Rider earnings
-    for (const o of delivered) {
-      if (!o.rider_id) continue;
-      const rider = riders.find((r) => r.id === o.rider_id);
-      const key = `r_${o.rider_id}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.totalEarned += o.delivery_fee_ugx || 0;
-        existing.ordersCount += 1;
-        existing.lastOrderDate = Math.max(existing.lastOrderDate, o.created_at);
-      } else {
-        map.set(key, {
-          id: o.rider_id, name: o.rider_name || rider?.name || "Unknown",
-          email: rider?.email || "", role: "rider",
-          totalEarned: o.delivery_fee_ugx || 0, ordersCount: 1,
-          status: paidIds.has(key) ? "paid" : "pending",
-          lastOrderDate: o.created_at,
-        });
-      }
-    }
-
-    return [...map.values()];
-  }, [orders, merchants, riders, paidIds]);
-
-  const filtered = payouts
-    .filter((p) => p.role === tab)
-    .filter((p) => !q.trim() || p.name.toLowerCase().includes(q.toLowerCase()) || p.email.toLowerCase().includes(q.toLowerCase()));
-
-  const totalPending = filtered.filter((p) => p.status === "pending").reduce((s, p) => s + p.totalEarned, 0);
-  const totalPaid = filtered.filter((p) => p.status === "paid").reduce((s, p) => s + p.totalEarned, 0);
+  const missingTags = useMemo(
+    () => rows.filter((r) => !r.settled && !r.parties.business?.morse_tag).length,
+    [rows],
+  );
 
   return (
-    <div className="pb-24 md:pb-0 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Payouts</h1>
-          <p className="mt-1 text-sm text-muted">Track and manage rider and merchant earnings.</p>
-        </div>
-      </div>
-
-      {/* Tabs + Search */}
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <div className="flex gap-1.5">
-          <button type="button" onClick={() => setTab("merchant")}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${tab === "merchant" ? "bg-primary/15 text-primary" : "bg-surface text-muted hover:bg-elevated"}`}>
-            <Store className="h-3 w-3" /> Merchants
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="font-display text-lg font-semibold">Payouts</h1>
+        <div className="ml-auto flex items-center gap-1.5">
+          {(["unsettled", "all", "settled"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setScope(s)}
+              className={`rounded-lg px-2.5 py-1.5 text-[11px] font-semibold capitalize transition ${
+                scope === s ? "bg-go text-white" : "border border-border bg-surface text-muted"
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={load}
+            aria-label="Refresh"
+            className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-surface text-muted transition hover:text-fg"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
-          <button type="button" onClick={() => setTab("rider")}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${tab === "rider" ? "bg-primary/15 text-primary" : "bg-surface text-muted hover:bg-elevated"}`}>
-            <Truck className="h-3 w-3" /> Riders
-          </button>
-        </div>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-dim" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email…"
-            className="w-full rounded-xl border border-border bg-surface py-2 pl-10 pr-3 text-sm outline-none ring-go focus:ring-2 sm:w-60" />
         </div>
       </div>
 
-      {/* Summary */}
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-border bg-surface p-4">
-          <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-warning" /><p className="text-xs text-muted">Pending</p></div>
-          <p className="mt-2 text-xl font-bold text-warning">{formatUgx(totalPending)}</p>
+      {totals && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            { label: "Owed to business", value: totals.owed_merchant_ugx, tone: "text-go" },
+            { label: "Owed to rider", value: totals.owed_rider_ugx, tone: "text-primary" },
+            { label: "Platform fees", value: totals.platform_fees_ugx, tone: "text-success" },
+            { label: "Unsettled orders", value: totals.unsettled, tone: "text-warning", count: true },
+          ].map((c) => (
+            <div key={c.label} className="rounded-2xl border border-border bg-surface p-3">
+              <p className="text-[10px] uppercase tracking-wider text-dim">{c.label}</p>
+              <p className={`mt-0.5 font-display text-base font-bold tabular-nums ${c.tone}`}>
+                {c.count ? c.value : formatUgx(c.value)}
+              </p>
+            </div>
+          ))}
         </div>
-        <div className="rounded-2xl border border-border bg-surface p-4">
-          <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-success" /><p className="text-xs text-muted">Paid</p></div>
-          <p className="mt-2 text-xl font-bold text-success">{formatUgx(totalPaid)}</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-surface p-4">
-          <div className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-go" /><p className="text-xs text-muted">Total Earned</p></div>
-          <p className="mt-2 text-xl font-bold">{formatUgx(totalPending + totalPaid)}</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-surface p-4">
-          <div className="flex items-center gap-2"><Filter className="h-4 w-4 text-primary" /><p className="text-xs text-muted">Count</p></div>
-          <p className="mt-2 text-xl font-bold">{filtered.length}</p>
-        </div>
-      </div>
+      )}
 
-      {/* Payout table */}
-      <div className="mt-6 overflow-hidden rounded-2xl border border-border">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-surface text-xs text-dim">
-              <tr>
-                <th className="px-4 py-2.5 text-left">{tab === "merchant" ? "Business" : "Rider"}</th>
-                <th className="px-4 py-2.5 text-left hidden md:table-cell">Email</th>
-                <th className="px-4 py-2.5 text-center">Orders</th>
-                <th className="px-4 py-2.5 text-right">Amount</th>
-                <th className="px-4 py-2.5 text-center">Status</th>
-                <th className="px-4 py-2.5 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">Loading…</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-muted">No {tab} payouts to show</td></tr>
-              ) : filtered.sort((a, b) => b.totalEarned - a.totalEarned).map((p) => (
-                <tr key={p.id} className="border-t border-border hover:bg-elevated/50 transition">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`grid h-8 w-8 place-items-center rounded-full ${p.role === "merchant" ? "bg-primary/10" : "bg-primary/10"}`}>
-                        {p.role === "merchant" ? <Store className="h-4 w-4 text-primary" /> : <Truck className="h-4 w-4 text-primary" />}
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium">{p.name}</p>
-                        <p className="text-[10px] text-dim">Last: {new Date(p.lastOrderDate).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted hidden md:table-cell">{p.email || "—"}</td>
-                  <td className="px-4 py-3 text-center text-xs font-semibold">{p.ordersCount}</td>
-                  <td className="px-4 py-3 text-right text-xs font-bold">{formatUgx(p.totalEarned)}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${p.status === "paid" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>
-                      {p.status === "paid" ? <CheckCircle2 className="h-2.5 w-2.5" /> : <Clock className="h-2.5 w-2.5" />}
-                      {p.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {p.status === "pending" ? (
-                      <button type="button" onClick={() => markPaid(p.id)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-go px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-go-2 transition">
-                        <CheckCircle2 className="h-3 w-3" /> Mark Paid
-                      </button>
-                    ) : (
-                      <span className="text-[10px] text-success font-medium">Done</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {missingTags > 0 && (
+        <p className="flex items-start gap-1.5 rounded-xl border border-warning/30 bg-warning/5 p-3 text-[11px] text-warning">
+          <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" />
+          {missingTags} order{missingTags === 1 ? "" : "s"} on this list {missingTags === 1 ? "has" : "have"} no
+          business Morse tag. Pay those over MoMo, or ask the business to set a tag in Account.
+        </p>
+      )}
+
+      {err && (
+        <p className="rounded-xl border border-danger/30 bg-danger/5 p-3 text-xs text-danger">{err}</p>
+      )}
+
+      {loading && rows.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted">Loading payouts…</p>
+      ) : rows.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted">Nothing in this view.</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((r) => (
+            <div
+              key={r.order_id}
+              className={`rounded-2xl border p-3.5 ${
+                r.settled ? "border-border bg-surface/60" : "border-border bg-surface"
+              }`}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-[11px] text-muted">
+                  #{r.order_id.slice(-6)}
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    r.settled
+                      ? "bg-success/15 text-success"
+                      : r.order_status === "cancelled"
+                        ? "bg-danger/15 text-danger"
+                        : "bg-warning/15 text-warning"
+                  }`}
+                >
+                  {r.settled ? "Paid" : r.order_status === "cancelled" ? "Cancelled" : "Owed"}
+                </span>
+                {r.escrowed ? (
+                  <span className="flex items-center gap-1 text-[10px] text-muted">
+                    <ShieldCheck className="h-3 w-3 text-success" /> escrowed
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-dim">no escrow</span>
+                )}
+                <span className="ml-auto text-[10px] text-dim">
+                  {new Date(r.created_at).toLocaleDateString("en-UG")}
+                </span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-bg p-2.5 text-center">
+                <div>
+                  <p className="text-[9px] uppercase tracking-wide text-dim">Business</p>
+                  <p className="text-[13px] font-bold tabular-nums text-go">
+                    {formatUgx(r.amounts.merchant_payout_ugx)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-wide text-dim">Rider</p>
+                  <p className="text-[13px] font-bold tabular-nums text-primary">
+                    {formatUgx(r.amounts.rider_payout_ugx)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-wide text-dim">Platform</p>
+                  <p className="text-[13px] font-bold tabular-nums text-success">
+                    {formatUgx(r.amounts.platform_fees_ugx)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-2.5 space-y-1">
+                <PartyRow role="biz" party={r.parties.business} />
+                <PartyRow role="rider" party={r.parties.rider} />
+                <PartyRow role="cust" party={r.parties.customer} />
+              </div>
+
+              {r.order_status === "cancelled" && (
+                <p className="mt-2 rounded-lg bg-elevated px-2 py-1.5 text-[10px] text-muted">
+                  {r.refundable_to_wallet
+                    ? "Escrow was held — refund the customer to their GoDoor wallet."
+                    : "No escrow was held, so nothing to refund in-app. Refund over Morse."}
+                </p>
+              )}
+            </div>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
