@@ -236,6 +236,35 @@ export default function RiderDashboard() {
     const uid = supabaseUser?.id || "";
     if (uid) updateRiderStatus(uid, val ? "online" : "offline");
   };
+  /* Liveness heartbeat. The manual toggle above records intent; this records
+     fact. Admin-facing status is derived from the beat, so a rider who taps
+     "online" and then closes the app stops reading as online. Beat only while
+     the tab is visible, and only while the rider has said they are on shift —
+     otherwise a parked, open tab would look like an active rider. */
+  useEffect(() => {
+    if (!isOnline || !supabaseUser?.id) return;
+    // apiAuthHeaders is async, so the beat has to await it before fetching.
+    const beat = async () => {
+      if (document.hidden) return;
+      try {
+        await fetch("/api/rider/heartbeat", {
+          method: "POST",
+          headers: await apiAuthHeaders(false),
+        });
+      } catch {
+        // A failed beat simply means the next tick decides our liveness.
+      }
+    };
+    void beat();
+    const id = setInterval(() => void beat(), 45000);
+    const onVisible = () => void beat();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [isOnline, supabaseUser?.id]);
+
   const [verified, setVerified] = useState<"none" | "pending" | "approved" | "rejected">("none");
   // Effective verification: use whichever says "approved" — riderRecord from DB or the async check
   const effectiveVerified = (verified === "approved" || riderRecord?.verified) ? "approved" as const : verified;
@@ -512,7 +541,15 @@ export default function RiderDashboard() {
     activeDelivery?.customer_lat && activeDelivery?.customer_lng
       ? { lat: Number(activeDelivery.customer_lat), lng: Number(activeDelivery.customer_lng) }
       : null;
-  const { route: riderRoadRoute } = useRoadRoute(merchantLoc, activeDropoff);
+  /* The route a rider actually navigates starts at THEIR position, not at the
+     business. It previously ran merchant -> dropoff, so an en-route rider saw
+     the wrong leg and could not follow the next turn. Fall back to the
+     merchant when there is no GPS fix yet, so a route is never empty. */
+  const riderOrigin: LatLng | null =
+    coords && coords.lat != null && coords.lng != null
+      ? { lat: Number(coords.lat), lng: Number(coords.lng) }
+      : merchantLoc;
+  const { route: riderRoadRoute } = useRoadRoute(riderOrigin, activeDropoff);
   const riderTraffic = summarizeTraffic(riderRoadRoute);
 
   if (!onboarded || role !== "rider") {
@@ -905,25 +942,30 @@ export default function RiderDashboard() {
                 {/* Secondary actions never share a row three-up; two columns
                     keep every label whole on a 360px screen. */}
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  {activeDelivery.customer_lat != null && activeDelivery.customer_lng != null ? (
-                    <a
-                      href={`https://www.google.com/maps/dir/?api=1&destination=${activeDelivery.customer_lat},${activeDelivery.customer_lng}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn flex min-w-0 items-center justify-center gap-1.5 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25"
-                    >
-                      <Navigation className="h-3.5 w-3.5 shrink-0" /> Navigate
-                    </a>
-                  ) : (
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeDelivery.delivery_address || "Uganda")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn flex min-w-0 items-center justify-center gap-1.5 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25"
-                    >
-                      <Navigation className="h-3.5 w-3.5 shrink-0" /> Navigate
-                    </a>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById("rider-nav-map");
+                      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                    className="btn flex min-w-0 items-center justify-center gap-1.5 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25"
+                  >
+                    <Navigation className="h-3.5 w-3.5 shrink-0" /> Navigate
+                  </button>
+                  <a
+                    href={
+                      activeDelivery.customer_lat != null && activeDelivery.customer_lng != null
+                        ? `https://www.google.com/maps/dir/?api=1&destination=${activeDelivery.customer_lat},${activeDelivery.customer_lng}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeDelivery.delivery_address || "Uganda")}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Open in Google Maps"
+                    title="Open in Google Maps"
+                    className="btn flex min-w-0 items-center justify-center gap-1.5 bg-surface text-muted !border-border hover:bg-elevated"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" /> Maps
+                  </a>
                   <a
                     href={`tel:${(activeDelivery.customer_phone || "").replace(/[^0-9]/g, "")}`}
                     className={`btn flex min-w-0 items-center justify-center gap-1.5 ${activeDelivery.customer_phone ? "bg-surface text-muted !border-border" : "pointer-events-none bg-elevated/60 text-dim opacity-60"}`}
@@ -974,7 +1016,7 @@ export default function RiderDashboard() {
                     </button>
                   </div>
                 )}
-                <div className="rounded-2xl border border-border bg-surface overflow-hidden mt-3 shadow-card">
+                <div id="rider-nav-map" className="rounded-2xl border border-border bg-surface overflow-hidden mt-3 shadow-card scroll-mt-20">
                   <LiveTrackingMap
                     riderLoc={coords ? { lat: coords.lat, lng: coords.lng } : null}
                     riderHeading={heading}
