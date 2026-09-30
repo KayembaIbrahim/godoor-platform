@@ -201,7 +201,6 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
       )}
 
       {/* Open requests */}
-      <div className="flex items-center justify-between">
       {/* Persistent rider map.
           The map previously only existed INSIDE `{activeRide && …}`, so a rider
           with no job — which is most of the time — saw nothing but a list and an
@@ -231,6 +230,7 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
           merchantName={activeRide?.pickup_address || nearestPickupLabel}
         />
       </div>
+      <div className="flex items-center justify-between">
       {activeRide && rideRoute && rideRoute.distanceKm > 0 && (
         <p className="text-[11px] text-muted tabular-nums">
           {rideRoute.distanceKm < 1

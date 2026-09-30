@@ -75,6 +75,8 @@ type Props = {
   label?: string;
   compact?: boolean;
   fill?: boolean;
+  /** Turn-by-turn banner is rider guidance; passengers opt out. */
+  showNavigation?: boolean;
   userLocation?: LatLng | null;
   /** Reported GPS fix radius (metres) for the viewer — drawn as a halo. */
   userAccuracy?: number | null;
