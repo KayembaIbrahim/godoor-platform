@@ -1,7 +1,7 @@
 "use client";
 import { RiderNav } from "@/components/RiderNav";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import {
   Truck, MapPin, Navigation, Phone, CheckCircle2, X, Clock,
@@ -63,6 +63,24 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
   const rideDestination: LatLng | null =
     activeRide?.status === "in_progress" ? rideDropoff || ridePickup : ridePickup || rideDropoff;
   const { route: rideRoute } = useRoadRoute(coords ?? null, rideDestination);
+  /* Nearest pending pickup, so the map has something to orient by while the
+     rider is idle. Uses straight-line distance; only for choosing what to
+     label, never for an ETA. */
+  const nearestPickupLabel = useMemo(() => {
+    if (!coords || rides.length === 0) return "Pickup";
+    let best: { label: string; km: number } | null = null;
+    for (const r of rides) {
+      if (r.pickup_lat == null || r.pickup_lng == null) continue;
+      const km = distanceKm(
+        { lat: Number(r.pickup_lat), lng: Number(r.pickup_lng) },
+        { lat: Number(coords.lat), lng: Number(coords.lng) },
+      );
+      if (!best || km < best.km) {
+        best = { label: r.pickup_address || "Pickup", km };
+      }
+    }
+    return best ? `${best.label} · ${best.km < 1 ? `${Math.round(best.km * 1000)} m` : `${best.km.toFixed(1)} km`}` : "Pickup";
+  }, [coords, rides]);
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -153,32 +171,6 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
           <p className="mt-1 text-xs font-semibold text-fg tabular-nums">
             {formatUgx(activeRide.total_ugx)} total <span className="font-normal text-muted">({activeRide.distance_km} km)</span>
           </p>
-          {/* The rider's own map. Previously this vertical had no map at all -
-              only a Google Maps handoff - so a Boda rider navigated blind. */}
-          <div id="rider-boda-map" className="mt-3 overflow-hidden rounded-2xl border border-border scroll-mt-20">
-            <LiveTrackingMap
-              riderLoc={coords ?? null}
-              dropoffLoc={rideDestination}
-              pickupLoc={activeRide.status === "in_progress" ? ridePickup : null}
-              showPickup={activeRide.status === "in_progress" && !!ridePickup}
-              roadRoute={rideRoute && rideRoute.coordinates.length >= 2 ? rideRoute.coordinates : null}
-              maneuvers={rideRoute?.maneuvers ?? null}
-              congestion={rideRoute?.congestion ?? null}
-              trafficAware={!!rideRoute?.trafficAware}
-              userLocation={coords ?? undefined}
-              label={activeRide.status === "in_progress" ? "To drop-off" : "To passenger"}
-              customerName={activeRide.customer_name || "Passenger"}
-              merchantName={activeRide.pickup_address || "Pickup"}
-            />
-          </div>
-          {rideRoute && rideRoute.distanceKm > 0 && (
-            <p className="mt-2 text-[11px] text-muted tabular-nums">
-              {rideRoute.distanceKm < 1
-                ? `${Math.round(rideRoute.distanceKm * 1000)} m`
-                : `${rideRoute.distanceKm.toFixed(1)} km`}
-              {rideRoute.durationMin ? ` · ~${Math.round(rideRoute.durationMin)} min` : ""} by road
-            </p>
-          )}
           <div className="mt-3 grid grid-cols-3 gap-2">
             <button type="button"
               onClick={() => {
@@ -210,6 +202,44 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
 
       {/* Open requests */}
       <div className="flex items-center justify-between">
+      {/* Persistent rider map.
+          The map previously only existed INSIDE `{activeRide && …}`, so a rider
+          with no job — which is most of the time — saw nothing but a list and an
+          Accept button, and the Navigate button was a Google Maps handoff. This
+          is always present: it shows the rider, the job they are running if they
+          have one, and the nearest pending pickup so the list has spatial
+          context. */}
+      <div id="rider-boda-map" className="overflow-hidden rounded-2xl border border-border scroll-mt-20">
+        <LiveTrackingMap
+          riderLoc={coords ?? null}
+          dropoffLoc={rideDestination}
+          pickupLoc={activeRide && activeRide.status === "in_progress" ? ridePickup : null}
+          showPickup={activeRide?.status === "in_progress" && !!ridePickup}
+          roadRoute={rideRoute && rideRoute.coordinates.length >= 2 ? rideRoute.coordinates : null}
+          maneuvers={activeRide ? rideRoute?.maneuvers ?? null : null}
+          congestion={activeRide ? rideRoute?.congestion ?? null : null}
+          trafficAware={!!rideRoute?.trafficAware}
+          userLocation={coords ?? undefined}
+          label={
+            !activeRide
+              ? "Waiting for requests"
+              : activeRide.status === "in_progress"
+                ? "To drop-off"
+                : "To passenger"
+          }
+          customerName={activeRide?.customer_name || "Passenger"}
+          merchantName={activeRide?.pickup_address || nearestPickupLabel}
+        />
+      </div>
+      {activeRide && rideRoute && rideRoute.distanceKm > 0 && (
+        <p className="text-[11px] text-muted tabular-nums">
+          {rideRoute.distanceKm < 1
+            ? `${Math.round(rideRoute.distanceKm * 1000)} m`
+            : `${rideRoute.distanceKm.toFixed(1)} km`}
+          {rideRoute.durationMin ? ` · ~${Math.round(rideRoute.durationMin)} min` : ""} by road
+        </p>
+      )}
+
         <h3 className="text-sm font-semibold">Passenger requests {rides.length > 0 && <span className="text-muted">({rides.length})</span>}</h3>
         <span className="flex items-center gap-1 text-[10px] text-muted"><span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" /> Live</span>
       </div>
