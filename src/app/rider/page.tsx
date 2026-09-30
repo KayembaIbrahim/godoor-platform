@@ -49,6 +49,21 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
 }) {
   const [rides, setRides] = useState<DBRide[]>([]);
   const [activeRide, setActiveRide] = useState<DBRide | null>(null);
+  /* While "accepted" the rider is driving to the passenger, so the route must
+     start at the pickup. Once "in_progress" it runs to the drop-off. Getting
+     this backwards sends the rider to the wrong place. */
+  const ridePickup: LatLng | null =
+    activeRide?.pickup_lat != null && activeRide?.pickup_lng != null
+      ? { lat: Number(activeRide.pickup_lat), lng: Number(activeRide.pickup_lng) }
+      : null;
+  const rideDropoff: LatLng | null =
+    activeRide?.dropoff_lat != null && activeRide?.dropoff_lng != null
+      ? { lat: Number(activeRide.dropoff_lat), lng: Number(activeRide.dropoff_lng) }
+      : null;
+  const rideDestination: LatLng | null =
+    activeRide?.status === "in_progress" ? rideDropoff || ridePickup : ridePickup || rideDropoff;
+  const { route: rideRoute } = useRoadRoute(coords ?? null, rideDestination);
+
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,10 +153,45 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
           <p className="mt-1 text-xs font-semibold text-fg tabular-nums">
             {formatUgx(activeRide.total_ugx)} total <span className="font-normal text-muted">({activeRide.distance_km} km)</span>
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <a href={navUrl(activeRide)} target="_blank" rel="noopener noreferrer"
+          {/* The rider's own map. Previously this vertical had no map at all -
+              only a Google Maps handoff - so a Boda rider navigated blind. */}
+          <div id="rider-boda-map" className="mt-3 overflow-hidden rounded-2xl border border-border scroll-mt-20">
+            <LiveTrackingMap
+              riderLoc={coords ?? null}
+              dropoffLoc={rideDestination}
+              pickupLoc={activeRide.status === "in_progress" ? ridePickup : null}
+              showPickup={activeRide.status === "in_progress" && !!ridePickup}
+              roadRoute={rideRoute && rideRoute.coordinates.length >= 2 ? rideRoute.coordinates : null}
+              maneuvers={rideRoute?.maneuvers ?? null}
+              congestion={rideRoute?.congestion ?? null}
+              trafficAware={!!rideRoute?.trafficAware}
+              userLocation={coords ?? undefined}
+              label={activeRide.status === "in_progress" ? "To drop-off" : "To passenger"}
+              customerName={activeRide.customer_name || "Passenger"}
+              merchantName={activeRide.pickup_address || "Pickup"}
+            />
+          </div>
+          {rideRoute && rideRoute.distanceKm > 0 && (
+            <p className="mt-2 text-[11px] text-muted tabular-nums">
+              {rideRoute.distanceKm < 1
+                ? `${Math.round(rideRoute.distanceKm * 1000)} m`
+                : `${rideRoute.distanceKm.toFixed(1)} km`}
+              {rideRoute.durationMin ? ` · ~${Math.round(rideRoute.durationMin)} min` : ""} by road
+            </p>
+          )}
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <button type="button"
+              onClick={() => {
+                const el = document.getElementById("rider-boda-map");
+                el?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
               className="btn flex-1 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25">
               <Navigation className="h-3 w-3 shrink-0" /> Navigate
+            </button>
+            <a href={navUrl(activeRide)} target="_blank" rel="noopener noreferrer"
+              aria-label="Open in Google Maps"
+              className="btn flex-1 bg-surface text-muted !border-border hover:bg-elevated">
+              <ExternalLink className="h-3 w-3 shrink-0" /> Maps
             </a>
             {activeRide.status === "accepted" ? (
               <button type="button" onClick={() => act(activeRide, "start")} disabled={busyId === activeRide.id}
