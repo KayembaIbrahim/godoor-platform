@@ -130,7 +130,13 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
           pickupLoc={pickup}
           showPickup
           roadRoute={roadCoords}
-          maneuvers={route?.maneuvers ?? null}
+          maneuvers={null}
+          showNavigation={false}
+          /* The card previously fell back to a distance-based ESTIMATE because
+             no quote was passed, so a booked ride showed "FARE UGX 2,000" while
+             the trip total below read UGX 4,049. Pass the fare actually agreed
+             when the ride was created. */
+          quotedFeeUgx={ride.fare_ugx > 0 ? ride.fare_ugx : null}
           label={statusLabel}
           merchantName="Pickup"
           customerName="You"

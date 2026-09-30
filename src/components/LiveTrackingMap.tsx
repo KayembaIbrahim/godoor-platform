@@ -98,6 +98,9 @@ type Props = {
 export function LiveTrackingMap({
   riderLoc, riderHeading, riderAccuracy = null, providerLoc, providerName, dropoffLoc, pickupLoc, showPickup = false, label, compact = false, fill = false,
   userLocation, userAccuracy, merchantName, customerName, roadRoute = null, maneuvers = null, roadDistanceKm = null, roadDurationMin = null,
+  /* Turn-by-turn is instruction for whoever is DRIVING. A passenger watching a
+     ride must not be told "Drive northwest…", so the banner is opt-in. */
+  showNavigation = true,
   quotedFeeUgx = null, trafficAware = false, congestion = null,
 }: Props) {
   const UG_DEFAULT: LatLng = { lat: 0.3163, lng: 32.5822 };
@@ -177,7 +180,16 @@ export function LiveTrackingMap({
   const markers = useMemo(() => {
     const m: any[] = [];
 
-    if (showPickup && validPickup) {
+    /* Suppress the pickup pin when the viewer is already standing on it. A
+       passenger waiting at the pickup had the green "You" puck and the orange
+       "Pickup" pin render on top of each other, making both unreadable. */
+    const viewerOnPickup =
+      showPickup &&
+      validPickup &&
+      hasCoords(userLocation) &&
+      distanceKm(userLocation as LatLng, validPickup) < 0.04; // ~40 m
+
+    if (showPickup && validPickup && !viewerOnPickup) {
       m.push({ id: "pickup", position: validPickup, isPickup: true, label: merchantName || "Shop" });
     }
 
@@ -192,7 +204,7 @@ export function LiveTrackingMap({
     }
 
     return m;
-  }, [showPickup, validPickup, validDropoff, riderLoc, riderHeading, riderAccuracy, providerLoc, providerName, merchantName, customerName]);
+  }, [showPickup, validPickup, validDropoff, riderLoc, riderHeading, riderAccuracy, providerLoc, providerName, merchantName, customerName, userLocation]);
 
   const kmAway = dist != null && (dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)} km`);
 
@@ -252,7 +264,12 @@ export function LiveTrackingMap({
         />
 
         {/* Top-left: live status chip */}
-        <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full border border-border bg-surface/85 px-3.5 py-2 shadow-lg backdrop-blur-md">
+        {/* The chip and the turn banner both wanted top-centre/left at the same
+             offset, so on a narrow phone the banner covered the chip. The chip
+             now sits below the banner when both are present. */}
+        <div className={`absolute left-3 z-10 flex items-center gap-2 rounded-full border border-border bg-surface/85 px-3.5 py-2 shadow-lg backdrop-blur-md ${
+          showNavigation && nextTurn ? "top-[4.75rem]" : "top-3"
+        }`}>
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
@@ -264,7 +281,7 @@ export function LiveTrackingMap({
         {/* Next-turn banner — the one instruction the rider needs right now.
             Sits top-centre so it never collides with the status chip or the
             metrics card, and is the first thing a glance lands on. */}
-        {nextTurn && (
+        {showNavigation && nextTurn && (
           <div className="absolute left-1/2 top-3 z-10 flex max-w-[min(92%,22rem)] -translate-x-1/2 items-center gap-2.5 rounded-2xl border border-border bg-surface/95 px-3.5 py-2.5 shadow-xl backdrop-blur-md">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-go/15 text-sm font-black text-go">
               {nextTurn.type === "arrive" ? "★" : "1"}
