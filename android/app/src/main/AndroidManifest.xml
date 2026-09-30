@@ -38,4 +38,21 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Required from Android 13 (API 33) before any notification can be shown. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- The geolocation plugin is installed but these were never declared, so
+         rider GPS silently failed inside the APK: no rider marker to track and
+         no "centre on my location". Browsers prompt for this on the web, which
+         is why the website worked and the app did not. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Contactless handover: the courier calls/opens chat from the tracking
+         screen, and verification photos are taken at delivery. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
 </manifest>
