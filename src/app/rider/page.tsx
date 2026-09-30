@@ -501,7 +501,16 @@ export default function RiderDashboard() {
   const [broadcastState, setBroadcastState] = useState<"idle" | "on" | "error">("idle");
   const lastSentRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
   useEffect(() => {
-    if (!activeDelivery || !supabaseUser?.id) { setBroadcastState("idle"); return; }
+    /* Broadcast for ANY active work, not just a parcel delivery. This used to
+       require `activeDelivery`, so a rider running a Boda ride never wrote to
+       rider_locations at all — the customer watched a frozen pin for the whole
+       trip. A rider is "working" when they hold a delivery OR an accepted /
+       in-progress ride. */
+    const onActiveRide = Boolean(activeRide);
+    if ((!activeDelivery && !onActiveRide) || !supabaseUser?.id) {
+      setBroadcastState("idle");
+      return;
+    }
     if (!coords) return; // "Location is off" banner explains what to do
     let stopped = false;
     const push = async (force = false) => {
