@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Package, AlertTriangle, Store, Users, Settings,
   Shield, ShieldCheck, Truck, BarChart3, ChevronLeft, Menu, X, Bell, Tag, Wallet, ClipboardList, AtSign,
-  BanknoteArrowDown
+  BanknoteArrowDown, Download
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -28,7 +28,7 @@ const NAV = [
   { href: "/admin/settings", label: "Fees & Settings", icon: Settings },
   { href: "/admin/wallets", label: "Wallet Credits", icon: Wallet },
   { href: "/admin/payouts", label: "Payouts", icon: BanknoteArrowDown },
-  { href: "/admin/payouts", label: "Payouts", icon: Wallet },
+  { href: "/admin/apk", label: "App Release", icon: Download },
   { href: "/admin/promos", label: "Promo Codes", icon: Tag },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
 ];
