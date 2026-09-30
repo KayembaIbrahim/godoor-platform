@@ -5,11 +5,13 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import {
   MapPin, Search, Star, Truck, ChevronDown, Bike,
   BadgeCheck, Heart, ShoppingBag, SlidersHorizontal, TrendingUp,
-  X, MapPinned, Navigation, Zap, Clock, Flame,
+  X, MapPinned, Zap, Clock, Flame,
 } from "lucide-react";
 import { ProductSearch } from "@/components/ProductSearch";
 import { AboutGoDoor } from "@/components/AboutGoDoor";
 import { QuickReorder } from "@/components/QuickReorder";
+import WalletBalanceCard from "@/components/WalletBalanceCard";
+import ActiveDeliveryCard from "@/components/ActiveDeliveryCard";
 import { formatUgx } from "@/lib/utils";
 import { Price } from "@/components/Price";
 import { useCart } from "@/lib/cart-store";
@@ -27,15 +29,6 @@ import { AddressSearchModal, getLastAddress } from "@/components/AddressSearchMo
 type SortMode = "nearest" | "rating" | "popular";
 
 /** Plain-language progress for the live-order banner, per order status. */
-const LIVE_HEADLINE: Record<string, string> = {
-  pending: "Waiting for payment",
-  payment_submitted: "Payment submitted",
-  payment_confirmed: "Payment confirmed",
-  preparing: "Shop is preparing your order",
-  medicines_ready: "Medicines ready",
-  rider_assigned: "Rider assigned",
-  delivering: "Live delivery in progress",
-};
 
 export default function CustomerHome() {
   const { role, onboarded } = useSession();
@@ -206,22 +199,11 @@ export default function CustomerHome() {
 
           {/* Active delivery banner — only while the order row is genuinely
               still moving, so it disappears the moment the rider completes it. */}
-          {activeOrder && (
-            <Link
-              href={`/tracking?orderId=${activeOrder.id}`}
-              className="flex items-center gap-2.5 rounded-xl bg-go/10 px-3 py-2.5 shadow-xs transition hover:bg-go/15"
-            >
-              <Truck className="h-4 w-4 shrink-0 text-go animate-pulse" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-go">{LIVE_HEADLINE[activeOrder.status] || "Order in progress"}</p>
-                <p className="truncate text-[10px] text-muted">
-                  {activeOrder.merchant_name || "Your order"}
-                  {activeOrder.rider_name ? ` · ${activeOrder.rider_name}` : ""}
-                </p>
-              </div>
-              <Navigation className="h-3.5 w-3.5 shrink-0 text-go" />
-            </Link>
-          )}
+          {activeOrder && <ActiveDeliveryCard order={activeOrder} />}
+
+          {/* Wallet balance. Checkout is wallet-only, so this is the first place
+              a customer can see they need to top up before they can order. */}
+          <WalletBalanceCard />
 
           {/* Search — filters the shop list as you type. Product-level search
               stays one tap below, because people mean a shop 9 times out of 10. */}
