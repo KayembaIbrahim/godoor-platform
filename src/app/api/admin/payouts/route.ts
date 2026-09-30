@@ -173,26 +173,28 @@ export async function GET(req: Request) {
     };
   });
 
+  /* A cancelled order is a REFUND, never a payable. Leaving them in this list
+     would invite an operator to pay out for orders that were called off - real
+     money lost. They are reported separately and excluded from every total. */
+  const cancelled = rows.filter((r) => r.order_status === "cancelled");
+  const payable = rows.filter((r) => r.order_status !== "cancelled");
+
   const filtered =
     scope === "unsettled"
-      ? rows.filter((r) => !r.settled)
+      ? payable.filter((r) => !r.settled)
       : scope === "settled"
-        ? rows.filter((r) => r.settled)
-        : rows;
+        ? payable.filter((r) => r.settled)
+        : payable;
 
   return NextResponse.json({
     rows: filtered,
+    refunds: cancelled,
     totals: {
-      orders: rows.length,
-      unsettled: rows.filter((r) => !r.settled).length,
-      owed_merchant_ugx: rows.filter((r) => !r.settled).reduce((s, r) => s + r.amounts.merchant_payout_ugx, 0),
-      owed_rider_ugx: rows.filter((r) => !r.settled).reduce((s, r) => s + r.amounts.rider_payout_ugx, 0),
-      platform_fees_ugx: rows.filter((r) => !r.settled).reduce((s, r) => s + r.amounts.platform_fees_ugx, 0),
-      _fmt: {
-        owed_merchant: formatUgx(rows.filter((r) => !r.settled).reduce((s, r) => s + r.amounts.merchant_payout_ugx, 0)),
-        owed_rider: formatUgx(rows.filter((r) => !r.settled).reduce((s, r) => s + r.amounts.rider_payout_ugx, 0)),
-        platform_fees: formatUgx(rows.filter((r) => !r.settled).reduce((s, r) => s + r.amounts.platform_fees_ugx, 0)),
-      },
+      orders: payable.length,
+      unsettled: payable.filter((r) => !r.settled).length,
+      owed_merchant_ugx: payable.filter((r) => !r.settled).reduce((s, r) => s + r.amounts.merchant_payout_ugx, 0),
+      owed_rider_ugx: payable.filter((r) => !r.settled).reduce((s, r) => s + r.amounts.rider_payout_ugx, 0),
+      platform_fees_ugx: payable.filter((r) => !r.settled).reduce((s, r) => s + r.amounts.platform_fees_ugx, 0),
     },
   });
 }

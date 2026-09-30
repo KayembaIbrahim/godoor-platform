@@ -94,6 +94,7 @@ function PartyRow({ role, party }: { role: string; party: Party }) {
 
 export default function AdminPayoutsPage() {
   const [rows, setRows] = useState<Row[]>([]);
+  const [refunds, setRefunds] = useState<Row[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [scope, setScope] = useState<"all" | "unsettled" | "settled">("unsettled");
   const [loading, setLoading] = useState(true);
@@ -103,8 +104,9 @@ export default function AdminPayoutsPage() {
     setLoading(true);
     fetch(`/api/admin/payouts?scope=${scope}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: { rows?: Row[]; totals?: Totals }) => {
+      .then((d: { rows?: Row[]; refunds?: Row[]; totals?: Totals }) => {
         setRows(d.rows ?? []);
+        setRefunds(d.refunds ?? []);
         setTotals(d.totals ?? null);
         setErr(null);
       })
@@ -177,6 +179,30 @@ export default function AdminPayoutsPage() {
 
       {err && (
         <p className="rounded-xl border border-danger/30 bg-danger/5 p-3 text-xs text-danger">{err}</p>
+      )}
+
+      {refunds.length > 0 && (
+        <div className="rounded-2xl border border-danger/25 bg-danger/5 p-3">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold text-danger">
+            <TriangleAlert className="h-3.5 w-3.5" />
+            {refunds.length} cancelled order{refunds.length === 1 ? "" : "s"} — refund only, never pay out
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {refunds.slice(0, 12).map((r) => (
+              <span
+                key={r.order_id}
+                className="rounded-md bg-bg px-2 py-1 font-mono text-[10px] text-muted"
+                title={`${r.parties.customer?.name ?? "Customer"} · ${formatUgx(r.amounts.service_fee_ugx)} service fee retained`}
+              >
+                #{r.order_id.slice(-6)} · {r.parties.customer?.name ?? "Customer"}
+                {r.refundable_to_wallet ? " · wallet" : ""}
+              </span>
+            ))}
+            {refunds.length > 12 && (
+              <span className="px-2 py-1 text-[10px] text-dim">+{refunds.length - 12} more</span>
+            )}
+          </div>
+        </div>
       )}
 
       {loading && rows.length === 0 ? (
