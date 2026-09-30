@@ -1021,11 +1021,21 @@ function MapboxMapInner({
           border-top-color: #14101c !important;
           border-bottom-color: #14101c !important;
         }
+
+        /* The live-tracking metrics card is an absolutely-positioned sibling
+           overlay pinned to the bottom of the map (full width on mobile, 360px
+           on the right from sm up). It sits at the same z-index as Mapbox's own
+           bottom-right controls, so without lifting them the zoom/recentre
+           buttons and - more importantly - the required attribution end up
+           hidden underneath it. Raise them clear of the card. */
+        .mapboxgl-ctrl-bottom-right {
+          bottom: 172px !important;
+        }
       `}</style>
       <div style={{ position: "relative", height: boxH, width: "100%" }}>
         <div ref={containerRef} style={{ height: boxH, width: "100%" }} className={className} />
         {ready && (
-          <div style={{ position: "absolute", right: 10, bottom: 18, zIndex: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ position: "absolute", left: 10, bottom: 172, zIndex: 30, display: "flex", flexDirection: "column", gap: 8 }}>
             {userLocation && (
               <button type="button" onClick={recentre} aria-label="Centre on my location" title="Centre on my location"
                 style={{ width: 38, height: 38, borderRadius: 12, cursor: "pointer", background: "var(--color-navy)", border: "1px solid var(--navy-hover)", boxShadow: "0 2px 10px rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", transition: "transform 0.1s ease" }}>
