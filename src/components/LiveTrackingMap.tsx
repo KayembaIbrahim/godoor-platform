@@ -6,8 +6,7 @@ import { type LatLng, distanceKm } from "@/lib/location";
 import { calcDeliveryFee, ugandaFareTier, formatUgx } from "@/lib/utils";
 import dynamic from "next/dynamic";
 
-const MapboxMapView = dynamic(() => import("@/components/MapboxMap"), {
-  ssr: false,
+const MapboxMapView = dynamic(() => import("@/components/MapboxMap"), { ssr: false,
   loading: () => (
     <div className="grid h-64 w-full place-items-center rounded-2xl border border-border bg-surface">
       <div className="flex items-center gap-2 text-muted text-sm">
@@ -17,6 +16,51 @@ const MapboxMapView = dynamic(() => import("@/components/MapboxMap"), {
     </div>
   ),
 });
+
+/**
+ * Fraction of a polyline already covered, measured by projecting `pos` onto
+ * each segment and taking the closest one. Distances use the same haversine
+ * `distanceKm` as the rest of the app, so the ratio is consistent with the
+ * distances shown to the customer. Returns null for a degenerate polyline.
+ */
+function progressAlongPolyline(line: LatLng[], pos: LatLng): number | null {
+  if (line.length < 2) return null;
+
+  const segLen: number[] = [];
+  const cum: number[] = [0];
+  for (let i = 0; i < line.length - 1; i++) {
+    const d = distanceKm(line[i], line[i + 1]);
+    segLen.push(d);
+    cum.push(cum[i] + d);
+  }
+  const total = cum[cum.length - 1];
+  if (!(total > 0.001)) return null;
+
+  // Closest projection, and how far along the line that projection sits.
+  let bestAlong = 0;
+  let bestOff = Infinity;
+  for (let i = 0; i < line.length - 1; i++) {
+    const a = line[i];
+    const b = line[i + 1];
+    const vx = b.lng - a.lng;
+    const vy = b.lat - a.lat;
+    const len2 = vx * vx + vy * vy;
+    let t = 0;
+    if (len2 > 0) {
+      t = ((pos.lng - a.lng) * vx + (pos.lat - a.lat) * vy) / len2;
+      t = Math.min(1, Math.max(0, t));
+    }
+    const px = a.lng + t * vx;
+    const py = a.lat + t * vy;
+    const off = distanceKm({ lat: py, lng: px }, pos);
+    if (off < bestOff) {
+      bestOff = off;
+      bestAlong = cum[i] + t * segLen[i];
+    }
+  }
+
+  return Math.min(1, Math.max(0, bestAlong / total));
+}
 
 type Props = {
   riderLoc: LatLng | null;
@@ -111,14 +155,24 @@ export function LiveTrackingMap({
     return points;
   }, [riderLoc, providerLoc, validDropoff, validPickup]);
 
-  // Straight-line route progress (0..1) — rider's covered share toward the drop-off.
+  // Trip progress (0..1).
+  //
+  // Prefer projecting the rider onto the real road polyline: a winding route
+  // can be several times longer than its straight line, so a straight-line
+  // ratio sits near 0% while the rider is visibly halfway along. Falls back to
+  // the straight-line ratio when no road geometry is available.
   const progress = useMemo(() => {
-    if (!riderLoc || !validDropoff || !validPickup) return null;
+    if (!riderLoc) return null;
+    if (roadRoute && roadRoute.length >= 2) {
+      const along = progressAlongPolyline(roadRoute, riderLoc);
+      if (along != null) return along;
+    }
+    if (!validDropoff || !validPickup) return null;
     const total = distanceKm(validPickup, validDropoff);
     if (total <= 0.001) return null;
-    const done = Math.max(0, total - dist!);
+    const done = Math.max(0, total - (dist ?? 0));
     return Math.min(1, Math.max(0, done / total));
-  }, [riderLoc, validDropoff, validPickup, dist]);
+  }, [riderLoc, roadRoute, validDropoff, validPickup, dist]);
 
   const markers = useMemo(() => {
     const m: any[] = [];
