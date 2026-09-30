@@ -1,5 +1,6 @@
 "use client";
 
+import { Geolocation, type Position } from "@capacitor/geolocation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type LatLng = { lat: number; lng: number };
@@ -231,7 +232,7 @@ export function useGeolocation() {
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
   const [speed, setSpeed] = useState<number | null>(null);
-  const watchIdRef = useRef<number | null>(null);
+  const watchIdRef = useRef<string | null>(null);
   const geoDoneRef = useRef(false);
   const bestAccuracyRef = useRef<number>(Infinity);
   const lastCoordsRef = useRef<LatLng | null>(null);
@@ -306,40 +307,65 @@ export function useGeolocation() {
     return false;
   }, []);
 
-  const startWatching = useCallback(() => {
-    if (!("geolocation" in navigator)) {
-      // No GPS available — user must search their address
-      setStatus("denied");
-      setError("GPS not available. Search your address instead.");
-      return;
+  const startWatching = useCallback(async () => {
+    /* The Capacitor plugin, not the browser API. In an Android WebView the two
+       are different code paths: navigator.geolocation only works if the WebView
+       has a geolocation handler, which Capacitor only installs when the plugin
+       is actually used. The app declared ACCESS_FINE_LOCATION in the manifest
+       but never imported the plugin, so nothing ever asked Android for the
+       permission and the app reported "no location permission". */
+    try {
+      await Geolocation.requestPermissions();
+    } catch {
+      // requestPermissions throws when the permission is already granted or the
+      // platform has no such API; either way we can still try to read a fix.
     }
+
     setStatus("locating");
     setError(null);
     bestAccuracyRef.current = Infinity;
 
-    // Single fast read first
-    navigator.geolocation.getCurrentPosition(
-      processPosition,
-      async () => { if (bestAccuracyRef.current === Infinity) await ipFallback() || setError("Location access denied. Tap to retry."); },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-    );
+    try {
+      const pos = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      });
+      processPosition(pos as unknown as GeolocationPosition);
+    } catch {
+      if (bestAccuracyRef.current === Infinity) {
+        const ok = await ipFallback();
+        if (!ok) setError("Location access denied. Tap to retry.");
+      }
+    }
 
-    // Continuous watch — keeps best fix, no max age
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      processPosition,
-      async (err) => {
-        if (bestAccuracyRef.current === Infinity) {
-          if (err.code === 1) setError("GPS access denied. Enable location services in your browser settings.");
-          else setError("GPS error. Tap to retry.");
-        }
-      },
-      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 },
-    );
+    try {
+      watchIdRef.current = await Geolocation.watchPosition(
+        { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 },
+        (pos, err) => {
+          if (pos) {
+            processPosition(pos as unknown as GeolocationPosition);
+            return;
+          }
+          if (bestAccuracyRef.current === Infinity) {
+            setError(
+              err && err.code === 1
+                ? "GPS access denied. Enable location services in your browser settings."
+                : "GPS error. Tap to retry.",
+            );
+          }
+        },
+      );
+    } catch {
+      // Watch unavailable; the single read above still gives a position.
+    }
   }, [processPosition, ipFallback]);
 
   useEffect(() => {
     return () => {
-      if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
+      if (watchIdRef.current != null) {
+        Geolocation.clearWatch({ id: watchIdRef.current }).catch(() => {});
+      }
       if (addrTimerRef.current) clearTimeout(addrTimerRef.current);
     };
   }, []);
@@ -350,9 +376,9 @@ export function useGeolocation() {
     startWatching();
   }, [startWatching]);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (watchIdRef.current != null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
+      try { await Geolocation.clearWatch({ id: watchIdRef.current }); } catch {}
       watchIdRef.current = null;
     }
     geoDoneRef.current = false;
