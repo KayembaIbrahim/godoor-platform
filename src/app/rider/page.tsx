@@ -214,6 +214,7 @@ export default function RiderDashboard() {
   const [mode, setMode] = useState<"deliveries" | "boda">("deliveries");
   const [available, setAvailable] = useState<DeliveryRequest[]>([]);
   const [activeDelivery, setActiveDelivery] = useState<DBOrder | null>(null);
+  const [activeBodaRide, setActiveBodaRide] = useState<DBRide | null>(null);
   const [allDeliveries, setAllDeliveries] = useState<DBOrder[]>([]);
   const [myOrders, setMyOrders] = useState<DBOrder[]>([]);
   const [affiliations, setAffiliations] = useState<{ memberships: RiderAffiliation[]; active: RiderAffiliation | null; invites: RiderAffiliation[] }>({ memberships: [], active: null, invites: [] });
@@ -306,6 +307,16 @@ export default function RiderDashboard() {
       setMyOrders(orders.filter((o) => o.rider_id === uid && o.status !== 'delivered'));
       setLoading(false);
     });
+    /* Track the rider's own Boda ride here too. The broadcast gate below needs
+       it, and the dashboard previously had no visibility of Boda work at all -
+       activeRide only existed inside the BodaPanel component. */
+    fetchDriverRides()
+      .then((mine) => {
+        setActiveBodaRide(
+          mine.find((r) => r.status === "accepted" || r.status === "in_progress") ?? null,
+        );
+      })
+      .catch(() => {});
     fetchFeeConfig().then(setFees);
   }, [coords, merchantsById, supabaseUser?.id, profile.email]);
 
@@ -506,7 +517,7 @@ export default function RiderDashboard() {
        rider_locations at all — the customer watched a frozen pin for the whole
        trip. A rider is "working" when they hold a delivery OR an accepted /
        in-progress ride. */
-    const onActiveRide = Boolean(activeRide);
+    const onActiveRide = Boolean(activeBodaRide);
     if ((!activeDelivery && !onActiveRide) || !supabaseUser?.id) {
       setBroadcastState("idle");
       return;
@@ -533,7 +544,7 @@ export default function RiderDashboard() {
     // Interval covers periods when the browser throttles watchPosition callbacks.
     const t = setInterval(() => push(false), 5000);
     return () => { stopped = true; clearInterval(t); };
-  }, [activeDelivery?.id, coords, supabaseUser?.id, heading, speed, accuracy]);
+  }, [activeDelivery?.id, activeBodaRide?.id, activeBodaRide?.status, coords, supabaseUser?.id, heading, speed, accuracy]);
 
   // Fetch merchant location for active delivery pickup marker
   useEffect(() => {
