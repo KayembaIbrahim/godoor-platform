@@ -21,7 +21,7 @@ export async function GET() {
 
   const { data, error } = await sb.rpc("exec_sql", {
     query:
-      "select tablename from pg_publication_tables where pubname = 'supabase_realtime' order by tablename",
+      "select c.relname as tablename from pg_publication p join pg_publication_rel pr on pr.prpubid = p.oid join pg_class c on c.oid = pr.prrelid where p.pubname = 'supabase_realtime' order by c.relname",
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
