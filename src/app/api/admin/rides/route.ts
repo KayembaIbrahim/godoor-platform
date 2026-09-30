@@ -28,7 +28,7 @@ export async function GET(req: Request) {
   const status = url.searchParams.get("status");
   const only = url.searchParams.get("open") === "1";
 
-  let q = sb.from("rides").select("*").order("created_at", { ascending: false }).limit(200);
+  let q = sb.from("ride_requests").select("*").order("created_at", { ascending: false }).limit(200);
   if (status) {
     const wanted = status.split(",").map((s) => s.trim()).filter(Boolean);
     if (wanted.length) q = q.in("status", wanted);
@@ -70,7 +70,7 @@ export async function PATCH(req: Request) {
 
   // Load first so a terminal ride is never silently re-opened, and so the
   // caller gets a 404 for a ride that no longer exists.
-  const { data: ride } = await sb.from("rides").select("*").eq("id", id).maybeSingle();
+  const { data: ride } = await sb.from("ride_requests").select("*").eq("id", id).maybeSingle();
   if (!ride) return NextResponse.json({ error: "Ride not found" }, { status: 404 });
 
   const current = String(ride.status);
@@ -83,7 +83,7 @@ export async function PATCH(req: Request) {
   // cancel_reason) would throw on a table that may not have them.
   const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
 
-  const { data, error } = await sb.from("rides").update(patch).eq("id", id).select("*").single();
+  const { data, error } = await sb.from("ride_requests").update(patch).eq("id", id).select("*").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true, ride: data, previous_status: current });

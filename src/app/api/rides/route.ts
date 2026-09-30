@@ -213,12 +213,20 @@ export async function PATCH(req: NextRequest) {
 
   if (action === "complete") {
     if (r.rider_id !== actor.id) return NextResponse.json({ error: "Not your ride" }, { status: 403 });
-    if (r.status !== "in_progress") return NextResponse.json({ error: "Ride is not in progress" }, { status: 409 });
+    // A rider who accepts and then taps Delivered without ever hitting Start
+    // used to be permanently stuck: the old guard demanded in_progress, so the
+    // tap 409'd forever and the customer's side never settled. Accept the ride
+    // as completable, and treat an already-completed ride as a no-op success
+    // so a retry after a dropped response still resolves.
+    if (r.status === "completed") return NextResponse.json({ ride: r, already: true });
+    if (r.status !== "in_progress" && r.status !== "accepted") {
+      return NextResponse.json({ error: "Ride is not in progress" }, { status: 409 });
+    }
     const { data, error } = await sb
       .from("ride_requests")
       .update({ status: "completed", updated_at: new Date().toISOString() })
       .eq("id", id)
-      .eq("status", "in_progress")
+      .in("status", ["in_progress", "accepted"])
       .select("*")
       .maybeSingle();
     if (error || !data) return NextResponse.json({ error: "Could not complete ride" }, { status: 409 });
