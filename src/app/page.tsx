@@ -211,6 +211,16 @@ function categoryMatches(m: any, label: string): boolean {
 }
 
 export default function HomePage() {
+  const [apk, setApk] = useState<{ version: string | null; url: string | null } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/app-release", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { release?: { version: string | null; url: string | null } | null }) =>
+        setApk(d?.release?.url ? d.release : null),
+      )
+      .catch(() => {});
+  }, []);
   const { onboarded, role } = useSession();
   const [splash, setSplash] = useState<boolean>(() => hasStoredSession());
   const [liveOrders, setLiveOrders] = useState(0);
@@ -790,11 +800,25 @@ export default function HomePage() {
                   })}
                 </ul>
                 <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-muted">
-                    <Download className="h-4 w-4" />
-                    Google Play Store
-                    <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">Coming soon</span>
-                  </div>
+                  {apk?.url ? (
+                    <a
+                      href={apk.url}
+                      download
+                      className="inline-flex items-center gap-2 rounded-xl border border-go/30 bg-go/10 px-4 py-3 text-sm font-semibold text-go transition hover:bg-go/20"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download Android app
+                      <span className="rounded-full bg-go/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                        {apk.version || "APK"}
+                      </span>
+                    </a>
+                  ) : (
+                    <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-muted">
+                      <Download className="h-4 w-4" />
+                      Google Play Store
+                      <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">Coming soon</span>
+                    </div>
+                  )}
                   <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-muted">
                     <Download className="h-4 w-4" />
                     iOS Store
