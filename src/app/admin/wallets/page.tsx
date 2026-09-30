@@ -254,6 +254,60 @@ export default function AdminWalletCreditsPage() {
       {pending.length > 0 && (
         <p className="flex items-center gap-1.5 text-[11px] text-dim"><Info className="h-3.5 w-3.5" /> Crediting adds an immutable ledger row — a customer can never credit themselves.</p>
       )}
+
+      {/* Morse wallet top-ups.
+          These are written to `deposits` by /api/wallet/topup/morse/init, NOT to
+          the legacy `topup_requests` table listed above. The list was already
+          being fetched and the confirm handler already existed, but nothing
+          rendered it, so a customer's top-up was invisible in the portal while
+          the money sat pending. */}
+      <div className="mt-5 rounded-2xl border border-border bg-surface p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Wallet className="h-4 w-4 text-go" />
+          <h3 className="text-sm font-semibold">Morse wallet top-ups</h3>
+          {escrowDeposits.length > 0 && (
+            <span className="ml-auto rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold text-warning">
+              {escrowDeposits.length} awaiting
+            </span>
+          )}
+        </div>
+
+        {escrowDeposits.length === 0 ? (
+          <p className="text-xs text-muted">No wallet top-ups awaiting verification.</p>
+        ) : (
+          <div className="space-y-2">
+            {escrowDeposits.map((d) => (
+              <div
+                key={d.id}
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-bg px-3 py-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold tabular-nums">
+                    {Number(d.amount).toLocaleString("en-UG")} {d.currency}
+                  </p>
+                  <p className="truncate text-[11px] text-muted">
+                    <span className="font-mono">{d.reference_code}</span> · {d.provider} ·{" "}
+                    {new Date(d.created_at).toLocaleString("en-UG")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => confirmEscrowDeposit(d.id)}
+                  disabled={escrowBusy === d.id}
+                  className="shrink-0 rounded-lg bg-go px-3 py-2 text-[11px] font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+                >
+                  {escrowBusy === d.id ? "Crediting…" : "Confirm & credit"}
+                </button>
+              </div>
+            ))}
+            <p className="flex items-start gap-1.5 text-[11px] text-dim">
+              <Info className="mt-px h-3.5 w-3.5 shrink-0" />
+              Only confirm once the Morse transfer has actually landed. This credits the wallet
+              and writes an immutable ledger row.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
