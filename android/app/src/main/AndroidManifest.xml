@@ -39,20 +39,44 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- ── Notifications ─────────────────────────────────────────────── -->
     <!-- Required from Android 13 (API 33) before any notification can be shown. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- The geolocation plugin is installed but these were never declared, so
-         rider GPS silently failed inside the APK: no rider marker to track and
-         no "centre on my location". Browsers prompt for this on the web, which
-         is why the website worked and the app did not. -->
+    <!-- ── Location ──────────────────────────────────────────────────── -->
+    <!-- Rider GPS: the customer's map shows the rider's live position, so this
+         is core functionality, not a nice-to-have. The app now uses the
+         Capacitor geolocation plugin, which requests these at runtime. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- A rider keeps delivering with the app in the background, so location
+         must keep flowing. Google Play requires a prominent disclosure for
+         background location and may ask for justification on review. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
-    <!-- Contactless handover: the courier calls/opens chat from the tracking
-         screen, and verification photos are taken at delivery. -->
+    <!-- ── Media: chat photos and verification documents ─────────────── -->
+    <!-- Chat lets a customer or rider attach an image. On Android 13+ the
+         gallery is reached through READ_MEDIA_IMAGES; older versions use
+         READ_EXTERNAL_STORAGE. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- Taking a photo straight into chat, and capturing verification
+         documents at delivery. -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- ── Communication ────────────────────────────────────────────── -->
+    <!-- The tracking screen calls the rider or customer directly. -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
+
+    <!-- ── Misc ─────────────────────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Keep the CPU awake through a long delivery so the rider's position
+         keeps reporting and the customer's map keeps moving. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 </manifest>

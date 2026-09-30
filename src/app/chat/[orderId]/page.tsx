@@ -291,7 +291,10 @@ export default function ChatPage() {
       {/* Input area */}
       <div className="shrink-0 border-t border-border bg-surface px-3 py-2.5 safe-area-bottom">
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+          {/* capture="environment" offers "take a photo" straight into chat on
+            Android, which needs CAMERA; without it the picker can only reach
+            the gallery, which needs READ_MEDIA_IMAGES on Android 13+. */}
+          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageUpload} />
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-elevated text-muted hover:text-go transition"
             title="Upload payment screenshot or image">
