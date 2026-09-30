@@ -37,7 +37,7 @@ export async function GET() {
 
   // Riders considered live: anyone a customer could currently be tracking.
   const [{ data: riders }, { data: locs }, { data: orders }, { data: ridesOpen }] = await Promise.all([
-    sb.from("riders").select("id, name, status, phone").limit(200),
+    sb.from("riders").select("id, name, status, phone, last_seen_at").limit(200),
     sb.from("rider_locations").select("rider_id, lat, lng, heading, accuracy, updated_at").limit(500),
     sb
       .from("orders")
@@ -63,14 +63,31 @@ export async function GET() {
     }
   }
 
+  /* Effective status is DERIVED from the heartbeat, not read from the column.
+     `riders.status` is still a manual toggle, so a rider who tapped "online"
+     and then closed the app kept reading online while sending nothing. An
+     admin suspension always wins over a fresh heartbeat. */
+  const AWAY_WINDOW_S = 600;
+  const effectiveStatus = (storedStatus: unknown, lastSeenAt: unknown): string => {
+    if (storedStatus === "suspended") return "suspended";
+    const s = age(lastSeenAt as string | undefined);
+    if (s === null) return "offline";
+    if (s <= FRESH_SECONDS) return "online";
+    if (s <= AWAY_WINDOW_S) return "away";
+    return "offline";
+  };
+
   const riderRows = ((riders ?? []) as Record<string, unknown>[]).map((r) => {
     const id = String(r.id);
     const loc = locByRider.get(id);
     const seconds = age(loc?.updated_at as string | undefined);
+    const beatSeconds = age(r.last_seen_at as string | undefined);
     return {
       id,
       name: r.name,
-      status: r.status,
+      status: effectiveStatus(r.status, r.last_seen_at),
+      stored_status: r.status,
+      last_heartbeat_seconds: beatSeconds,
       phone: r.phone ?? null,
       has_location: Boolean(loc),
       last_seen_seconds: seconds,
@@ -125,6 +142,12 @@ export async function GET() {
       riders_total: riderRows.length,
       riders_with_any_location: riderRows.filter((r) => r.has_location).length,
       riders_reporting_fresh: riderRows.filter((r) => r.fresh).length,
+      riders_heartbeating: riderRows.filter(
+        (r) => r.last_heartbeat_seconds !== null && r.last_heartbeat_seconds <= FRESH_SECONDS,
+      ).length,
+      riders_claimed_online_but_silent: riderRows.filter(
+        (r) => r.stored_status === "online" && (r.last_heartbeat_seconds === null || r.last_heartbeat_seconds > FRESH_SECONDS),
+      ).length,
       tracked_items: tracked.length,
       tracked_without_location: tracked.filter((t) => !t.rider_reporting).length,
       tracked_with_stale_location: tracked.filter((t) => t.rider_reporting && !t.rider_fresh).length,
