@@ -25,6 +25,15 @@ export async function GET() {
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  /* Probe: exec_sql is known to run DDL, but if it swallows SELECT result sets
+     this whole check reports an empty publication even when tables are members.
+     Run a query that must return a row to prove result sets come back. */
+  const probe = await sb.rpc("exec_sql", {
+    query: "select 'probe_ok' as marker, count(*)::text as n from pg_class where relkind = 'r'",
+  });
+  const probeRows = (probe.data ?? []) as Record<string, unknown>[];
+  const probeOk = probeRows.length > 0 && probeRows[0].marker === "probe_ok";
+
   const live = new Set(
     ((data ?? []) as Record<string, unknown>[]).map((r) => String(r.tablename)),
   );
@@ -43,6 +52,7 @@ export async function GET() {
     in_publication: [...live].sort(),
     watched: watched.map((t) => ({ table: t, in_publication: live.has(t) })),
     missing: watched.filter((t) => !live.has(t)),
+    _probe: { ok: probeOk, rows: probeRows.length, error: probe.error?.message ?? null },
   });
 }
 
