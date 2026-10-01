@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Bell, Package, CheckCircle2, Truck, Clock, X } from "lucide-react";
 import { useNotifications, type Notification } from "@/lib/notifications-store";
 import { useSession } from "@/lib/session-store";
@@ -61,44 +62,53 @@ export function NotificationBell() {
         )}
       </button>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-2 w-72 max-h-80 overflow-y-auto rounded-2xl border border-border bg-surface p-2 shadow-2xl animate-scale-in">
-            <div className="flex items-center justify-between px-3 pb-2 border-b border-border">
-              <p className="text-xs font-semibold">Notifications</p>
-              {myItems.length > 0 && (
-                <button type="button" onClick={() => markAllRead()} className="rounded-lg bg-go/10 px-2.5 py-1 text-[10px] font-semibold text-go transition hover:bg-go/20">Mark all read</button>
-              )}
+      {open &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            {/* Centered rather than anchored to the bell. This panel is rendered
+                inside the app header, and an `absolute right-0` child of a
+                `backdrop-blur` header is clipped by the header's own box and runs
+                off the left edge on a narrow phone. A centered panel cannot
+                overflow horizontally. */}
+            <div className="pointer-events-none fixed inset-0 z-50 flex items-start justify-center px-4 pt-20">
+              <div className="pointer-events-auto max-h-[70vh] w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
+                <div className="flex items-center justify-between border-b border-border px-3 pb-2">
+                  <p className="text-xs font-semibold">Notifications</p>
+                  {myItems.length > 0 && (
+                    <button type="button" onClick={() => markAllRead()} className="rounded-lg bg-go/10 px-2.5 py-1 text-[10px] font-semibold text-go transition hover:bg-go/20">Mark all read</button>
+                  )}
+                </div>
+                {myItems.length === 0 ? (
+                  <div className="py-6 text-center">
+                    <Bell className="mx-auto h-6 w-6 text-dim" />
+                    <p className="mt-1.5 text-[11px] text-muted">No notifications yet</p>
+                  </div>
+                ) : (
+                  <div className="mt-1 max-h-[55vh] space-y-0.5 overflow-y-auto">
+                    {myItems.slice(0, 20).map((n) => {
+                      const Icon = ICONS[n.title] || Package;
+                      const col = COLORS[n.title] || "text-muted";
+                      return (
+                        <div key={n.id} className={`flex items-start gap-2.5 rounded-xl px-3 py-2.5 transition hover:bg-elevated ${!n.read ? "bg-go/5" : ""}`}>
+                          <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-go/10 ${col}`}>
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium capitalize">{n.title.replace(/_/g, " ")}</p>
+                            <p className="text-[10px] leading-snug text-muted">{n.body}</p>
+                            <p className="mt-0.5 text-[9px] text-dim">{timeAgo(n.createdAt)}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-            {myItems.length === 0 ? (
-              <div className="py-6 text-center">
-                <Bell className="mx-auto h-6 w-6 text-dim" />
-                <p className="mt-1.5 text-[11px] text-muted">No notifications yet</p>
-              </div>
-            ) : (
-              <div className="mt-1 space-y-0.5">
-                {myItems.slice(0, 20).map((n) => {
-                  const Icon = ICONS[n.title] || Package;
-                  const col = COLORS[n.title] || "text-muted";
-                  return (
-                    <div key={n.id} className={`flex items-start gap-2.5 rounded-xl px-3 py-2.5 transition hover:bg-elevated ${!n.read ? "bg-go/5" : ""}`}>
-                      <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-go/10 ${col}`}>
-                        <Icon className="h-3.5 w-3.5" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium capitalize">{n.title.replace(/_/g, " ")}</p>
-                        <p className="text-[10px] text-muted leading-snug">{n.body}</p>
-                        <p className="mt-0.5 text-[9px] text-dim">{timeAgo(n.createdAt)}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </>
-      )}
+          </>,
+          document.body
+        )}
     </div>
   );
 }
