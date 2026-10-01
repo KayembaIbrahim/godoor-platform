@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Bell, Store, AlertTriangle, ShieldCheck, Package, Users, X } from "lucide-react";
 
@@ -42,6 +43,11 @@ export default function AdminNotificationBell() {
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  /* The panel is positioned against the viewport, not the header. As an
+     `absolute` child of the sticky admin header it was clipped by the header's
+     own box, so the list was cut off. */
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -66,6 +72,33 @@ export default function AdminNotificationBell() {
   }, []);
 
   useEffect(() => {
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const el = btnRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const right = Math.max(8, vw - r.right);
+      // Prefer dropping below the bell; flip above it when there is not enough
+      // room, so the panel is never cut by the viewport edge.
+      const below = vh - r.bottom;
+      if (below < 340 && r.top > below) {
+        setPos({ bottom: Math.max(8, vh - r.top) + 8, right });
+      } else {
+        setPos({ top: r.bottom + 8, right });
+      }
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
@@ -84,6 +117,7 @@ export default function AdminNotificationBell() {
   return (
     <div className="relative" ref={ref}>
       <button
+        ref={btnRef}
         type="button"
         onClick={() => { setOpen(!open); if (!open && unread > 0) markAllRead(); }}
         className="relative rounded-full p-2 text-muted hover:bg-elevated hover:text-fg transition"
@@ -97,10 +131,13 @@ export default function AdminNotificationBell() {
         )}
       </button>
 
-      {open && (
+      {open && pos && createPortal(
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-2 w-80 max-h-96 overflow-y-auto rounded-2xl border border-border bg-surface p-2 shadow-2xl animate-scale-in">
+          <div
+            className="fixed z-50 w-[min(20rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl animate-scale-in"
+            style={{ top: pos.top, bottom: pos.bottom, right: pos.right, maxHeight: "min(24rem,70vh)" }}
+          >
             <div className="flex items-center justify-between px-3 pb-2 border-b border-border">
               <p className="text-xs font-semibold">Notifications</p>
               {items.length > 0 && (
@@ -115,7 +152,7 @@ export default function AdminNotificationBell() {
                 <p className="mt-1.5 text-[11px] text-muted">No notifications</p>
               </div>
             ) : (
-              <div className="mt-1 space-y-0.5">
+              <div className="mt-1 space-y-0.5 overflow-y-auto">
                 {items.slice(0, 25).map((n) => {
                   const Icon = TYPE_ICONS[n.type] || Bell;
                   const col = TYPE_COLORS[n.type] || "text-muted";
@@ -141,7 +178,8 @@ export default function AdminNotificationBell() {
               </div>
             )}
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
