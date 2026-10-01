@@ -19,20 +19,11 @@ export async function GET() {
   const sb = getServiceClient();
   if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
 
-  const { data, error } = await sb.rpc("exec_sql", {
-    query:
-      "select c.relname as tablename from pg_publication p join pg_publication_rel pr on pr.prpubid = p.oid join pg_class c on c.oid = pr.prrelid where p.pubname = 'supabase_realtime' order by c.relname",
-  });
+  /* Use the row-returning function, not exec_sql: exec_sql runs DDL but does
+     not return SELECT result sets, so querying the catalog through it always
+     reported an empty publication even though every table was a member. */
+  const { data, error } = await sb.rpc("realtime_publication_tables");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  /* Probe: exec_sql is known to run DDL, but if it swallows SELECT result sets
-     this whole check reports an empty publication even when tables are members.
-     Run a query that must return a row to prove result sets come back. */
-  const probe = await sb.rpc("exec_sql", {
-    query: "select 'probe_ok' as marker, count(*)::text as n from pg_class where relkind = 'r'",
-  });
-  const probeRows = (probe.data ?? []) as Record<string, unknown>[];
-  const probeOk = probeRows.length > 0 && probeRows[0].marker === "probe_ok";
 
   const live = new Set(
     ((data ?? []) as Record<string, unknown>[]).map((r) => String(r.tablename)),
@@ -52,7 +43,6 @@ export async function GET() {
     in_publication: [...live].sort(),
     watched: watched.map((t) => ({ table: t, in_publication: live.has(t) })),
     missing: watched.filter((t) => !live.has(t)),
-    _probe: { ok: probeOk, rows: probeRows.length, error: probe.error?.message ?? null },
   });
 }
 

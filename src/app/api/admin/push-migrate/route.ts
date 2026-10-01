@@ -16,7 +16,7 @@ import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
  * Every statement in the allowlisted files is idempotent.
  */
 
-const ALLOWED_FILES = ["PUSH_SCHEMA.sql", "RIDER_SCHEMA.sql", "APP_SETTINGS_SCHEMA.sql"] as const;
+const ALLOWED_FILES = ["PUSH_SCHEMA.sql", "RIDER_SCHEMA.sql", "APP_SETTINGS_SCHEMA.sql", "REALTIME_SCHEMA.sql"] as const;
 
 export async function POST(req: Request) {
   const jar = await cookies();
