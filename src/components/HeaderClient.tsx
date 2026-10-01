@@ -7,6 +7,7 @@ import { Menu, X, Wallet } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { HeaderAuth } from "@/components/HeaderAuth";
 import { NotificationBell } from "@/components/NotificationBell";
+import { BuildBadge } from "@/components/BuildBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useSession, roleHomePath } from "@/lib/session-store";
 import { useCart } from "@/lib/cart-store";
@@ -145,7 +146,8 @@ export function HeaderClient() {
           >
             <Wallet className="h-4 w-4" />
           </Link>
-          <NotificationBell />
+          <BuildBadge />
+      <NotificationBell />
           <ThemeToggle />
           <HeaderAuth />
           <button
