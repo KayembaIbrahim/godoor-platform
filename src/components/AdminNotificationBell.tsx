@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { Bell, Store, AlertTriangle, ShieldCheck, Package, Users, X } from "lucide-react";
 
 type AdminNotification = {
@@ -33,9 +33,9 @@ const TYPE_COLORS: Record<string, string> = {
 function timeAgo(ms: number): string {
   const sec = Math.floor((Date.now() - ms) / 1000);
   if (sec < 60) return "just now";
-  if (sec < 3600) return Math.floor(sec / 60) + "m ago";
-  if (sec < 86400) return Math.floor(sec / 3600) + "h ago";
-  return Math.floor(sec / 86400) + "d ago";
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return `${Math.floor(sec / 86400)}d ago`;
 }
 
 export default function AdminNotificationBell() {
@@ -43,21 +43,15 @@ export default function AdminNotificationBell() {
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const ref = useRef<HTMLDivElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  /* The panel is positioned against the viewport, not the header. As an
-     `absolute` child of the sticky admin header it was clipped by the header's
-     own box, so the list was cut off. */
-  const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
 
   useEffect(() => {
     let active = true;
     const fetchNotifications = () => {
       fetch("/api/admin/notifications", { cache: "no-store" })
-        .then((r) => r.ok ? r.json() : null)
+        .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (active && d?.items) {
             setItems(d.items);
-            // Load seen IDs from sessionStorage
             try {
               const stored = sessionStorage.getItem("gd_admin_notif_seen");
               if (stored) setSeen(new Set(JSON.parse(stored)));
@@ -70,33 +64,6 @@ export default function AdminNotificationBell() {
     const interval = setInterval(fetchNotifications, 60000);
     return () => { active = false; clearInterval(interval); };
   }, []);
-
-  useEffect(() => {
-    if (!open) { setPos(null); return; }
-    const place = () => {
-      const el = btnRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const right = Math.max(8, vw - r.right);
-      // Prefer dropping below the bell; flip above it when there is not enough
-      // room, so the panel is never cut by the viewport edge.
-      const below = vh - r.bottom;
-      if (below < 340 && r.top > below) {
-        setPos({ bottom: Math.max(8, vh - r.top) + 8, right });
-      } else {
-        setPos({ top: r.bottom + 8, right });
-      }
-    };
-    place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
-  }, [open]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -117,7 +84,6 @@ export default function AdminNotificationBell() {
   return (
     <div className="relative" ref={ref}>
       <button
-        ref={btnRef}
         type="button"
         onClick={() => { setOpen(!open); if (!open && unread > 0) markAllRead(); }}
         className="relative rounded-full p-2 text-muted hover:bg-elevated hover:text-fg transition"
@@ -131,56 +97,64 @@ export default function AdminNotificationBell() {
         )}
       </button>
 
-      {open && pos && createPortal(
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div
-            className="fixed z-50 w-[min(20rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl animate-scale-in"
-            style={{ top: pos.top, bottom: pos.bottom, right: pos.right, maxHeight: "min(24rem,70vh)" }}
-          >
-            <div className="flex items-center justify-between px-3 pb-2 border-b border-border">
-              <p className="text-xs font-semibold">Notifications</p>
-              {items.length > 0 && (
-                <button type="button" onClick={markAllRead} className="rounded-lg bg-go/10 px-2.5 py-1 text-[10px] font-semibold text-go transition hover:bg-go/20">
-                  Mark all read
-                </button>
-              )}
-            </div>
-            {items.length === 0 ? (
-              <div className="py-6 text-center">
-                <Bell className="mx-auto h-6 w-6 text-dim" />
-                <p className="mt-1.5 text-[11px] text-muted">No notifications</p>
-              </div>
-            ) : (
-              <div className="mt-1 space-y-0.5 overflow-y-auto">
-                {items.slice(0, 25).map((n) => {
-                  const Icon = TYPE_ICONS[n.type] || Bell;
-                  const col = TYPE_COLORS[n.type] || "text-muted";
-                  const isUnread = !seen.has(n.id);
-                  return (
-                    <Link
-                      key={n.id}
-                      href={n.href}
-                      onClick={() => setOpen(false)}
-                      className={`flex items-start gap-2.5 rounded-xl px-3 py-2.5 transition hover:bg-elevated ${isUnread ? "bg-go/5" : ""}`}
+      {open &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            {/* Centered rather than anchored to the bell. A right-anchored
+                dropdown runs to the screen edge on a narrow phone and gets
+                clipped; a centered panel cannot overflow horizontally, and the
+                capped height keeps it inside the viewport. */}
+            <div className="pointer-events-none fixed inset-0 z-50 flex items-start justify-center px-4 pt-20">
+              <div className="pointer-events-auto max-h-[70vh] w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl animate-scale-in">
+                <div className="flex items-center justify-between border-b border-border px-3 pb-2">
+                  <p className="text-xs font-semibold">Notifications</p>
+                  {items.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={markAllRead}
+                      className="rounded-lg bg-go/10 px-2.5 py-1 text-[10px] font-semibold text-go transition hover:bg-go/20"
                     >
-                      <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-go/10 ${col}`}>
-                        <Icon className="h-3.5 w-3.5" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium">{n.title}</p>
-                        <p className="text-[10px] text-muted leading-snug">{n.body}</p>
-                        <p className="mt-0.5 text-[9px] text-dim">{timeAgo(n.createdAt)}</p>
-                      </div>
-                    </Link>
-                  );
-                })}
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+                {items.length === 0 ? (
+                  <div className="py-6 text-center">
+                    <Bell className="mx-auto h-6 w-6 text-dim" />
+                    <p className="mt-1.5 text-[11px] text-muted">No notifications</p>
+                  </div>
+                ) : (
+                  <div className="mt-1 max-h-[55vh] space-y-0.5 overflow-y-auto">
+                    {items.slice(0, 25).map((n) => {
+                      const Icon = TYPE_ICONS[n.type] || Bell;
+                      const col = TYPE_COLORS[n.type] || "text-muted";
+                      const isUnread = !seen.has(n.id);
+                      return (
+                        <Link
+                          key={n.id}
+                          href={n.href}
+                          onClick={() => setOpen(false)}
+                          className={`flex items-start gap-2.5 rounded-xl px-3 py-2.5 transition hover:bg-elevated ${isUnread ? "bg-go/5" : ""}`}
+                        >
+                          <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-go/10 ${col}`}>
+                            <Icon className="h-3.5 w-3.5" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium">{n.title}</p>
+                            <p className="text-[10px] leading-snug text-muted">{n.body}</p>
+                            <p className="mt-0.5 text-[9px] text-dim">{timeAgo(n.createdAt)}</p>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </>,
-        document.body
-      )}
+            </div>
+          </>,
+          document.body
+        )}
     </div>
   );
 }
