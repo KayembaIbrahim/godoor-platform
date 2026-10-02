@@ -195,10 +195,10 @@ function SlideBanner({ compact = false }: { compact?: boolean }) {
 }
 
 const LANDING_CATEGORIES = [
-  { icon: UtensilsCrossed, label: "Restaurants", desc: "Hot meals & snacks", color: "text-amber-500", bg: "bg-amber-500/10" },
-  { icon: Pill, label: "Pharmacy", desc: "Medicine & health", color: "text-blue-500", bg: "bg-blue-500/10" },
-  { icon: ShoppingBag, label: "Groceries", desc: "Fresh produce & essentials", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-  { icon: Package, label: "Packages", desc: "Send anything, anywhere", color: "text-purple-500", bg: "bg-purple-500/10" },
+  { icon: UtensilsCrossed, label: "Restaurants", desc: "Hot meals & snacks", color: "text-amber-500", bg: "bg-amber-500/10", status: "live" },
+  { icon: Pill, label: "Pharmacy", desc: "Medicine & health", color: "text-blue-500", bg: "bg-blue-500/10", status: "waitlist" },
+  { icon: ShoppingBag, label: "Groceries", desc: "Fresh produce & essentials", color: "text-emerald-500", bg: "bg-emerald-500/10", status: "waitlist" },
+  { icon: Package, label: "Packages", desc: "Send anything, anywhere", color: "text-purple-500", bg: "bg-purple-500/10", status: "waitlist" },
 ];
 
 function categoryMatches(m: any, label: string): boolean {
@@ -302,7 +302,7 @@ export default function HomePage() {
             </h1>
 
             <p className="mt-4 max-w-md text-sm leading-relaxed text-muted md:text-base">
-              Order food, groceries, pharmacy &amp; packages from 500+ local shops.
+              Order food, groceries, pharmacy &amp; packages from local shops near you.
               Delivered to your door in minutes. We recommend the Morse wallet for swift payments.
             </p>
 
@@ -311,8 +311,8 @@ export default function HomePage() {
               <Users className="h-3 w-3 text-go" />
               <span>
                 {totalMerchants > 0
-                  ? <><strong className="num text-go">{totalMerchants}</strong> shops on GoDoor</>
-                  : <span className="text-go">Shops live now</span>
+                  ? <><strong className="num text-go">{totalMerchants}</strong> local shops live</>
+                  : <span className="text-go">Local shops already live</span>
                 }
               </span>
             </div>
@@ -328,10 +328,13 @@ export default function HomePage() {
               <Link href="/onboarding" className="sheen relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-go px-7 py-3.5 text-sm font-semibold text-white shadow-glow transition hover:scale-[1.02] active:scale-[0.98]">
                 Order now — it&apos;s free <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href="/tutorial" className="inline-flex items-center gap-2 rounded-xl bg-surface/80 px-5 py-3.5 text-sm font-medium shadow-xs transition hover:bg-elevated">
+              <Link href="/tutorial" className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface/60 px-5 py-3.5 text-sm font-medium text-muted transition hover:bg-elevated hover:text-fg">
                 <Play className="h-4 w-4 text-go" /> See how it works
               </Link>
             </div>
+            <p className="mt-3 text-[11px] text-dim">
+              Browse live shops · Pay with Morse · Track to your door
+            </p>
 
             {/* Trust signals */}
             <div className="mt-6 flex flex-wrap items-center gap-4">
@@ -347,7 +350,7 @@ export default function HomePage() {
                   <div className="flex items-center gap-0.5">
                     {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="h-3 w-3 fill-warning text-warning" />)}
                   </div>
-                  <p className="text-[10px] text-dim">Trusted by 10,000+ users</p>
+                  <p className="text-[10px] text-dim">Loved by early users across Uganda</p>
                 </div>
               </div>
               <div className="h-6 w-px bg-border hidden sm:block" />
@@ -433,13 +436,13 @@ export default function HomePage() {
       <section ref={statsRef} className="border-b border-border bg-surface/30">
         <div className="mx-auto flex max-w-5xl flex-wrap items-stretch justify-center gap-3 px-4 py-8">
           {[
-            { value: animatedMerchants, suffix: "+", label: "Active merchants" },
-            { value: animatedDeliveries.toLocaleString(), suffix: "+", label: "Deliveries completed", isStr: true },
-            { value: animatedCities, suffix: "+", label: "Cities covered" }
+            { value: "Growing", label: "network of local shops" },
+            { value: "Live in Masaka", label: "expanding across Uganda" },
+            { value: "Fast", label: "deliveries starting now" }
           ].map((s) => (
             <div key={s.label} className="tile flex-1 min-w-[150px] px-6 py-6 text-center transition hover:-translate-y-0.5 hover:shadow-floating">
-              <p className="text-gradient font-display text-3xl font-bold">
-                {s.isStr ? s.value : s.value}{s.suffix}
+              <p className="text-gradient font-display text-2xl font-bold md:text-3xl">
+                {s.value}
               </p>
               <p className="mt-1 text-xs font-medium text-muted">{s.label}</p>
             </div>
@@ -453,7 +456,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="inline-flex items-center gap-1.5 rounded-full bg-go/10 px-3 py-1 text-[10px] font-bold text-go uppercase">
-                <Flame className="h-3 w-3" /> {merchants.length > 0 ? "Trending now" : "Coming soon"}
+                <Flame className="h-3 w-3" /> {merchants.length > 0 ? "Trending now" : "Launching soon"}
               </div>
               <h2 className="mt-3 font-display text-2xl font-bold">
                 {merchants.length > 0 ? "Popular near you" : "Shops on GoDoor"}
@@ -575,7 +578,7 @@ export default function HomePage() {
       <section className="border-b border-border py-14">
         <div className="mx-auto max-w-5xl px-4">
           <h2 className="text-center font-display text-2xl font-bold">Everything you need, delivered</h2>
-          <p className="mt-2 text-center text-sm text-muted">From restaurants to pharmacies — we deliver it all</p>
+          <p className="mt-2 text-center text-sm text-muted">Restaurants are live now — more categories opening soon</p>
           <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4 stagger">
             {LANDING_CATEGORIES.map((c) => {
               const CatIcon = c.icon;
@@ -587,9 +590,16 @@ export default function HomePage() {
                   </div>
                   <p className="mt-3 font-display text-sm font-semibold group-hover:text-go transition-colors">{c.label}</p>
                   <p className="mt-0.5 text-xs text-muted">{c.desc}</p>
-                  <p className="mt-2 text-[10px] font-medium text-go/70">
-                    {catCount > 0 ? `${catCount} ${catCount === 1 ? "shop" : "shops"}` : "Coming soon"}
-                  </p>
+                  {c.status === "live" ? (
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-bold text-success">
+                      <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+                      Live now{catCount > 0 ? ` · ${catCount} ${catCount === 1 ? "shop" : "shops"}` : ""}
+                    </span>
+                  ) : (
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-bold text-warning">
+                      Waitlist open
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -611,11 +621,11 @@ export default function HomePage() {
               </div>
             )) : (
               <div className="col-span-3 flex items-center justify-center gap-2 rounded-xl bg-surface/60 py-6 text-xs text-muted md:col-span-6">
-                <MapPinned className="h-3 w-3 text-go" /> Launching in your area soon
+                <MapPinned className="h-3 w-3 text-go" /> Expanding to your area
               </div>
             )}
           </div>
-          <p className="mt-4 text-center text-xs text-dim">And many more districts — check the app for your area</p>
+          <p className="mt-4 text-center text-xs text-dim">More districts opening — check the app for your area</p>
         </div>
       </section>
 
@@ -654,8 +664,8 @@ export default function HomePage() {
           <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-go/10 via-surface to-surface p-8 md:p-10">
             <div className="grid items-center gap-8 md:grid-cols-2">
               <div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-go px-3 py-1 text-[10px] font-bold text-white uppercase shadow-glow">
-                  <Zap className="h-3 w-3" /> Recommended · Swift payments
+                <div className="inline-flex items-center gap-2 rounded-full bg-go/10 px-3 py-1 text-[10px] font-bold text-go uppercase">
+                  <Zap className="h-3 w-3" /> Pay with Morse
                 </div>
                 <div className="mt-4 flex items-center gap-3">
                   <MorseLogo markOnly className="h-8 text-go" />
@@ -704,14 +714,14 @@ export default function HomePage() {
                   <div key={c.title} className="card-lift flex items-start gap-3 rounded-2xl bg-surface p-4">
                     <span className="text-2xl">{c.emoji}</span>
                     <div>
-                      <p className="text-sm font-semibold">{c.title} — we recommend Morse most</p>
+                      <p className="text-sm font-semibold">{c.title}</p>
                       <p className="mt-0.5 text-xs text-muted leading-relaxed">{c.desc}</p>
                     </div>
                   </div>
                 ))}
                 <div className="flex items-center justify-center gap-2 rounded-2xl bg-go/5 px-4 py-3">
                   <MorseLogo className="h-3.5 text-go" />
-                  <p className="text-[11px] font-medium text-muted">Morse-to-Morse transfers &amp; deposits are free</p>
+                  <p className="text-[11px] font-medium text-muted">Morse wallet · free deposits</p>
                 </div>
               </div>
             </div>
@@ -739,7 +749,7 @@ export default function HomePage() {
                   <li key={f} className="flex items-center gap-2 text-xs text-muted"><Check className="h-3 w-3 text-success" />{f}</li>
                 ))}
               </ul>
-              <Link href="/partner?role=business" className="btn btn-primary mt-5">
+              <Link href="/partner?role=business" className="btn btn-soft mt-5 !text-primary !bg-primary/10 hover:!bg-primary/15">
                 Apply to join <ArrowRight className="h-4 w-4" />
               </Link>
               </div>
@@ -816,13 +826,13 @@ export default function HomePage() {
                     <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-muted">
                       <Download className="h-4 w-4" />
                       Google Play Store
-                      <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">Coming soon</span>
+                      <span className="rounded-full bg-go/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-go">Launching soon</span>
                     </div>
                   )}
                   <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-muted">
                     <Download className="h-4 w-4" />
                     iOS Store
-                    <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">Coming soon</span>
+                    <span className="rounded-full bg-go/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-go">Launching soon</span>
                   </div>
                   <Link href="/app" className="inline-flex items-center gap-2 rounded-xl bg-go px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-go/20 transition hover:bg-go-2 active:scale-[0.98]">
                     Use web app <ArrowRight className="h-4 w-4" />
@@ -863,7 +873,7 @@ export default function HomePage() {
       <section className="border-b border-border bg-surface/30 py-14">
         <div className="mx-auto max-w-5xl px-4">
           <h2 className="text-center font-display text-2xl font-bold">What people are saying</h2>
-          <p className="mt-2 text-center text-sm text-muted">Real stories from GoDoor users across Uganda</p>
+          <p className="mt-2 text-center text-sm text-muted">What early users are saying</p>
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {[
               { name: "Amina K.", role: "Kampala", text: "GoDoor changed how I shop. My groceries arrive fresh in under 30 minutes and I pay with Morse — it just works.", stars: 5 },
@@ -919,13 +929,13 @@ export default function HomePage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
             </span>
-            {districtCount} ${districtCount === 1 ? "district" : "districts"} · ${totalMerchants} shops live
+            Live in Masaka · Expanding across Uganda
           </div>
 
           <Link href="/onboarding" className="sheen relative mt-8 inline-block overflow-hidden rounded-xl bg-go px-8 py-4 text-sm font-semibold text-white shadow-glow transition-all hover:scale-[1.02] active:scale-[0.98]">
             {onboarded ? "Open app" : "Try GoDoor now — it's free"}
           </Link>
-          <p className="mt-3 text-xs text-dim">No card needed. Just your phone — we recommend Morse for the swiftest checkout.</p>
+          <p className="mt-3 text-xs text-dim">No card needed. Just your phone — pay with Morse for the swiftest checkout.</p>
           <Link href="/tutorial" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-go hover:underline">Watch how it works <Play className="h-3 w-3" /></Link>
         </div>
       </section>
