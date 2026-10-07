@@ -69,3 +69,5 @@ export function Logo({
     </span>
   );
 }
+
+export const GoDoorLogo = Logo;

@@ -1,22 +1,32 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 :root {
+  /* ─── Official GoDoor Design Tokens (Spec-compliant) ─── */
+  --godoor-purple: #7C3AED;
+  --godoor-purple-dark: #5B21B6;
+  --godoor-purple-light: #EDE9FE;
+  --godoor-orange: #F97316;
+  --godoor-yellow: #F59E0B;
+  --godoor-background: #FFFFFF;
+  --godoor-surface: #F8FAFC;
+  --godoor-text: #0F172A;
+  --godoor-muted: #64748B;
+  --godoor-border: #E2E8F0;
+  --godoor-success: #059669;
+  --godoor-error: #DC2626;
+
   /* ─── GoDoor Brand Colors (unchanged) ─── */
   --primary: #F97316;
   --primary-hover: #EA580C;
   --primary-light: #FFEDD5;
 
-  /* ─── NEW: Purple visual language ─── */
-  /* These are the new premium purple tokens introduced by the redesign.
-     Used strategically for hero areas, tracking, promotions, premium cards,
-     selected states, splash/authentication — NOT for every screen. */
-  --purple: #7C3AED;
+  /* ─── Purple visual language ─── */
+  --purple: var(--godoor-purple);
   --purple-hover: #6D28D9;
-  --purple-light: #EDE9FE;
+  --purple-light: var(--godoor-purple-light);
   --purple-muted: #A78BFA;
-  --purple-dark: #5B21B6;
+  --purple-dark: var(--godoor-purple-dark);
   --purple-deep: #3B0764;
 
   /* ─── Trust / Secondary ─── */
@@ -111,19 +121,28 @@
   --aurora-a: rgb(249 115 22 / 0.08);
   --aurora-b: rgb(249 115 22 / 0.06);
   --aurora-c: rgb(5 150 105 / 0.04);
-  --grid-line: var(--border);
 }
 
 .dark {
+  /* ─── GoDoor Design Tokens (dark mode) ─── */
+  --godoor-purple: #8B5CF6;
+  --godoor-purple-dark: #6D28D9;
+  --godoor-purple-light: #4C1D95;
+  --godoor-background: #0F172A;
+  --godoor-surface: #1E293B;
+  --godoor-text: #F8FAFC;
+  --godoor-muted: #94A3B8;
+  --godoor-border: #334155;
+
   /* Brand (same orange) */
   --primary: #F97316;
   --primary-hover: #FB923C;
   --primary-light: #7C2D12;
 
-  /* NEW: Purple lighter for dark mode */
-  --purple: #8B5CF6;
+  /* Purple lighter for dark mode */
+  --purple: var(--godoor-purple);
   --purple-hover: #A78BFA;
-  --purple-light: #4C1D95;
+  --purple-light: var(--godoor-purple-light);
   --purple-muted: #C4B5FD;
 
   /* Trust / Secondary */

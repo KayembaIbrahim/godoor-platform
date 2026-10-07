@@ -27,6 +27,7 @@ import { useFavorites } from "@/lib/customer-stores";
 import { getCategoryIcon, categoryMatches, matchCategory } from "@/lib/categories";
 import { AddressSearchModal, getLastAddress } from "@/components/AddressSearchModal";
 import { QuickServicesGrid } from "@/components/QuickServicesGrid";
+import { GoDoorLogo } from "@/components/Logo";
 
 type SortMode = "nearest" | "rating" | "popular";
 
@@ -238,12 +239,8 @@ export default function CustomerHome() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {/* GoDoor logo — the official current logo, unchanged */}
-              <Link href="/app" className="group">
-                <img
-                  src="/logo.svg"
-                  alt="GoDoor"
-                  className="h-8 w-auto"
-                />
+              <Link href="/app" className="group flex items-center">
+                <GoDoorLogo size="sm" />
               </Link>
               {/* Location selector */}
               <button
