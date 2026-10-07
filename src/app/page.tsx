@@ -313,7 +313,7 @@ export default function HomePage() {
 
             <h1 className="mt-5 font-display text-[2.6rem] font-bold leading-[1.08] tracking-tight md:text-5xl lg:text-[3.6rem]">
               Your City.<br />
-              <span className="text-gradient">Your Door.</span><br />
+              <span className="gradient-text">Your Door.</span><br />
               GoDoor.
             </h1>
 
@@ -457,7 +457,7 @@ export default function HomePage() {
             { value: "Fast", label: "deliveries starting now" }
           ].map((s) => (
             <div key={s.label} className="tile flex-1 min-w-[150px] px-6 py-6 text-center transition hover:-translate-y-0.5 hover:shadow-floating">
-              <p className="text-gradient font-display text-2xl font-bold md:text-3xl">
+              <p className="gradient-text font-display text-2xl font-bold md:text-3xl">
                 {s.value}
               </p>
               <p className="mt-1 text-xs font-medium text-muted">{s.label}</p>

@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { useEffect, useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 // `useLayoutEffect` does nothing (and warns) during SSR, so fall back to
 // `useEffect` on the server and only use the before-paint variant in the browser.
@@ -30,9 +30,34 @@ export const useThemeStore = create<ThemeState>()(
 /** Resolves "system" against the OS preference. */
 function resolve(theme: Theme): "dark" | "light" {
   if (theme !== "system") return theme;
+  if (typeof window === "undefined") return "light";
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
+}
+
+/**
+ * The theme actually in effect, as a boolean.
+ *
+ * Reads the store for the choice and subscribes to the OS preference for
+ * "system" mode, so it stays correct when the user flips their device theme.
+ * Safe to call during render: the server pass and the first client pass both
+ * see the persisted value, so hydration cannot mismatch.
+ */
+export function useIsDark(): boolean {
+  const theme = useThemeStore((s) => s.theme);
+  const [systemDark, setSystemDark] = useState(false);
+
+  useEffect(() => {
+    if (theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const sync = () => setSystemDark(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [theme]);
+
+  return theme === "system" ? systemDark : theme === "dark";
 }
 
 /** Paints the resolved theme onto <html> and the browser chrome. */

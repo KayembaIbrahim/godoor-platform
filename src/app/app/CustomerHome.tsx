@@ -18,6 +18,7 @@ import { Price } from "@/components/Price";
 import { useCart } from "@/lib/cart-store";
 import { StoriesStrip, StoryViewer, type Story } from "@/components/StoriesViewer";
 import { useSession } from "@/lib/session-store";
+import { useThemeStore, useIsDark } from "@/lib/theme-store";
 import { useGeolocation, distanceKm, formatDistance, detectDistrict, type LatLng } from "@/lib/location";
 import { useMerchants } from "@/lib/hooks";
 import { CustomerNav } from "@/components/CustomerNav";
@@ -27,7 +28,6 @@ import { useFavorites } from "@/lib/customer-stores";
 import { getCategoryIcon, categoryMatches, matchCategory } from "@/lib/categories";
 import { AddressSearchModal, getLastAddress } from "@/components/AddressSearchModal";
 import { QuickServicesGrid } from "@/components/QuickServicesGrid";
-import { GoDoorLogo } from "@/components/Logo";
 
 type SortMode = "nearest" | "rating" | "popular";
 
@@ -44,24 +44,9 @@ export default function CustomerHome() {
   }, [role, onboarded]);
 
   const [cat, setCat] = useState<string>("all");
-  // Theme state: true = dark, false = light. Default to dark per GoDoor 2.0 brief.
-  const [isDark, setIsDark] = useState<boolean>(true);
-
-  const setTheme = (dark: boolean) => {
-    setIsDark(dark);
-    // Persist to localStorage so the choice survives page reloads
-    if (typeof window !== "undefined") {
-      localStorage.setItem("godoor-theme", dark ? "dark" : "light");
-    }
-  };
-
-  // Initialize theme from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem("godoor-theme");
-    if (stored === "light") {
-      setIsDark(false);
-    }
-  }, []);
+  // Use global theme store for consistent theme management
+  const setTheme = useThemeStore((s) => s.setTheme);
+  const isDark = useIsDark();
   const [district, setDistrict] = useState<string>("auto");
   const [detectedDistrict, setDetectedDistrict] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -238,10 +223,6 @@ export default function CustomerHome() {
         <div className="space-y-3 px-4 pt-3 pb-3 md:mx-auto md:max-w-3xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {/* GoDoor logo — the official current logo, unchanged */}
-              <Link href="/app" className="group flex items-center">
-                <GoDoorLogo size="sm" />
-              </Link>
               {/* Location selector */}
               <button
                 type="button"
@@ -256,7 +237,7 @@ export default function CustomerHome() {
               {/* Theme toggle */}
               <button
                 type="button"
-                onClick={() => setTheme(!isDark)}
+                onClick={() => setTheme(isDark ? "light" : "dark")}
                 className="rounded-full p-1.5 bg-white/5 hover:bg-white/10 transition"
                 aria-label="Toggle theme"
               >

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import defaultColors from "tailwindcss/colors";
 
 const config: Config = {
   content: [
@@ -33,12 +34,19 @@ const config: Config = {
         "navy-deep": "rgb(var(--rgb-navy-deep) / <alpha-value>)",
         "navy-soft": "rgb(var(--rgb-navy-soft) / <alpha-value>)",
         
-        /* NEW GoDoor 2.0: Purple visual language */
-        purple: "rgb(var(--rgb-purple) / <alpha-value>)",
-        "purple-hover": "rgb(var(--rgb-purple-hover) / <alpha-value>)",
-        "purple-light": "rgb(var(--rgb-purple-light) / <alpha-value>)",
-        "purple-muted": "rgb(var(--rgb-purple-muted) / <alpha-value>)",
-        "purple-dark": "rgb(var(--rgb-purple-dark) / <alpha-value>)",
+        /* NEW GoDoor 2.0: Purple visual language.
+           `purple` must be an OBJECT, not a bare string. Assigning a string
+           replaces Tailwind's whole default purple scale, so `purple-500` and
+           friends would silently compile to nothing. `DEFAULT` keeps the
+           un-suffixed `bg-purple` working alongside the stock ramp. */
+        purple: {
+          DEFAULT: "rgb(var(--rgb-purple) / <alpha-value>)",
+          hover: "rgb(var(--rgb-purple-hover) / <alpha-value>)",
+          dark: "rgb(var(--rgb-purple-dark) / <alpha-value>)",
+          light: "rgb(var(--rgb-purple-light) / <alpha-value>)",
+          muted: "rgb(var(--rgb-purple-muted) / <alpha-value>)",
+          ...defaultColors.purple,
+        },
       },
       fontFamily: {
         display: ["var(--font-display)", "system-ui", "sans-serif"],

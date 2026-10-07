@@ -69,3 +69,7 @@ scripts/purge-test-rides.mjs
 scripts/set-pw.mjs
 scripts/test-pw.mjs
 scripts/test-login-ui.mjs
+
+# Signed-in customer-home audit. Defaults to a live account's email/password.
+scripts/audit-app-home.mjs
+scripts/dead-class-audit.mjs

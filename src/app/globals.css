@@ -110,6 +110,7 @@
   /* NEW: Purple channel triplets for Tailwind */
   --rgb-purple: 124 58 237;
   --rgb-purple-hover: 109 40 217;
+  --rgb-purple-dark: 91 33 182;
   --rgb-purple-light: 237 233 254;
   --rgb-purple-muted: 167 139 250;
 
@@ -224,6 +225,7 @@
   /* Purple channel triplets for dark mode */
   --rgb-purple: 139 102 250;
   --rgb-purple-hover: 167 139 250;
+  --rgb-purple-dark: 109 40 217;
   --rgb-purple-light: 76 29 149;
   --rgb-purple-muted: 196 181 253;
 
