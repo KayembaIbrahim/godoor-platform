@@ -1,9 +1,34 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import { ThemeEffect } from "@/components/ThemeEffect";
 import { HeaderClient } from "@/components/HeaderClient";
 import { ClientProviders } from "@/components/ClientProviders";
 import { AppFooter } from "@/components/AppFooter";
+
+/* The stylesheet has always declared Poppins (headings) and Inter (body) via
+   --font-display / --font-sans, but nothing ever fetched the files — no
+   next/font, no @font-face, no <link> to a font CDN. Every heading silently
+   fell back to the OS UI font. These two loaders publish the real faces as CSS
+   variables that globals.css points at, so all 737 existing `font-display` /
+   `text-muted`-style call sites start working without being touched.
+   Both are variable fonts, so no per-weight files are emitted. */
+const poppins = Poppins({
+  /* Poppins is not flagged as a variable font in this Next version's font
+     data, so weights are listed explicitly. These are the only weights
+     `font-display` is paired with across the app (81 bold, 53 semibold),
+     plus 400/500 for headings that inherit body weight. */
+  weight: ["400", "500", "600", "700"],
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-poppins",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 /* The canonical origin. Without an explicit `metadataBase`, Next derives
    absolute URLs (og:image, share cards) from whichever host served the request,
@@ -14,6 +39,12 @@ const SITE_ORIGIN = "https://godoor.site";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN),
+  /* Both `godoor.site` and `www.godoor.site` are attached on Vercel and the
+     proxy folds `www` into the apex with a 308, so only one host renders. This
+     states that canonical host in the markup as well: og:url alone is a weak
+     signal and did not stop search engines treating the two hosts as
+     separate sites. Relative here — resolved against metadataBase above. */
+  alternates: { canonical: "/" },
   title: "GoDoor — Delivering Possibilities",
   description:
     "Hyper-local delivery platform for Uganda. Food, groceries, pharmacy & packages — delivered to your door. Pay with GoDoor Wallet.",
@@ -80,7 +111,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     // The script rewrites the class on <html>, so React must accept the DOM as-is.
-    <html lang="en" className="light" suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`light ${poppins.variable} ${inter.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themePreloadScript }} />
       </head>

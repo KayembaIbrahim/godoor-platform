@@ -51,7 +51,7 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => { setOpen(!open); if (!open && unread > 0) markAllRead(); }}
-        className="relative rounded-full p-2 text-muted hover:bg-elevated hover:text-fg transition"
+        className="tap-44 relative rounded-full p-2 text-muted hover:bg-elevated hover:text-fg transition"
         aria-label="Notifications"
       >
         <Bell className="h-4 w-4" />

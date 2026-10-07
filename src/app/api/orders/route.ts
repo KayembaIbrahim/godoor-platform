@@ -7,6 +7,7 @@ import { calcDeliveryFee } from "@/lib/utils";
 import { resolveFees, serviceFeeFor, splitOrderAmounts } from "@/lib/fees";
 import { ensureClinicOrderSchema } from "@/lib/ensure-clinic";
 import { holdEscrow } from "@/lib/escrow";
+import { verifySpendGrant, walletSecurityEnrolled } from "@/lib/wallet-security";
 import { pushToUser } from "@/lib/web-push-server";
 
 const ENSURE_SCHEDULE_COLUMN = `ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ;`;
@@ -465,6 +466,36 @@ export async function POST(req: NextRequest) {
   // escrow immediately. It is released to the platform + rider only on
   // delivery confirmation, or refunded to the customer on cancel.
   if (paymentMethod === "wallet" && customerId && data) {
+    /* ── Wallet authorisation ────────────────────────────────────────────────
+       This is the point at which real money leaves the customer's balance, so
+       it is the one place a spend grant is checked.
+
+       A wallet that has had a PIN or biometric enrolled MUST present a grant
+       minted in the last 90 seconds. The grant is an HMAC-signed, user-scoped
+       token verified here on the server — the client-side "I unlocked" flag is
+       never consulted, because a React bundle containing that boolean proves
+       nothing about who is holding the phone.
+
+       Customers with no PIN or biometric enrolled are not blocked: the table
+       may not even exist on this database yet, and refusing checkout would
+       take ordering offline for every user. Enrolment is therefore
+       voluntary-and-then-enforced rather than mandatory from day one. Flip
+       `required` below to true to make it universal once the table is live. */
+    const required = false;
+    if (required || (await walletSecurityEnrolled(sb, customerId))) {
+      const grant = req.headers.get("x-wallet-grant");
+      const method = await verifySpendGrant(grant, customerId);
+      if (!method) {
+        return NextResponse.json(
+          {
+            error: "Unlock your wallet to confirm this payment",
+            code: "WALLET_LOCK_REQUIRED",
+          },
+          { status: 428 },
+        );
+      }
+    }
+
     const escrowResult = await holdEscrow(sb, customerId, String(data.id), totalUgx);
     if (!escrowResult.success) {
       await sb.from("orders").update({ status: "cancelled", notes: "Wallet payment failed — please order again" }).eq("id", data.id);

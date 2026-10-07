@@ -58,9 +58,9 @@ export function AppFooter() {
                 {links.map((link) => (
                   <li key={link.label}>
                     {link.external ? (
-                      <a href={link.href} target="_blank" rel="noopener noreferrer" className="text-xs text-muted hover:text-go transition">{link.label}</a>
+                      <a href={link.href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center py-2 text-xs text-muted hover:text-go transition">{link.label}</a>
                     ) : (
-                      <Link href={link.href} className="text-xs text-muted hover:text-go transition">{link.label}</Link>
+                      <Link href={link.href} className="inline-flex min-h-11 items-center py-2 text-xs text-muted hover:text-go transition">{link.label}</Link>
                     )}
                   </li>
                 ))}

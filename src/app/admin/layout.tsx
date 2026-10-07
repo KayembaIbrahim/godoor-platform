@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Package, AlertTriangle, Store, Users, Settings,
   Shield, ShieldCheck, Truck, BarChart3, ChevronLeft, Menu, X, Bell, Tag, Wallet, ClipboardList, AtSign,
-  BanknoteArrowDown, Download
+  BanknoteArrowDown, Download, Clock
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -23,6 +23,7 @@ const NAV = [
   { href: "/admin/morse-tag-requests", label: "Morse Tags", icon: AtSign },
   { href: "/admin/riders", label: "Riders", icon: Truck },
   { href: "/admin/disputes", label: "Disputes", icon: AlertTriangle },
+  { href: "/admin/stopovers", label: "Fares & Waiting", icon: Clock },
   { href: "/admin/verifications", label: "Verifications", icon: ShieldCheck },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/settings", label: "Fees & Settings", icon: Settings },

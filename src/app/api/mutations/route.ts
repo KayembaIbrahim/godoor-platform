@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid, resolveMerchantWriteAccess } from "@/lib/api-auth";
+import { autoCloseIfMoving } from "@/lib/stopover-server";
 
 const TABLE_SCHEMA: Record<string, { allowed: string[] }> = {
   payments:      { allowed: ["order_id", "merchant_id", "amount_ugx", "method", "screenshot_url", "transaction_ref", "status", "submitted_by", "note"] },
@@ -11,6 +12,37 @@ const TABLE_SCHEMA: Record<string, { allowed: string[] }> = {
   follows:       { allowed: ["customer_id", "merchant_id"] },
   stories:       { allowed: ["merchant_id", "merchant_name", "media_url", "caption", "type", "expires_at"] },
 };
+
+/**
+ * Tell the customer their wait clock stopped and what it added.
+ *
+ * Best-effort, like every other push here: a missing notification must never
+ * fail the location broadcast that riders and dispatch depend on.
+ */
+async function notifyStopoverClosed(
+  sb: NonNullable<ReturnType<typeof getServiceClient>>,
+  rideId: string,
+  minutes: number,
+  chargeUgx: number,
+): Promise<void> {
+  try {
+    const { data } = await sb.from("ride_requests").select("customer_id").eq("id", rideId).maybeSingle();
+    const customerId = (data as Record<string, unknown> | null)?.customer_id as string | null;
+    if (!customerId) return;
+    const { pushToUser } = await import("@/lib/web-push-server");
+    await pushToUser(sb, customerId, {
+      title: "Your rider is on the way again",
+      body:
+        chargeUgx > 0
+          ? `Wait of ${Math.round(minutes)} min added UGX ${chargeUgx.toLocaleString("en-US")} to your fare.`
+          : "The wait ended within your free waiting time — no extra charge.",
+      url: `/ride?rideId=${rideId}`,
+      tag: `ride-${rideId}`,
+    });
+  } catch {
+    // Push is a convenience, never a dependency.
+  }
+}
 
 export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
@@ -109,6 +141,31 @@ export async function POST(req: NextRequest) {
         await sb.from("riders").update({ lat: Number(lat || 0), lng: Number(lng || 0) }).eq("id", riderId);
       }
     } catch (e) { console.error("rider location upsert crashed:", e); }
+
+    /* Stopover is now DECLARED by the rider, not inferred from slowness. This
+       ping no longer adds time to the bill — it only does the opposite job: if
+       the rider started a wait and then set off again, the open stopover is
+       closed automatically.
+
+       Without that, a rider could tap "waiting on customer", start the engine
+       and keep billing for the rest of the evening. Auto-close on movement is
+       what makes the button trustworthy, so it runs on every ping.
+
+       UNIT: `body.speed` is `position.coords.speed`, which the Geolocation API
+       defines in METRES PER SECOND. The threshold below is in km/h, so the
+       conversion is not optional — feeding m/s straight in made a rider doing
+       4 m/s (14 km/h, clearly driving) read as 4 km/h and escape the auto-close
+       entirely, which silently disabled the anti-fraud control. */
+    try {
+      const speedMs = Number(speed || 0);
+      const closed = await autoCloseIfMoving(sb, riderId, speedMs * 3.6);
+      if (closed && closed.minutes > 0) {
+        // Tell the customer the clock stopped, so the figure stops climbing.
+        await notifyStopoverClosed(sb, closed.rideId, closed.minutes, closed.chargeUgx);
+      }
+    } catch (e) {
+      console.error("stopover auto-close failed:", e);
+    }
     return NextResponse.json({ ok: true });
   }
 

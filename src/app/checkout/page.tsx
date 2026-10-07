@@ -15,6 +15,7 @@ import { useFeeConfig } from "@/lib/use-fee-config";
 import { useSession } from "@/lib/session-store";
 import { useGeolocation, distanceKm } from "@/lib/location";
 import { createOrder, fetchMerchantById, type DBMerchant } from "@/lib/db";
+import WalletLock from "@/components/WalletLock";
 import { usePromo } from "@/lib/customer-stores";
 import { SignupModal, useSignupPrompt } from "@/components/SignupPrompt";
 import { AddressSearchModal, getLastAddress } from "@/components/AddressSearchModal";
@@ -157,7 +158,19 @@ export default function CheckoutPage() {
     return { subtotal, delivery, distKm, bulkyCount, bulkySurcharge, service, serviceLabel, discount, total };
   }, [lines, dbMerchant, appliedPromo, customerLoc, feeCfg]);
 
-  const placeOrder = async () => {
+  /**
+   * Wallet authorisation before the money moves.
+   *
+   * Checkout debits the GoDoor wallet into escrow, so this is where a customer
+   * who has set a PIN or fingerprint confirms the payment. The lock is asked
+   * for up front and its grant is threaded into `createOrder`; if the server
+   * still answers WALLET_LOCK_REQUIRED (grant expired mid-tap, or security was
+   * enrolled in another tab) we re-open the sheet rather than failing the order
+   * with a raw code the customer cannot act on.
+   */
+  const [lockOpen, setLockOpen] = useState(false);
+  const [pendingGrant, setPendingGrant] = useState<string | null>(null);
+  const placeOrder = async (grant?: string | null) => {
     setError(null);
     setBusy(true);
     try {
@@ -208,7 +221,7 @@ export default function CheckoutPage() {
         rider_name: null,
         rider_phone: null,
         notes,
-      });
+      }, grant ?? undefined);
       setOrderCreated(order.id);
       clear();
       /* Do NOT redirect here. The success screen is the confirmation the
@@ -220,6 +233,15 @@ export default function CheckoutPage() {
          "Track your order". */
       return;
     } catch (e) {
+      /* The grant is short-lived. If it expired between opening the sheet and
+         tapping Pay, the escrow hold is refused with a specific code — re-open
+         the lock instead of showing the customer a bare error for something
+         they can fix in one tap. */
+      if (e instanceof Error && (e as Error & { code?: string }).code === "WALLET_LOCK_REQUIRED") {
+        setPendingGrant(null);
+        setLockOpen(true);
+        return;
+      }
       setError(e instanceof Error && e.message ? e.message : "Failed to place order. Try again.");
     } finally {
       setBusy(false);
@@ -228,9 +250,8 @@ export default function CheckoutPage() {
 
   const handleOrder = () => {
     if (!onboarded) { signup.prompt("/checkout"); return; }
-    if (!savedAddr && !coords) {
-      // Nudge to set precise address, but allow order with static fallback
-    }
+    // A grant already in hand (the customer just unlocked) goes straight through.
+    if (pendingGrant) { void placeOrder(pendingGrant); return; }
     placeOrder();
   };
 
@@ -529,6 +550,17 @@ export default function CheckoutPage() {
       </div>
 
       <SignupModal open={signup.open} onClose={() => signup.setOpen(false)} returnTo={signup.returnTo} />
+    <WalletLock
+      mode="unlock"
+      open={lockOpen}
+      reason={`Pay ${formatUgx(totals.total)}`}
+      onCancel={() => { setLockOpen(false); setPendingGrant(null); }}
+      onAuthorized={(grant) => {
+        setLockOpen(false);
+        setPendingGrant(grant);
+        void placeOrder(grant);
+      }}
+    />
     <AddressSearchModal
       open={addrSearchOpen}
       onClose={() => setAddrSearchOpen(false)}

@@ -3,21 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --font-display: "Poppins", system-ui, sans-serif;
-  --font-sans: "Inter", system-ui, sans-serif;
-
-  /* ─── New Professional Color System ─── */
-  /* Brand */
+  /* ─── GoDoor Brand Colors (unchanged) ─── */
   --primary: #F97316;
   --primary-hover: #EA580C;
   --primary-light: #FFEDD5;
 
-  /* Trust / Secondary */
+  /* ─── NEW: Purple visual language ─── */
+  /* These are the new premium purple tokens introduced by the redesign.
+     Used strategically for hero areas, tracking, promotions, premium cards,
+     selected states, splash/authentication — NOT for every screen. */
+  --purple: #7C3AED;
+  --purple-hover: #6D28D9;
+  --purple-light: #EDE9FE;
+  --purple-muted: #A78BFA;
+  --purple-dark: #5B21B6;
+  --purple-deep: #3B0764;
+
+  /* ─── Trust / Secondary ─── */
   --secondary: #0F172A;
   --secondary-hover: #1E293B;
 
-  /* Deep navy — the "trust" anchor of the brand. Used for banners,
-     nav accents and primary-CTA contrast against the orange. */
+  /* Deep navy */
   --navy: #0F172A;
   --navy-hover: #1B2B49;
   --navy-deep: #0A1120;
@@ -37,8 +43,8 @@
 
   /* Text */
   --text: #0F172A;
-  --text-secondary: #64748B;
-  --text-muted: #94A3B8;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
   --text-inverse: #FFFFFF;
 
   /* Radius & Shadow */
@@ -52,7 +58,7 @@
   --shadow-glow: 0 0 0 1px rgb(249 115 22 / 0.1), 0 10px 30px -8px rgb(249 115 22 / 0.25);
   --ring-focus: rgb(249 115 22 / 0.4);
 
-  /* Legacy aliases for gradual migration */
+  /* Legacy aliases */
   --color-bg: var(--bg);
   --color-fg: var(--text);
   --color-surface: var(--surface);
@@ -73,6 +79,30 @@
   --color-navy-deep: var(--navy-deep);
   --color-navy-soft: var(--navy-soft);
 
+  /* Channel triplets for Tailwind alpha values */
+  --rgb-primary: 249 115 22;
+  --rgb-primary-hover: 234 88 12;
+  --rgb-primary-light: 255 237 213;
+  --rgb-success: 5 150 105;
+  --rgb-warning: 217 119 6;
+  --rgb-danger: 220 38 38;
+  --rgb-bg: 255 255 255;
+  --rgb-surface: 248 250 252;
+  --rgb-surface-2: 241 245 249;
+  --rgb-border: 226 232 240;
+  --rgb-text: 15 23 42;
+  --rgb-text-muted: 100 116 139;
+  --rgb-navy: 15 23 42;
+  --rgb-navy-hover: 27 43 73;
+  --rgb-navy-deep: 10 17 32;
+  --rgb-navy-soft: 30 41 59;
+
+  /* NEW: Purple channel triplets for Tailwind */
+  --rgb-purple: 124 58 237;
+  --rgb-purple-hover: 109 40 217;
+  --rgb-purple-light: 237 233 254;
+  --rgb-purple-muted: 167 139 250;
+
   /* Hero / Aurora */
   --hero-accent: rgb(249 115 22 / 0.08);
   --hero-orange: rgb(249 115 22 / 0.05);
@@ -90,11 +120,17 @@
   --primary-hover: #FB923C;
   --primary-light: #7C2D12;
 
-  /* Trust / Secondary (navy) */
+  /* NEW: Purple lighter for dark mode */
+  --purple: #8B5CF6;
+  --purple-hover: #A78BFA;
+  --purple-light: #4C1D95;
+  --purple-muted: #C4B5FD;
+
+  /* Trust / Secondary */
   --secondary: #F8FAFC;
   --secondary-hover: #E2E8F0;
 
-  /* Deep navy — lifted in dark mode so banners still read against --bg */
+  /* Deep navy */
   --navy: #060B18;
   --navy-hover: #0B1428;
   --navy-deep: #04070F;
@@ -114,8 +150,8 @@
 
   /* Text */
   --text: #F8FAFC;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
   --text-inverse: #0F172A;
 
   /* Radius & Shadow */
@@ -143,6 +179,34 @@
   --color-success: var(--success);
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
+  --color-navy: var(--navy);
+  --color-navy-hover: var(--navy-hover);
+  --color-navy-deep: var(--navy-deep);
+  --color-navy-soft: var(--navy-soft);
+
+  /* Channel triplets */
+  --rgb-primary: 249 115 22;
+  --rgb-primary-hover: 251 146 60;
+  --rgb-primary-light: 124 45 18;
+  --rgb-success: 52 211 153;
+  --rgb-warning: 245 158 11;
+  --rgb-danger: 239 68 68;
+  --rgb-bg: 15 23 42;
+  --rgb-surface: 30 41 59;
+  --rgb-surface-2: 51 65 85;
+  --rgb-border: 51 65 85;
+  --rgb-text: 248 250 252;
+  --rgb-text-muted: 148 163 184;
+  --rgb-navy: 6 11 24;
+  --rgb-navy-hover: 11 20 40;
+  --rgb-navy-deep: 4 7 15;
+  --rgb-navy-soft: 22 34 59;
+
+  /* Purple channel triplets for dark mode */
+  --rgb-purple: 139 102 250;
+  --rgb-purple-hover: 167 139 250;
+  --rgb-purple-light: 76 29 149;
+  --rgb-purple-muted: 196 181 253;
 
   /* Hero / Aurora */
   --hero-accent: rgb(249 115 22 / 0.15);
@@ -212,9 +276,15 @@ h1, h2, h3 {
   transition: background 0.4s ease;
 }
 
-/* ─── Chip / pill ───
-   Geometry + typography only. Colour always comes from the caller's
-   `bg-*` / `text-*` utilities so chips can be re-skinned per context. */
+/* Decorative glow layer — off by default (see .show-decor in globals.css) */
+.deco-glow {
+  display: none;
+}
+:root.show-decor .deco-glow {
+  display: block;
+}
+
+/* ─── Chip / pill ─── */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -228,15 +298,29 @@ h1, h2, h3 {
   border: 1px solid transparent;
 }
 
-/* Taller, roomier chip for the primary navigation rails (categories, sort).
-   36px min height keeps it comfortably tappable on a phone. */
+/* Taller chip for nav rails */
 .chip-nav {
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   padding: 0.4rem 0.8rem;
   font-size: 0.75rem;
 }
 
-/* Selected chip — deep navy, the "you are here" state for the catalogue nav. */
+/* Minimum 44px touch target via pseudo-element */
+.tap-44 {
+  position: relative;
+}
+.tap-44::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+/* Selected chip */
 .chip-on {
   background: var(--navy);
   color: #fff;
@@ -258,7 +342,7 @@ h1, h2, h3 {
   box-shadow: inset 0 0 0 1px var(--navy-line);
 }
 
-/* ─── Surface tile ─── */
+/* Surface tile */
 .tile {
   background: var(--surface);
   border-radius: 1.5rem;
@@ -266,7 +350,7 @@ h1, h2, h3 {
   overflow: hidden;
 }
 
-/* Small caps label that heads each group inside a panel/sheet. */
+/* Navy label for section headers */
 .navy-label {
   font-size: 0.625rem;
   font-weight: 700;
@@ -277,22 +361,18 @@ h1, h2, h3 {
 }
 .dark .navy-label { color: #94a3b8; }
 
-/* ─── Scroll affordances ─── */
+/* Scroll affordances */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-
-/* Fades the right edge of a horizontal rail so it reads as scrollable. */
 .rail-fade {
   -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2.5rem), transparent 100%);
   mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2.5rem), transparent 100%);
 }
 
-/* ─── Device / safe-area helpers ─── */
 .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
 
-/* ─── Sheen sweep for primary CTAs ───
-   Pair with `relative overflow-hidden`; the highlight travels across once. */
+/* Sheen sweep for CTAs */
 .sheen { position: relative; overflow: hidden; }
 .sheen::after {
   content: "";
@@ -308,35 +388,37 @@ h1, h2, h3 {
 }
 .sheen > * { position: relative; z-index: 1; }
 @keyframes sheen-pass {
-  0%   { transform: translateX(-120%) skewX(-18deg); }
-  55%  { transform: translateX(220%) skewX(-18deg); }
+  0% { transform: translateX(-120%) skewX(-18deg); }
+  55% { transform: translateX(220%) skewX(-18deg); }
   100% { transform: translateX(220%) skewX(-18deg); }
 }
 
-/* ─── Surfaces & elevation ─── */
+/* Glass card */
 .card-glass {
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
-
 .light .card-glass {
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid var(--border);
 }
 
-/* Elevation helpers */
+/* Elevation */
 .shadow-xs { box-shadow: var(--shadow-sm); }
 .shadow-card { box-shadow: var(--shadow-md); }
 .shadow-floating { box-shadow: var(--shadow-lg); }
 .shadow-pop { box-shadow: var(--shadow-xl); }
 .shadow-glow { box-shadow: var(--shadow-glow); }
 
+.hover\:shadow-card:hover { box-shadow: var(--shadow-lg); }
+.hover\:shadow-floating:hover { box-shadow: var(--shadow-xl); }
+.focus-within\:shadow-card:focus-within { box-shadow: var(--shadow-lg); }
+
 .card-hover {
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
-
 .card-hover:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-lg);
@@ -357,7 +439,6 @@ h1, h2, h3 {
   transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
-/* Primary Button (Main CTAs: Order now, Sign in, etc.) */
 .btn-primary {
   background: var(--primary);
   color: var(--text-inverse);
@@ -378,7 +459,6 @@ h1, h2, h3 {
   box-shadow: 0 0 0 3px var(--ring-focus), 0 8px 20px rgb(249 115 22 / 0.3);
 }
 
-/* Secondary / Outline Button */
 .btn-secondary {
   background: transparent;
   color: var(--text);
@@ -398,7 +478,6 @@ h1, h2, h3 {
   box-shadow: 0 0 0 3px var(--ring-focus);
 }
 
-/* Dark / Navy Button (Apply as Merchant, serious actions) */
 .btn-navy {
   background: var(--secondary);
   color: var(--text-inverse);
@@ -417,7 +496,27 @@ h1, h2, h3 {
   box-shadow: 0 0 0 3px rgb(15 23 42 / 0.4);
 }
 
-/* Ghost Button (subtle actions) */
+/* NEW: Purple button — primary CTA alternative for premium feel */
+.btn-purple {
+  background: var(--purple);
+  color: var(--text-inverse);
+  border: none;
+  box-shadow: 0 2px 8px rgb(124 58 237 / 0.3);
+}
+.btn-purple:hover {
+  background: var(--purple-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgb(124 58 237 / 0.35), 0 2px 6px rgb(124 58 237 / 0.2);
+}
+.btn-purple:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 8px rgb(124 58 237 / 0.4);
+}
+.btn-purple:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(124 58 237 / 0.4), 0 8px 20px rgb(124 58 237 / 0.3);
+}
+
 .btn-ghost {
   background: transparent;
   color: var(--text);
@@ -432,7 +531,6 @@ h1, h2, h3 {
   background: var(--surface-2);
 }
 
-/* Success Button (positive actions) */
 .btn-success {
   background: var(--success);
   color: var(--text-inverse);
@@ -442,6 +540,22 @@ h1, h2, h3 {
   background: #047857;
   transform: translateY(-1px);
   box-shadow: 0 8px 20px rgb(5 150 105 / 0.3);
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: #fff;
+  border: none;
+}
+.btn-danger:hover {
+  filter: brightness(0.94);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgb(220 38 38 / 0.3);
+}
+.btn-danger:active { transform: translateY(0) scale(0.98); }
+.btn-danger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 40%, transparent);
 }
 
 /* Button sizes */
@@ -458,7 +572,6 @@ h1, h2, h3 {
   border-radius: var(--radius-lg);
 }
 
-/* Disabled state */
 .btn:disabled,
 .btn[disabled] {
   opacity: 0.5;
@@ -486,6 +599,15 @@ h1, h2, h3 {
 }
 .card-elevated:hover {
   box-shadow: var(--shadow-lg);
+}
+
+/* NEW: Purple card — premium card variant for featured content */
+.card-purple {
+  background: linear-gradient(135deg, var(--purple-deep, #3B0764) 0%, var(--navy-deep) 100%);
+  border: 1px solid rgb(124 58 237 / 0.3);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px -8px rgb(124 58 237 / 0.3);
+  color: #fff;
 }
 
 /* ─── Badge system ─── */
@@ -524,6 +646,16 @@ h1, h2, h3 {
   color: #B91C1C;
 }
 
+/* NEW: Purple badge */
+.badge-purple {
+  background: var(--purple-light);
+  color: var(--purple);
+}
+.dark .badge-purple {
+  background: rgb(124 58 237 / 0.2);
+  color: var(--purple-muted);
+}
+
 /* ─── Input / Form system ─── */
 .input {
   width: 100%;
@@ -536,12 +668,8 @@ h1, h2, h3 {
   color: var(--text);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
-.input::placeholder {
-  color: var(--text-muted);
-}
-.input:hover {
-  border-color: var(--text-muted);
-}
+.input::placeholder { color: var(--text-muted); }
+.input:hover { border-color: var(--text-muted); }
 .input:focus {
   outline: none;
   border-color: var(--primary);
@@ -552,7 +680,6 @@ h1, h2, h3 {
   color: var(--text-muted);
   cursor: not-allowed;
 }
-
 .input-error {
   border-color: var(--color-danger);
 }
@@ -581,6 +708,12 @@ h1, h2, h3 {
   border-bottom: none;
 }
 
+/* NEW: Purple header variant for premium moments */
+.header-purple {
+  background: linear-gradient(135deg, var(--navy-deep) 0%, var(--navy) 100%);
+  border-bottom: 1px solid rgb(124 58 237 / 0.2);
+}
+
 /* ─── Footer ─── */
 .footer {
   background: var(--secondary);
@@ -595,44 +728,32 @@ h1, h2, h3 {
 }
 
 /* ─── Section backgrounds ─── */
-.section {
-  padding: 4rem 1.5rem;
-}
-.section-alt {
-  background: var(--surface);
-}
-.section-navy {
-  background: var(--secondary);
+.section { padding: 4rem 1.5rem; }
+.section-alt { background: var(--surface); }
+.section-navy { background: var(--secondary); color: var(--text-inverse); }
+
+/* NEW: Purple section for premium moments */
+.section-purple {
+  background: linear-gradient(180deg, var(--navy-deep) 0%, var(--navy) 50%, var(--navy-deep) 100%);
   color: var(--text-inverse);
 }
 
 /* ─── Typography utilities ─── */
-.text-heading {
-  color: var(--text);
-}
-.text-body {
-  color: var(--text);
-}
-.text-secondary {
-  color: var(--text-secondary);
-}
-.text-muted {
-  color: var(--text-muted);
-}
-.text-primary {
-  color: var(--primary);
-}
-.text-success {
-  color: var(--success);
-}
-.text-inverse {
-  color: var(--text-inverse);
-}
+.text-heading { color: var(--text); }
+.text-body { color: var(--text); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+.text-primary { color: var(--primary); }
+.text-success { color: var(--success); }
+.text-inverse { color: var(--text-inverse); }
+
+/* NEW: Purple text utilities */
+.text-purple { color: var(--purple); }
+.text-purple-muted { color: var(--purple-muted); }
 
 /* ─── Utility classes ─── */
 .rounded-custom { border-radius: var(--radius); }
 .rounded-custom-lg { border-radius: var(--radius-lg); }
-
 .shadow-custom { box-shadow: var(--shadow); }
 .shadow-custom-sm { box-shadow: var(--shadow-sm); }
 .shadow-custom-md { box-shadow: var(--shadow-md); }
@@ -663,15 +784,8 @@ h1, h2, h3 {
   0% { transform: scale(1); opacity: 0.8; }
   100% { transform: scale(1.8); opacity: 0; }
 }
-.pulse-ring {
-  animation: pulse-ring 1.5s ease-out infinite;
-}
+.pulse-ring { animation: pulse-ring 1.5s ease-out infinite; }
 
-/* Map marker pulse. The rider puck, the drop-off pin and the "you are here"
-   dot all reference this by name from inline styles inside MapboxMap (which
-   mounts outside the styled tree, so a utility class cannot reach it). It was
-   never defined, so every one of those rings rendered completely static — the
-   markers looked like flat stickers with a dead circle baked in. */
 @keyframes marker-ring-pulse {
   0%   { transform: scale(0.82); opacity: 0.85; }
   70%  { transform: scale(1.35); opacity: 0; }
@@ -701,12 +815,12 @@ h1, h2, h3 {
   box-shadow: var(--shadow-lg);
 }
 
-/* Touch targets: minimum 44px for primary actions */
+/* Touch targets */
 button[class*="rounded-xl"], a[class*="rounded-xl"] {
   min-height: 44px;
 }
 
-/* Smooth page transitions */
+/* Page entrance */
 @keyframes page-enter {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -715,13 +829,17 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
   animation: page-enter 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* ─── Shimmer loading for images ─── */
+/* Shimmer loading for images */
 .img-loading {
   background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
   background-size: 200px 100%;
   animation: shimmer 1.5s infinite;
 }
-/* ── Deep navy banner (hero, stat strips, section headers) ── */
+@keyframes shimmer {
+  100% { background-position: -200px 0; }
+}
+
+/* Navy banner */
 @keyframes navy-sweep {
   0%   { transform: translateX(-120%) skewX(-18deg); }
   60%  { transform: translateX(120%) skewX(-18deg); }
@@ -736,10 +854,6 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
   0%   { opacity: 0; transform: translateY(10px); }
   100% { opacity: 1; transform: translateY(0); }
 }
-/* The slide proper: content travels in from the right while the outgoing
-   copy lifts away, so a rotation reads as one continuous conveyor rather
-   than four separate fades. Direction is flipped by the component via
-   `navy-slide-out-left` so the motion always leads the reading direction. */
 @keyframes navy-slide-in {
   0%   { opacity: 0; transform: translateX(26px) scale(0.985); }
   100% { opacity: 1; transform: translateX(0) scale(1); }
@@ -750,10 +864,6 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
 }
 
 @layer components {
-  /* The banner itself: deep navy, subtle sheen, orange hairline on top.
-     Every colour inside is a literal so the panel renders identically on the
-     light and the dark canvas — the banner is brand surface, not themed
-     surface, which is what keeps its content readable in light mode. */
   .navy-banner {
     position: relative;
     overflow: hidden;
@@ -765,8 +875,6 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
       inset 0 0 0 1px rgb(255 255 255 / 0.06),
       0 18px 40px -22px rgb(15 23 42 / 0.65);
   }
-  /* Orange hairline along the top edge — the brand accent, and the only cue
-     that separates the navy panel from a navy page in dark mode. */
   .navy-banner::before {
     content: "";
     position: absolute;
@@ -778,7 +886,6 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
     pointer-events: none;
     z-index: 2;
   }
-  /* Slow sheen that sweeps across — the "pro" motion cue. */
   .navy-banner::after {
     content: "";
     position: absolute;
@@ -790,17 +897,11 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
     pointer-events: none;
   }
   .navy-banner > * { position: relative; z-index: 1; }
-  /* Inactive progress ticks need enough opacity to survive on deep navy —
-     they were dropped to 30% alpha and vanished against the panel. */
   .navy-tick-off { background: rgb(203 213 225 / 0.42); }
   .navy-tick-on  { background: #F97316; }
 }
 
-@keyframes shimmer {
-  100% { background-position: -200px 0; }
-}
-
-/* ─── Confetti animation for order success ─── */
+/* ─── Confetti animation ─── */
 @keyframes confetti-fall {
   0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
   100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
@@ -824,7 +925,7 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
   animation: slide-in-right 0.3s ease-out forwards;
 }
 
-/* ─── Slide down (menus / sheets) ─── */
+/* ─── Slide down ─── */
 @keyframes slide-down {
   from { opacity: 0; transform: translateY(-8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -844,15 +945,80 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
   animation: bounce-in 0.5s ease-out forwards;
 }
 
-/* ─── Tabular numbers for prices ─── */
+/* ─── Tabular numbers ─── */
 .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
-/* ─── Hairline dividers (theme-aware) ─── */
-.hairline {
-  border-top: 1px solid var(--border);
+/* ─── Entrance primitives ─── */
+@keyframes tw-enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
+      scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1));
+  }
+}
+.animate-in {
+  animation: tw-enter var(--tw-enter-duration, 200ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.fade-in { --tw-enter-opacity: 0; }
+.zoom-in-95 { --tw-enter-scale: 0.95; }
+.slide-in-from-top-2 { --tw-enter-translate-y: -0.5rem; --tw-enter-opacity: 0; }
+
+.animate-in.duration-200 { --tw-enter-duration: 200ms; }
+.animate-in.duration-300 { --tw-enter-duration: 300ms; }
+
+/* Scale in */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in {
+  animation: scale-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* ─── Reduced motion: honour OS preference ─── */
+/* Press feedback */
+.card-press {
+  transition: transform 0.12s ease, box-shadow 0.2s ease;
+}
+.card-press:active { transform: scale(0.97); }
+
+/* Staggered grid entrance */
+@keyframes stagger-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.stagger > * {
+  animation: stagger-rise 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.1s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.stagger > *:nth-child(8) { animation-delay: 0.3s; }
+.stagger > *:nth-child(n + 9) { animation-delay: 0.34s; }
+
+/* ─── Button variants ─── */
+.btn-soft {
+  background: var(--surface);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
+}
+.btn-soft:hover {
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  transform: translateY(-1px);
+}
+.btn-soft:active { transform: translateY(0) scale(0.98); }
+.btn-soft:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring-focus);
+}
+
+/* ─── Hairline dividers ─── */
+.hairline { border-top: 1px solid var(--border); }
+
+/* ─── Reduced motion ─── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -862,9 +1028,20 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
   }
 }
 
-/* ─── Gradient text utility ─── */
+/* ─── Gradient text ─── */
 .gradient-text {
   background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.dark .gradient-text {
+  background-image: linear-gradient(135deg, #FDBA74 0%, #F97316 40%, #FB923C 74%, #FED7AA 100%);
+}
+
+/* NEW: Purple gradient text for premium moments */
+.gradient-text-purple {
+  background: linear-gradient(135deg, var(--purple-dark) 0%, var(--purple) 50%, var(--purple-hover) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -892,9 +1069,7 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
   padding: 0 1.5rem;
 }
 @media (min-width: 1280px) {
-  .container-custom {
-    padding: 0 2rem;
-  }
+  .container-custom { padding: 0 2rem; }
 }
 
 /* ─── Floating Animation ─── */
@@ -902,70 +1077,40 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-12px); }
 }
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
+.animate-float { animation: float 6s ease-in-out infinite; }
 
-/* ─── Slide Up Animation ─── */
+/* ─── Slide Up ─── */
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-slide-up {
-  animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
+.animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-/* ─── Spring In Animation ─── */
+/* ─── Spring In ─── */
 @keyframes spring-in {
   0% { opacity: 0; transform: scale(0.8); }
   50% { opacity: 1; transform: scale(1.05); }
   100% { opacity: 1; transform: scale(1); }
 }
-.animate-spring-in {
-  animation: spring-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
+.animate-spring-in { animation: spring-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-/* ─── Fade In Animation ─── */
+/* ─── Fade In ─── */
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out both;
-}
+.animate-fade-in { animation: fade-in 0.3s ease-out both; }
 
-/* ─── Shake Animation ─── */
+/* ─── Shake ─── */
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
   20%, 40%, 60%, 80% { transform: translateX(4px); }
 }
-.animate-shake {
-  animation: shake 0.4s ease-in-out both;
-}
+.animate-shake { animation: shake 0.4s ease-in-out both; }
 
 @layer components {
-  /* ─── Gradient display text ───
-     `text-gradient` was referenced by the hero headline and the animated stat
-     numbers but never defined, so those runs silently fell back to flat text.
-     The gradient is defined per theme: on the light canvas it runs through
-     darker embers to stay legible, on the dark canvas it brightens. */
-  .text-gradient {
-    background-image: linear-gradient(100deg, #C2410C 0%, #EA580C 38%, #F97316 72%, #FB923C 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-  }
-  .dark .text-gradient {
-    background-image: linear-gradient(100deg, #FDBA74 0%, #F97316 40%, #FB923C 74%, #FED7AA 100%);
-  }
-
-  /* ─── Glass navigation bar ───
-     A real glass panel: translucent tint + saturation boost + a hairline
-     top highlight that reads as a lit edge. Light mode keeps a cool near-white
-     tint, dark mode drops to deep navy so the bar sits on the dark canvas
-     instead of glowing grey. */
+  /* ─── Glass navigation bar ─── */
   .nav-glass {
     background: color-mix(in srgb, var(--bg) 68%, transparent);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
@@ -976,21 +1121,14 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
     background: color-mix(in srgb, #060B18 60%, transparent);
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.09);
   }
-
-  /* Lift applied once the page scrolls, so the bar separates from content
-     passing underneath it. */
   .nav-glass-raised {
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.7),
-      0 12px 32px -26px rgb(15 23 42 / 0.45);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), 0 12px 32px -26px rgb(15 23 42 / 0.45);
   }
   .dark .nav-glass-raised {
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.09),
-      0 18px 44px -30px rgb(0 0 0 / 0.95);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.09), 0 18px 44px -30px rgb(0 0 0 / 0.95);
   }
 
-  /* Navigation pill — geometry only, colour supplied by the state modifier. */
+  /* Navigation pill */
   .nav-pill {
     display: inline-flex;
     align-items: center;
@@ -1013,29 +1151,27 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
   .dark .nav-pill-idle:hover {
     background: color-mix(in srgb, #FFFFFF 8%, transparent);
   }
-
-  /* Active pill — solid deep navy with a lit top edge, identical in both themes
-     so the "you are here" marker never shifts hue. */
   .nav-pill-active {
     color: #fff;
     font-weight: 600;
     background: linear-gradient(180deg, var(--navy-hover) 0%, var(--navy) 100%);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.16),
-      0 6px 16px -10px rgb(15 23 42 / 0.9);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 6px 16px -10px rgb(15 23 42 / 0.9);
   }
-
-  /* Primary nav CTA — brand orange, so the "go to my dashboard" action reads
-     as a different weight of intent from the navy "you are here" pill. */
   .nav-pill-cta {
     color: #fff;
     font-weight: 600;
     background: linear-gradient(180deg, #FB923C 0%, #EA580C 100%);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.28),
-      0 8px 18px -10px rgb(234 88 12 / 0.85);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28), 0 8px 18px -10px rgb(234 88 12 / 0.85);
   }
   .nav-pill-cta:hover {
     background: linear-gradient(180deg, #FDBA74 0%, #F97316 100%);
+  }
+
+  /* NEW: Purple pill for active state on premium sections */
+  .nav-pill-purple {
+    color: #fff;
+    font-weight: 600;
+    background: linear-gradient(180deg, var(--purple-hover) 0%, var(--purple) 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 6px 16px -10px rgb(124 58 237 / 0.9);
   }
 }

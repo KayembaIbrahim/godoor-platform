@@ -74,7 +74,7 @@ export function HeaderClient() {
         <div className="flex items-center gap-6">
           <Link
             href={onboarded ? dashboardHref : "/"}
-            className="group flex items-center gap-2 transition-transform active:scale-95"
+            className="group flex min-h-11 items-center gap-2 pr-2 transition-transform active:scale-95"
             title={onboarded ? "Go to my dashboard" : "GoDoor home"}
           >
             <Logo size="sm" />
@@ -140,7 +140,7 @@ export function HeaderClient() {
         <div className="flex items-center gap-2">
           <Link
             href="/wallet"
-            className="relative grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95"
+            className="tap-44 relative grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95"
             aria-label="GoDoor Wallet"
             title="GoDoor Wallet"
           >
@@ -153,7 +153,7 @@ export function HeaderClient() {
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
-            className="grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95 lg:hidden"
+            className="tap-44 grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95 lg:hidden"
             aria-label={menuOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={menuOpen}
           >

@@ -32,6 +32,7 @@ const HEADLINE: Record<string, string> = {
 
 export default function ActiveDeliveryCard({
   order,
+  className = "",
 }: {
   order: {
     id: string;
@@ -39,6 +40,7 @@ export default function ActiveDeliveryCard({
     merchant_name?: string | null;
     rider_name?: string | null;
   };
+  className?: string;
 }) {
   const status = String(order.status ?? "");
   const idx = STEPS.findIndex((s) => (s.statuses as readonly string[]).includes(status));
@@ -49,18 +51,18 @@ export default function ActiveDeliveryCard({
   return (
     <Link
       href={`/tracking?orderId=${order.id}`}
-      className="block rounded-2xl border border-go/25 bg-go/5 p-3.5 transition hover:bg-go/10"
+      className={`group block rounded-2xl border border-white/10 bg-[#131F38] p-3.5 shadow-sm transition hover:border-go/40 active:scale-[0.99] ${className}`}
     >
       <div className="flex items-center gap-2.5">
-        <Truck className={`h-4 w-4 shrink-0 text-go ${inTransit ? "animate-pulse" : ""}`} />
+        <Truck className={`h-4.5 w-4.5 shrink-0 text-go ${inTransit ? "animate-pulse" : ""}`} />
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold text-go">{HEADLINE[status] || "Order in progress"}</p>
-          <p className="truncate text-[10px] text-muted">
+          <p className="truncate text-[11px] text-slate-400">
             {order.merchant_name || "Your order"}
             {order.rider_name ? ` · ${order.rider_name}` : ""}
           </p>
         </div>
-        <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-go">
+        <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-go transition group-hover:translate-x-0.5">
           Track
           <Navigation className="h-3 w-3" />
         </span>
@@ -69,21 +71,28 @@ export default function ActiveDeliveryCard({
       <div className="mt-3 flex items-start">
         {STEPS.map((s, i) => {
           const reached = i <= active;
+          const isCurrent = i === active;
           const last = i === STEPS.length - 1;
           return (
             <div key={s.key} className="flex min-w-0 flex-1 flex-col items-center">
               <div className="flex w-full items-center">
-                <div className={`h-0.5 flex-1 ${i === 0 ? "opacity-0" : reached ? "bg-go" : "bg-border"}`} />
+                <div className={`h-0.5 flex-1 ${i === 0 ? "opacity-0" : reached ? "bg-go" : "bg-slate-700/60"}`} />
                 <span
-                  className={`h-2.5 w-2.5 shrink-0 rounded-full border-2 ${
-                    reached ? "border-go bg-go" : "border-border bg-bg"
-                  } ${i === active ? "ring-2 ring-go/30" : ""}`}
+                  className={`shrink-0 rounded-full transition-all ${
+                    isCurrent
+                      ? "h-3 w-3 bg-go ring-4 ring-go/25"
+                      : reached
+                        ? "h-2.5 w-2.5 bg-go"
+                        : "h-2 w-2 border border-slate-600 bg-slate-800"
+                  }`}
                 />
-                <div className={`h-0.5 flex-1 ${last ? "opacity-0" : i < active ? "bg-go" : "bg-border"}`} />
+                <div className={`h-0.5 flex-1 ${last ? "opacity-0" : i < active ? "bg-go" : "bg-slate-700/60"}`} />
               </div>
-              <p className={`mt-1 text-center text-[8px] font-semibold uppercase leading-tight tracking-wide ${
-                i === active ? "text-go" : reached ? "text-fg" : "text-dim"
-              }`}>
+              <p
+                className={`mt-1.5 text-center text-[8px] font-bold uppercase tracking-wider transition-colors ${
+                  isCurrent ? "text-go" : reached ? "text-slate-200" : "text-slate-500"
+                }`}
+              >
                 {s.label}
               </p>
             </div>

@@ -12,9 +12,22 @@ import { signPending2fa, verifyPending2fa } from "@/lib/admin-session";
 const attempts = new Map<string, { count: number; windowStart: number; lockedUntil: number }>();
 const MAX_IP_ATTEMPTS = 10;
 const IP_WINDOW_MS = 15 * 60 * 1000;
+const MAX_TRACKED_IPS = 5000;
 
 function clientIp(req: Request): string {
-  return (req.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+  // Prefer the platform-set header. Previously this read the FIRST entry of
+  // x-forwarded-for, which the caller can forge whenever the edge appends
+  // rather than overwrites — letting an attacker bypass the per-IP limit and
+  // poison the IP written to the login audit log.
+  const real = req.headers.get("x-real-ip");
+  if (real) return real.trim();
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) {
+    const parts = fwd.split(",").map((p) => p.trim()).filter(Boolean);
+    // The right-most entry is the one the trusted edge appended.
+    if (parts.length) return parts[parts.length - 1];
+  }
+  return "unknown";
 }
 
 function ipLimited(ip: string): boolean {
@@ -31,6 +44,13 @@ function ipLimited(ip: string): boolean {
 
 function hitIpLimit(ip: string) {
   const now = Date.now();
+  // Bound the map so a spray of spoofed IPs cannot grow it without limit.
+  if (attempts.size >= MAX_TRACKED_IPS) {
+    for (const [k, v] of attempts) {
+      if (v.lockedUntil <= now && v.windowStart + IP_WINDOW_MS < now) attempts.delete(k);
+    }
+    if (attempts.size >= MAX_TRACKED_IPS) attempts.clear();
+  }
   const entry = attempts.get(ip);
   if (!entry || entry.windowStart + IP_WINDOW_MS < now) {
     attempts.set(ip, { count: 1, windowStart: now, lockedUntil: 0 });

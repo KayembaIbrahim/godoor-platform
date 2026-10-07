@@ -449,17 +449,53 @@ export const CATEGORIES: CategoryInfo[] = [
 
 export const CATEGORY_IDS = CATEGORIES.map((c) => c.id);
 
+/**
+ * Resolve a free-text merchant category to a canonical CATEGORIES entry.
+ *
+ * `merchants.category` is operator-entered free text, not an enum. Real rows
+ * contain values like "Furniture " (trailing space) and "Food & Restaurants".
+ * Matching on strict equality — which is what this file used to do — therefore
+ * missed almost everything and sent people to a grey fallback icon or an empty
+ * list. Normalise, then fall back to a substring match either way round so
+ * "Groceries" still resolves to "Groceries & Market".
+ */
+export function matchCategory(raw: string | null | undefined): CategoryInfo | null {
+  const s = (raw || "").trim().toLowerCase().replace(/\s*&\s*/g, " & ").replace(/\s+/g, " ");
+  if (!s) return null;
+  for (const c of CATEGORIES) {
+    const id = c.id.toLowerCase();
+    if (id === s) return c;
+  }
+  for (const c of CATEGORIES) {
+    const id = c.id.toLowerCase();
+    // Compare on the first word ("Groceries" -> "Groceries & Market") before
+    // trying the full string, so a short chip still lands on the right entry.
+    if (id.startsWith(s + " ") || s.startsWith(id + " ")) return c;
+  }
+  for (const c of CATEGORIES) {
+    const id = c.id.toLowerCase();
+    if (id.includes(s) || s.includes(id)) return c;
+  }
+  return null;
+}
+
+/** True when a merchant belongs under the given category chip. */
+export function categoryMatches(raw: string | null | undefined, chipId: string): boolean {
+  const m = matchCategory(raw);
+  return !!m && m.id === chipId;
+}
+
 /** Get a category's quick products by its ID */
 export function getCategoryProducts(categoryId: string): { name: string; price: number }[] {
-  return CATEGORIES.find((c) => c.id === categoryId)?.products || [];
+  return matchCategory(categoryId)?.products || [];
 }
 
 /** Get a category's icon by its ID */
 export function getCategoryIcon(categoryId: string): typeof UtensilsCrossed {
-  return CATEGORIES.find((c) => c.id === categoryId)?.icon || ShoppingBag;
+  return matchCategory(categoryId)?.icon || ShoppingBag;
 }
 
 /** Get a category's color by its ID */
 export function getCategoryColor(categoryId: string): { bg: string; text: string } {
-  return CATEGORIES.find((c) => c.id === categoryId)?.color || { bg: "bg-slate-500/10", text: "text-slate-500" };
+  return matchCategory(categoryId)?.color || { bg: "bg-slate-500/10", text: "text-slate-500" };
 }

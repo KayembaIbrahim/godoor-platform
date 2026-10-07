@@ -2,6 +2,24 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-session";
 
+/** The canonical origin. `www` is folded into this. */
+const CANONICAL_HOST = "godoor.site";
+
+/** The alias that gets folded into the apex. */
+const ALIAS_HOST = "www.godoor.site";
+
+/**
+ * The hostname Vercel actually routed this request to.
+ *
+ * `x-forwarded-host` is preferred over `host` because anything proxying in
+ * front of the app may rewrite `host`; it can also be a comma-separated chain
+ * in which case the first entry is the host the client originally asked for.
+ */
+function requestHost(req: NextRequest): string {
+  const raw = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
+  return raw.split(",")[0].trim().split(":")[0].toLowerCase();
+}
+
 /**
  * Hides the GoDoor admin portal behind an unguessable path.
  *
@@ -13,9 +31,38 @@ import { ADMIN_COOKIE, verifySession } from "@/lib/admin-session";
  *
  * The secret never leaves the server — it is only read from an env var here.
  * When `ADMIN_PATH_SECRET` is unset (local dev), admin behaves as before.
+ *
+ * It also folds the `www` alias into the apex (see below), which is why that
+ * check runs before any of the admin branches below.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // 0) Host canonicalisation. GoDoor is served from both `godoor.site` and
+  //    `www.godoor.site`; both stay attached to the Vercel project and both
+  //    keep working, but only the apex is canonical. Left alone, each host
+  //    rendered and counted as its own copy: every page was indexed twice (no
+  //    rel=canonical was emitted), and because the Supabase session lives in
+  //    origin-scoped localStorage, signing in on one alias left you signed out
+  //    on the other.
+  //
+  //    This runs FIRST, before anything reads a cookie. That ordering is load
+  //    bearing: the admin session cookie is host-only (no `domain` attribute in
+  //    setSessionCookie), so folding the alias before any auth check means
+  //    `www` never issues a cookie at all and can never strand one. It also
+  //    means a stale `www` cookie cannot outlive the hop — the browser simply
+  //    arrives at the apex without it and re-authenticates once.
+  if (requestHost(request) === ALIAS_HOST) {
+    // `clone()` retains pathname, query and hash, so deep links and campaign
+    // parameters survive; only the host is swapped.
+    const canonical = request.nextUrl.clone();
+    canonical.hostname = CANONICAL_HOST;
+    canonical.protocol = "https:";
+    // 308 rather than Next's 307 default: 308 preserves the method and body, so
+    // API calls issued against `www` (order create, wallet top-up, uploads)
+    // are replayed against the apex instead of being downgraded to a GET.
+    return NextResponse.redirect(canonical, 308);
+  }
 
   // The auth endpoint is public — it validates the password itself.
   if (pathname.startsWith("/api/admin/auth")) {

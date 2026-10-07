@@ -36,10 +36,12 @@ function verifyPassword(password: string, stored: string): boolean {
   }
 }
 
-/** Deterministic default hash (password: ss356) — used only until the owner changes it. */
-function defaultAdminHash(): string {
-  const hash = scryptSync("ss356", DEFAULT_SALT, 64).toString("hex");
-  return `scrypt$${DEFAULT_SALT}$${hash}`;
+/** Deterministic default hash — RETIRED. See `bootstrapAdminPassword`. */
+function defaultAdminHash(): string | null {
+  // The plaintext was committed to this repository, so anyone with the source
+  // could authenticate to a portal that moves real money. It is gone for good:
+  // an initial password may only come from an environment variable.
+  return null;
 }
 
 /**
@@ -102,8 +104,22 @@ const ADMIN_COLUMNS_SQL = `ALTER TABLE admin_settings
   ADD COLUMN IF NOT EXISTS recovery_hashes TEXT,
   ADD COLUMN IF NOT EXISTS login_log JSONB;`;
 
-const MAX_FAILED_ATTEMPTS = 10;
-const LOCK_MS = 15 * 60 * 1000;
+/**
+ * Global brute-force backstop.
+ *
+ * This used to lock the portal after 10 failures for a flat 15 minutes. Because
+ * the counter was global rather than per-source, ANY anonymous visitor could
+ * send 10 wrong passwords and lock the real owner out for 15 minutes — then
+ * repeat forever. That is a permanent, zero-cost denial of service against the
+ * one account that can move money.
+ *
+ * The per-IP limiter in the auth route is the cheap, first line of defence. This
+ * global counter only exists to slow a *distributed* attack, so it now starts
+ * much higher and backs off exponentially instead of being trivially triggerable.
+ */
+const GLOBAL_LOCK_THRESHOLD = 40;
+const LOCK_BASE_MS = 15 * 60 * 1000;
+const LOCK_CEILING_MS = 12 * 60 * 60 * 1000;
 
 async function ensureAdminTable(sb: SupabaseClient): Promise<boolean> {
   try {
@@ -126,23 +142,36 @@ async function getStoredPasswordHash(sb: SupabaseClient): Promise<string | null>
   }
 }
 
-/** Verifies the admin password against the stored hash (falls back to the default until changed). */
-export async function verifyAdminPassword(sb: SupabaseClient, password: string): Promise<boolean> {
+/**
+ * Seeds the very first admin password from `ADMIN_INITIAL_PASSWORD`.
+ *
+ * Runs before every login attempt. It refuses to do anything once a hash
+ * already exists, so it can never overwrite a password the owner has since
+ * changed, and it refuses weak values. Nothing is hardcoded in the repository.
+ *
+ * After the first successful login you should delete the env var — it is only
+ * needed to recover from a wiped/empty `admin_settings` table.
+ */
+export async function bootstrapAdminPassword(sb: SupabaseClient): Promise<boolean> {
+  const seed = process.env.ADMIN_INITIAL_PASSWORD;
+  if (!seed || seed.length < 12) return false;
   const stored = await getStoredPasswordHash(sb);
-  const target = stored || defaultAdminHash();
-  const ok = verifyPassword(password, target);
-  // First successful login with the default password → persist it so later checks are explicit.
-  if (ok && !stored) {
-    try {
-      await ensureAdminTable(sb);
-      await sb.from("admin_settings").upsert({
-        id: "default",
-        password_hash: defaultAdminHash(),
-        updated_at: new Date().toISOString(),
-      });
-    } catch {}
-  }
-  return ok;
+  if (stored) return false;
+  return setAdminPassword(sb, seed);
+}
+
+/** Verifies the admin password against the stored hash. Fails CLOSED. */
+export async function verifyAdminPassword(sb: SupabaseClient, password: string): Promise<boolean> {
+  await bootstrapAdminPassword(sb);
+  const stored = await getStoredPasswordHash(sb);
+  // Previously this fell back to `defaultAdminHash()` — a password whose
+  // plaintext was committed in this repo — and `getStoredPasswordHash` returns
+  // null on ANY error. So a missing table, an unreachable database or a
+  // transient fault silently re-enabled a publicly known password on a portal
+  // that can credit wallets, settle deposits and suspend merchants. If we
+  // cannot read a real hash, nobody gets in.
+  if (!stored) return false;
+  return verifyPassword(password, stored);
 }
 
 /** Stores a new hashed admin password (auto-creates the table if needed). */
@@ -163,22 +192,17 @@ export async function setAdminPassword(sb: SupabaseClient, newPassword: string):
 }
 
 /**
- * True when the admin is still on the shipped default password
- * (either no hash stored yet, or the stored hash is the default).
- * Used to warn the admin to set a strong password.
+ * True when no usable admin password is stored at all — i.e. the portal cannot
+ * be logged into yet and needs `ADMIN_INITIAL_PASSWORD` seeded.
+ *
+ * This used to test whether the stored hash matched the shipped default. There
+ * is no default any more, so it now just reports the real failure mode. Keeping
+ * it lets the settings page keep showing its warning badge without re-adding a
+ * known password to the codebase.
  */
 export async function isUsingDefaultPassword(sb: SupabaseClient): Promise<boolean> {
   const stored = await getStoredPasswordHash(sb);
-  if (!stored) return true;
-  try {
-    const [scheme, salt, hashHex] = stored.split("$");
-    if (scheme !== "scrypt" || !salt || !hashHex) return true;
-    const candidate = scryptSync("ss356", salt, 64);
-    const expected = Buffer.from(hashHex, "hex");
-    return expected.length === candidate.length && timingSafeEqual(candidate, expected);
-  } catch {
-    return true;
-  }
+  return !stored;
 }
 
 /** Persistent brute-force lockout (survives serverless instance resets). */
@@ -195,27 +219,27 @@ export async function getLockStatus(sb: SupabaseClient): Promise<{ remainingMs: 
   }
 }
 
+/** Exponential backoff, capped so a sustained attack cannot lock forever. */
+function lockDurationMs(failures: number): number {
+  const over = Math.max(0, failures - GLOBAL_LOCK_THRESHOLD);
+  return Math.min(LOCK_CEILING_MS, LOCK_BASE_MS * Math.pow(2, over));
+}
+
 export async function recordFailedAttempt(sb: SupabaseClient): Promise<boolean> {
   try {
     await ensureAdminTable(sb);
     const { data } = await sb.from("admin_settings").select("failed_attempts").eq("id", "default").maybeSingle();
-    let count = (data?.failed_attempts as number) || 0;
-    count += 1;
-    if (count >= MAX_FAILED_ATTEMPTS) {
-      await sb.from("admin_settings").upsert({
-        id: "default",
-        failed_attempts: count,
-        locked_until: new Date(Date.now() + LOCK_MS).toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-    } else {
-      await sb.from("admin_settings").upsert({
-        id: "default",
-        failed_attempts: count,
-        updated_at: new Date().toISOString(),
-      });
+    const count = ((data?.failed_attempts as number) || 0) + 1;
+    const patch: Record<string, unknown> = {
+      id: "default",
+      failed_attempts: count,
+      updated_at: new Date().toISOString(),
+    };
+    if (count >= GLOBAL_LOCK_THRESHOLD) {
+      patch.locked_until = new Date(Date.now() + lockDurationMs(count)).toISOString();
     }
-    return true;
+    const { error } = await sb.from("admin_settings").upsert(patch);
+    return !error;
   } catch {
     return false;
   }

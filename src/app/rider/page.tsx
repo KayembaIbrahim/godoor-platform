@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Truck, MapPin, Navigation, Phone, CheckCircle2, X, Clock,
   DollarSign, LogOut, ShieldCheck, Radio, Package, ChevronRight, ExternalLink, Store, History, Bike, User,
-  MessageCircle
+  MessageCircle, AlertCircle, Bell
 } from "lucide-react";
 import { useSession } from "@/lib/session-store";
 import { useNotifications, orderSummary, requestNotificationPermission } from "@/lib/notifications-store";
@@ -15,8 +15,10 @@ import { getSupabase } from "@/lib/supabase";
 import { useGeolocation, formatAccuracy, distanceKm, type LatLng } from "@/lib/location";
 import { useRoadRoute, summarizeTraffic } from "@/lib/routing";
 import { dispatchScore } from "@/lib/dispatch";
-import { formatUgx } from "@/lib/utils";
+import { useRideAlert } from "@/lib/ride-alert";
+import { formatUgx, cn } from "@/lib/utils";
 import { Price } from "@/components/Price";
+import { StopoverControl } from "@/components/StopoverControl";
 import dynamic from "next/dynamic";
 import { SetPasswordGate } from "@/components/SetPasswordGate";
 
@@ -41,11 +43,22 @@ type MerchantLoc = { name: string; lat: number; lng: number };
 // ── Boda mode: riders carry passengers ─────────────────────────
 // Transport vertical (Grab/Gojek pattern): a rider flips to Boda mode
 // and sees live passenger requests — pickup → dropoff, fare, one-tap accept.
-function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
+function BodaPanel({ riderName, verifiedOk, isOnline, coords, authReady, heading = null, accuracy = null }: {
   riderName: string;
   verifiedOk: boolean;
   isOnline: boolean;
   coords: { lat: number; lng: number } | null;
+  /* Whether Supabase has finished reading its session. Firing before this
+     resolves sends no Authorization header, the API answers 401 "Sign in to
+     continue", and a signed-in rider is told they are signed out. */
+  authReady: boolean;
+  /* Heading and GPS accuracy were read by the dashboard and then dropped on the
+     floor here. Without them the rider's own puck had no compass chevron and no
+     accuracy halo, so a 150 m fix drew as a confident dot pointing nowhere in
+     particular — which reads as "the map is lying to me" while they are
+     actively looking for a passenger. */
+  heading?: number | null;
+  accuracy?: number | null;
 }) {
   const [rides, setRides] = useState<DBRide[]>([]);
   const [activeRide, setActiveRide] = useState<DBRide | null>(null);
@@ -82,14 +95,44 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
     return best ? `${best.label} · ${best.km < 1 ? `${Math.round(best.km * 1000)} m` : `${best.km.toFixed(1)} km`}` : "Pickup";
   }, [coords, rides]);
 
+  /* A new request has to be loud. The board is already live; what was missing
+     was any signal the rider could perceive while riding. */
+  const { fresh: newRideIds, dismiss: dismissRideAlert } = useRideAlert(rides, !activeRide);
+
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+  const setActResult = useCallback(
+    (id: string, r: { ok: boolean; message: string }) => setResults((cur) => ({ ...cur, [id]: r })),
+    [],
+  );
+  const clearActResult = useCallback(
+    (id: string) => setResults((cur) => { if (!(id in cur)) return cur; const next = { ...cur }; delete next[id]; return next; }),
+    [],
+  );
+  const actResult = results;
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
     fetchOpenRides()
-      .then(setRides)
-      .catch((e) => setError(e instanceof Error ? e.message : "Could not load ride requests"))
+      .then((rs) => {
+        setRides(rs);
+        /* The sticky "Sign in to continue" banner. `load` runs on mount and
+           every 15s, but it only ever SET the error — never cleared it. So a
+           single failed poll (session not yet hydrated, a dropped packet on a
+           flaky 4G link) pinned a red "Sign in to continue" in the middle of
+           the Boda tab for the rest of the session, while requests underneath
+           it were succeeding and rides were rendering normally. That is exactly
+           what a rider means by "it tells me I'm not signed in, but I am". */
+        setError(null);
+      })
+      .catch((e) => {
+        const msg = e instanceof Error ? e.message : "Could not load ride requests";
+        /* An auth failure while the session is still resolving is not a rider
+           error — it is us asking too early. Hold it; the retry settles it. */
+        if (!authReady && /sign in|unauthor|401|403|token|session/i.test(msg)) return;
+        setError(msg);
+      })
       .finally(() => setLoading(false));
     fetchDriverRides()
       .then((mine) => {
@@ -97,27 +140,48 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
         setActiveRide(active);
       })
       .catch(() => {});
-  }, []);
+  }, [authReady]);
 
   useEffect(() => {
+    /* Wait for auth. The previous version fired immediately on mount and then
+       again on a timer; every request made before Supabase hydrated went out
+       unauthenticated and came back 401. */
+    if (!authReady) return;
     load();
     const unsub = subscribeToOpenRides(() => load());
     const id = setInterval(() => { if (!document.hidden) load(); }, 15000);
     return () => { unsub(); clearInterval(id); };
-  }, [load]);
+  }, [authReady, load]);
 
   const act = async (ride: DBRide, action: "accept" | "start" | "complete" | "cancel") => {
     if (busyId) return;
     setBusyId(ride.id);
     setError(null);
+    clearActResult(ride.id);
     try {
       const updated = await rideAction(ride.id, action, { rider_name: riderName });
       if (action === "cancel" && updated.status === "cancelled") setActiveRide(null);
       else if (updated.status === "accepted" || updated.status === "in_progress") setActiveRide(updated);
       else if (updated.status === "completed") setActiveRide(null);
+      setActResult(ride.id, {
+        ok: true,
+        message:
+          action === "accept"
+            ? "Ride accepted — head to the pickup point."
+            : action === "start"
+              ? "Trip started."
+              : action === "complete"
+                ? "Trip completed. Fare settled."
+                : "Ride cancelled.",
+      });
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Action failed");
+      /* The raw server message is the useful part here ("Verify your rider
+         account first.", "This ride was already taken") — it is shown on the
+         card rather than swallowed into a banner above the map. */
+      const message = e instanceof Error ? e.message : "Action failed";
+      setError(message);
+      setActResult(ride.id, { ok: false, message });
     } finally {
       setBusyId((cur) => (cur === ride.id ? null : cur));
     }
@@ -158,7 +222,93 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
         </div>
       )}
 
-      {/* Active ride */}
+      {/* Map-first — see the block below. The ride card is deliberately AFTER
+          the map: a rider mid-job spends their attention on the road and the
+          next turn, not on a fare summary. */}
+      {/* Open requests */}
+      {/* GPS honesty. A rider is making money off this pin — if the fix is
+          poor, the map is showing a lie and the rider has no way to know.
+          Saying so is the difference between "the app is wrong" and "I know my
+          GPS is weak here". */}
+      {coords && accuracy != null && accuracy >= 65 && (
+        <div className={`flex items-center gap-2 rounded-xl border px-3.5 py-2.5 ${
+          accuracy >= 150 ? "border-danger/30 bg-danger/10" : "border-warning/30 bg-warning/10"
+        }`}>
+          <Radio className={`h-3.5 w-3.5 shrink-0 animate-pulse ${accuracy >= 150 ? "text-danger" : "text-warning"}`} />
+          <p className={`text-[11px] font-medium ${accuracy >= 150 ? "text-danger" : "text-warning"}`}>
+            Weak GPS signal — your position is within {Math.round(accuracy)} m.
+            {accuracy >= 150 ? " Move into the open before accepting a pickup." : ""}
+          </p>
+        </div>
+      )}
+      {!coords && (
+        <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2.5">
+          <Radio className="h-3.5 w-3.5 shrink-0 animate-pulse text-warning" />
+          <p className="text-[11px] font-medium text-warning">
+            Waiting for GPS. You can still browse requests, but passengers cannot see you until it locks.
+          </p>
+        </div>
+      )}
+      {/* Persistent rider map.
+          The map previously only existed INSIDE `{activeRide && …}`, so a rider
+          with no job — which is most of the time — saw nothing but a list and an
+          Accept button, and the Navigate button was a Google Maps handoff. This
+          is always present: it shows the rider, the job they are running if they
+          have one, and the nearest pending pickup so the list has spatial
+          context. */}
+      <div
+        id="rider-boda-map"
+        /* Map-first. A rider driving to a passenger is using this with one
+           thumb and a glance, so the map takes the whole viewport under the
+           compact header instead of sitting at a fixed 70vh with the request
+           list pushing it further down the page. dvh (not vh) so it stays
+           correct when the mobile browser chrome collapses mid-journey. */
+        className={cn(
+          "overflow-hidden border border-border scroll-mt-20",
+          activeRide
+            /* Map-first, and now genuinely so: this block sits directly under
+               the header, so the subtraction is only the header itself. It used
+               to follow a ~210px fare card that was NOT accounted for here,
+               which pushed the whole map below the fold on a 390×844 phone —
+               the rider reported the map as "too small to navigate" because
+               they could barely see it. The card moved below the map. */
+            ? "h-[calc(100dvh-9.5rem)] min-h-[420px] rounded-2xl"
+            : "rounded-2xl",
+        )}
+      >
+        <LiveTrackingMap
+          fill={!!activeRide}
+          riderLoc={coords ?? null}
+          riderHeading={heading}
+          riderAccuracy={accuracy}
+          dropoffLoc={rideDestination}
+          pickupLoc={activeRide && activeRide.status === "in_progress" ? ridePickup : null}
+          showPickup={activeRide?.status === "in_progress" && !!ridePickup}
+          roadRoute={rideRoute && rideRoute.coordinates.length >= 2 ? rideRoute.coordinates : null}
+          maneuvers={activeRide ? rideRoute?.maneuvers ?? null : null}
+          congestion={activeRide ? rideRoute?.congestion ?? null : null}
+          trafficAware={!!rideRoute?.trafficAware}
+          userLocation={coords ?? undefined}
+          /* Heading-up only while there is somewhere to drive to. Idle on the
+             request board, a rotating map is disorienting and says nothing, so
+             it stays north-up until a ride is accepted. */
+          navigationBearing={activeRide ? heading : null}
+          label={
+            !activeRide
+              ? "Waiting for requests"
+              : activeRide.status === "in_progress"
+                ? "To drop-off"
+                : "To passenger"
+          }
+          customerName={activeRide?.customer_name || "Passenger"}
+          merchantName={activeRide?.pickup_address || nearestPickupLabel}
+        />
+      </div>
+
+      {/* Active ride — trip summary and controls, directly under the map.
+          `Navigate` no longer merely scrolls: the map is already above it, so
+          it re-fits the camera onto the rider and re-arms heading-up follow. A
+          button that only scrolled an already-visible map did nothing. */}
       {activeRide && (
         <div className="rounded-2xl border border-primary/40 bg-primary/5 p-4">
           <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
@@ -171,11 +321,20 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
           <p className="mt-1 text-xs font-semibold text-fg tabular-nums">
             {formatUgx(activeRide.total_ugx)} total <span className="font-normal text-muted">({activeRide.distance_km} km)</span>
           </p>
+
+          {/* Declared waiting. Sits directly under the fare so a rider can see
+              what the passenger sees before deciding to start the clock. */}
+          {activeRide.status === "in_progress" && (
+            <div className="mt-3">
+              <StopoverControl rideId={activeRide.id} active onChanged={load} />
+            </div>
+          )}
+
           <div className="mt-3 grid grid-cols-3 gap-2">
             <button type="button"
               onClick={() => {
-                const el = document.getElementById("rider-boda-map");
-                el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                window.dispatchEvent(new CustomEvent("godoor:recenter"));
+                document.getElementById("rider-boda-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
               className="btn flex-1 bg-primary/15 text-primary !border-primary/30 hover:bg-primary/25">
               <Navigation className="h-3 w-3 shrink-0" /> Navigate
@@ -199,37 +358,41 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
           </div>
         </div>
       )}
+      {/* The loud part: a new request gets an unmissable card, not a quiet
+          extra row at the bottom of a list the rider has to be looking at. */}
+      {newRideIds.length > 0 && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="rounded-2xl border-2 border-go bg-go/15 p-4 shadow-pop animate-scale-in"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-go text-white">
+              <Bell className="h-4.5 w-4.5 animate-pulse" aria-hidden />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-fg">
+                {newRideIds.length === 1 ? "New ride request" : `${newRideIds.length} new ride requests`}
+              </p>
+              <p className="mt-0.5 text-xs text-muted">
+                {rides
+                  .filter((r) => newRideIds.some((f) => f.id === r.id))
+                  .slice(0, 3)
+                  .map((r) => `${r.customer_name || "Passenger"} · ${r.distance_km} km · ${formatUgx(r.total_ugx)}`)
+                  .join("  —  ")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => newRideIds.forEach((f) => dismissRideAlert(f.id))}
+              className="shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold text-muted hover:text-fg"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
-      {/* Open requests */}
-      {/* Persistent rider map.
-          The map previously only existed INSIDE `{activeRide && …}`, so a rider
-          with no job — which is most of the time — saw nothing but a list and an
-          Accept button, and the Navigate button was a Google Maps handoff. This
-          is always present: it shows the rider, the job they are running if they
-          have one, and the nearest pending pickup so the list has spatial
-          context. */}
-      <div id="rider-boda-map" className="overflow-hidden rounded-2xl border border-border scroll-mt-20">
-        <LiveTrackingMap
-          riderLoc={coords ?? null}
-          dropoffLoc={rideDestination}
-          pickupLoc={activeRide && activeRide.status === "in_progress" ? ridePickup : null}
-          showPickup={activeRide?.status === "in_progress" && !!ridePickup}
-          roadRoute={rideRoute && rideRoute.coordinates.length >= 2 ? rideRoute.coordinates : null}
-          maneuvers={activeRide ? rideRoute?.maneuvers ?? null : null}
-          congestion={activeRide ? rideRoute?.congestion ?? null : null}
-          trafficAware={!!rideRoute?.trafficAware}
-          userLocation={coords ?? undefined}
-          label={
-            !activeRide
-              ? "Waiting for requests"
-              : activeRide.status === "in_progress"
-                ? "To drop-off"
-                : "To passenger"
-          }
-          customerName={activeRide?.customer_name || "Passenger"}
-          merchantName={activeRide?.pickup_address || nearestPickupLabel}
-        />
-      </div>
       <div className="flex items-center justify-between">
       {activeRide && rideRoute && rideRoute.distanceKm > 0 && (
         <p className="text-[11px] text-muted tabular-nums">
@@ -277,6 +440,26 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
               className="btn mt-3 w-full bg-primary text-white hover:bg-primary-2 disabled:opacity-60">
               {busyId === r.id ? "Accepting…" : activeRide ? "Finish current trip first" : "Accept ride"}
             </button>
+            {/* Feedback belongs ON the button, not in a banner parked above the
+                map. That banner is off-screen in Boda mode, so a rejected tap
+                looked identical to a tap that worked. */}
+            {actResult?.[r.id] && (
+              <p
+                role="status"
+                className={`mt-2 flex items-start gap-1.5 rounded-lg border px-2.5 py-2 text-[11px] font-medium ${
+                  actResult[r.id].ok
+                    ? "border-success/30 bg-success/10 text-success"
+                    : "border-danger/30 bg-danger/10 text-danger"
+                }`}
+              >
+                {actResult[r.id].ok ? (
+                  <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+                )}
+                <span className="min-w-0">{actResult[r.id].message}</span>
+              </p>
+            )}
           </div>
         ))
       )}
@@ -288,7 +471,7 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords }: {
 }
 
 export default function RiderDashboard() {
-  const { onboarded, role, profile, supabaseUser, reset } = useSession();
+  const { onboarded, role, profile, supabaseUser, authReady, reset } = useSession();
   const { coords, address, status: locStatus, accuracy, heading, speed, refresh: refreshLoc } = useGeolocation();
   const [tab, setTab] = useState<"available" | "active" | "history" | "earnings" | "profile" | "stores">("available");
   const [mode, setMode] = useState<"deliveries" | "boda">("deliveries");
@@ -351,7 +534,11 @@ export default function RiderDashboard() {
   const effectiveVerified = (verified === "approved" || riderRecord?.verified) ? "approved" as const : verified;
 
   const refresh = useCallback(() => {
-    const uid = supabaseUser?.id || profile.email || "rider";
+    /* Identity resolution must mirror the server's (id first, then email).
+       The old `"rider"` fallback fabricated an id that could never match a
+       real `rider_id`, so the rider's own in-progress job silently vanished
+       from the dashboard while they were actively carrying it. */
+    const uid = supabaseUser?.id || profile.email || "";
     fetchOrders().then((orders) => {
       const deliverable = orders.filter((o) =>
         ["payment_confirmed", "preparing", "ready"].includes(o.status) && !o.rider_id
@@ -431,11 +618,15 @@ export default function RiderDashboard() {
     }
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refresh, supabaseUser?.id]);
+  }, [refresh, supabaseUser?.id, authReady, profile.email]);
 
   // Live order stream — new deliveries and status changes appear instantly,
   // with notifications so the rider never misses an available order.
   useEffect(() => {
+    /* Don't subscribe before the session resolves — realtime on a not-yet-known
+       user produces ghost "order assigned to you" notifications for an account
+       we haven't identified. */
+    if (!authReady) return;
     const known = new Set<string>();
     const unsub = subscribeToAllOrders((updated) => {
       const isAvailable = ["payment_confirmed", "preparing", "ready"].includes(updated.status) && !updated.rider_id;
@@ -755,7 +946,12 @@ export default function RiderDashboard() {
           </div>
         </div>
 
-        {/* Earnings card — teal gradient */}
+        {/* Earnings card — teal gradient.
+            Deliveries only. These figures count delivery orders, so leaving the
+            card up in Boda mode both buried the map under ~120px of chrome and
+            showed a rider carrying a passenger a "Today" number for work they
+            are not doing. */}
+        {mode === "deliveries" && (
         <div className="mt-3 rounded-2xl bg-gradient-to-br from-primary via-primary-2 to-primary-2 p-4 shadow-glow">
           <div className="flex items-center justify-between">
             <div>
@@ -778,6 +974,7 @@ export default function RiderDashboard() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Location status */}
         <button type="button" onClick={refreshLoc}
@@ -820,6 +1017,9 @@ export default function RiderDashboard() {
             verifiedOk={effectiveVerified === "approved"}
             isOnline={isOnline}
             coords={coords}
+            authReady={authReady}
+            heading={heading}
+            accuracy={accuracy}
           />
         ) : (<>
         <div className="px-4 pt-3">

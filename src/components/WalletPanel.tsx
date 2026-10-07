@@ -137,7 +137,8 @@ function BalanceCard({ wallet, rate }: { wallet: EscrowWallet | null; rate: numb
 /* ── Ledger history ───────────────────────────────────────────── */
 function LedgerCard({ rows, rate }: { rows: EscrowLedgerRow[]; rate: number }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-6">
+    // Anchored so the home-screen wallet card can deep-link straight to it.
+    <div id="history" className="scroll-mt-24 rounded-2xl border border-border bg-surface p-6">
       <h2 className="font-display text-base font-semibold">Wallet history</h2>
       <p className="mt-0.5 text-[11px] text-muted">Every balance change is recorded — nothing happens silently.</p>
       {rows.length === 0 ? (
@@ -322,7 +323,7 @@ function TopUpCard({ rate, onDeposited }: { rate: number; onDeposited: () => voi
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-surface p-6">
+    <div id="topup" className="scroll-mt-24 rounded-2xl border border-border bg-surface p-6">
       <div className="flex items-center gap-2">
         <MorseLogo markOnly className="h-5" />
         <h2 className="font-display text-lg font-semibold">Top up your wallet</h2>
@@ -576,13 +577,17 @@ export function WalletPanel() {
       <section className="space-y-6 lg:col-span-3">
         <BalanceCard wallet={wallet} rate={rate} />
         <TopUpCard rate={rate} onDeposited={() => void load()} />
-        <MorseIdentity />
+        {/* Anchor sits on the wrapper so it resolves in BOTH of MorseIdentity's
+            render branches (tag confirmed vs. tag not yet set). */}
+        <div id="morse" className="scroll-mt-24">
+          <MorseIdentity />
+        </div>
       </section>
 
       <aside className="lg:col-span-2">
         <div className="space-y-6">
           <LedgerCard rows={ledger} rate={rate} />
-          <div className="rounded-2xl border border-border bg-surface p-5">
+          <div id="protection" className="scroll-mt-24 rounded-2xl border border-border bg-surface p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Package className="h-4 w-4 text-go" /> How your money is protected
             </h2>

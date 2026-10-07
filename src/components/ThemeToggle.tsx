@@ -29,7 +29,7 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={nextTheme}
-      className="grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-muted transition hover:bg-elevated hover:text-fg active:scale-95"
+      className="tap-44 grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-muted transition hover:bg-elevated hover:text-fg active:scale-95"
       aria-label={`Switch to ${theme === "light" ? "dark" : theme === "dark" ? "system" : "light"} mode`}
       title={`Current: ${theme} mode. Click to cycle.`}
     >

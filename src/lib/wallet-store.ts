@@ -1,12 +1,23 @@
 /**
  * DB-backed wallet + ledger for GoDoor.
  *
- * Balances are never invented on the client: every credit/debit is an
- * immutable row in `wallet_ledger`, and the available balance is always the
- * newest row's balance_after (per currency). Credits only happen server-side,
- * after the admin verifies that real money arrived (reference + admin credit
- * flow) or that a P2P USDT payment screenshot is real. Pending top-ups live in
- * `topup_requests` until an admin credits or rejects them.
+ * This is the single implementation of money on the platform. It is bound to
+ * the canonical schema:
+ *
+ *   wallets         — authoritative UGX balance (available_balance / escrow_balance)
+ *   ledger_entries  — immutable, append-only audit trail of every balance change
+ *   deposits        — a customer's top-up request, pending until settled
+ *
+ * Every mutation goes through a SECURITY DEFINER RPC (credit_wallet_currency /
+ * debit_wallet_currency / grant_signup_bonus), so a balance can never change
+ * outside an audited, atomic write. Nothing here reads a denormalised running
+ * balance: `wallets.available_balance` is the truth and the ledger is history.
+ *
+ * Previously this file ran against `wallet_ledger` and `topup_requests`, two
+ * tables that never existed in the database. The customer flow wrote to
+ * `deposits` while the admin credited the missing legacy tables, so an approved
+ * deposit was never paid out and never appeared in history. Both paths now
+ * converge on one ledger.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -41,6 +52,7 @@ export type WalletState = {
 
 export type TopupMethod = "morse" | "momo";
 
+/** Admin-facing top-up request, shaped as the admin portal and webhook expect. */
 export type TopupRequest = {
   id: string;
   user_id: string;
@@ -60,88 +72,149 @@ export type TopupRequest = {
   created_at: string;
 };
 
+/**
+ * `deposits` speaks the database's vocabulary (pending/confirmed/failed); the
+ * admin portal and the customer-facing history speak credited/rejected. Keep
+ * the translation in one place so a status can never mean two things.
+ */
+function toPublicStatus(s: string): string {
+  const v = String(s || "pending");
+  if (v === "confirmed" || v === "credited") return "credited";
+  if (v === "failed" || v === "rejected") return "rejected";
+  return "pending";
+}
+
+function fromPublicStatus(s: string): string {
+  const v = String(s || "");
+  if (v === "credited") return "confirmed";
+  if (v === "rejected") return "failed";
+  return v;
+}
+
+function meta(row: any): Record<string, any> {
+  return (row && typeof row.metadata === "object" && row.metadata) || {};
+}
+
+/**
+ * The authoritative balance.
+ *
+ * UGX lives on the wallet row. USDT has no wallet row of its own, so its
+ * balance is the sum of its ledger entries — every USDT movement in the system
+ * is written by credit_wallet_currency / debit_wallet_currency.
+ */
+async function latestBalance(sb: SupabaseClient, userId: string, currency: WalletCurrency): Promise<number> {
+  if (currency === "USDT") {
+    const { data, error } = await sb.rpc("usdt_balance", { p_user_id: userId });
+    if (error) throw new Error(error.message);
+    return Number(data) || 0;
+  }
+  const { data, error } = await sb.from("wallets").select("available_balance").eq("user_id", userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? Number((data as { available_balance: number }).available_balance) || 0 : 0;
+}
+
 function toLedger(r: any): LedgerEntry {
-  const currency: WalletCurrency = r.currency === "USDT" ? "USDT" : "UGX";
+  const m = (r && typeof r.meta === "object" && r.meta) || {};
   return {
     id: r.id,
     type: r.type,
-    amountUgx: Number(r.amount_ugx) || 0,
-    balanceAfter: Number(r.balance_after) || 0,
-    status: r.status,
-    reference: r.reference || "",
-    currency,
-    network: r.network || undefined,
-    phone: r.phone || undefined,
-    note: r.note || "",
+    amountUgx: Number(r.amount) || 0,
+    balanceAfter: 0, // filled in by withRunningBalances — the ledger has no stored running total
+    status: r.status || "posted",
+    reference: r.ref_id || m.reference_code || "",
+    currency: r.currency === "USDT" ? "USDT" : "UGX",
+    network: m.network || m.provider || undefined,
+    phone: m.phone || undefined,
+    note: m.note || "",
     createdAt: r.created_at,
   };
 }
 
+/**
+ * Reconstruct the running balance per entry for display.
+ *
+ * `ledger_entries` is append-only and stores no running total by design, so the
+ * balance shown next to each row is derived from today's balance by walking the
+ * entries backwards. Rows must arrive newest-first.
+ */
+function withRunningBalances(rows: any[], ugx: number, usdt: number): LedgerEntry[] {
+  let runningUgx = ugx;
+  let runningUsdt = usdt;
+  return rows.map((r) => {
+    const entry = toLedger(r);
+    entry.balanceAfter = entry.currency === "USDT" ? runningUsdt : runningUgx;
+    // balanceAfter(N-1) = balanceAfter(N) - amount(N)
+    const amount = Number(r.amount) || 0;
+    if (entry.currency === "USDT") runningUsdt -= amount;
+    else runningUgx -= amount;
+    return entry;
+  });
+}
+
 function toTopupRequest(r: any): TopupRequest {
+  const m = meta(r);
+  const profile = (Array.isArray(r.profiles) ? r.profiles[0] : r.profiles) || {};
   return {
     id: r.id,
     user_id: r.user_id,
-    user_name: r.user_name || "",
-    user_email: r.user_email || "",
-    amount_ugx: Number(r.amount_ugx) || 0,
-    phone: r.phone || "",
-    network: r.network || "",
-    reference: r.reference || "",
-    method: r.method === "morse" ? "morse" : "momo",
+    user_name: profile.full_name || profile.name || m.user_name || "",
+    user_email: profile.email || m.user_email || "",
+    amount_ugx: Number(r.amount) || 0,
+    phone: String(m.phone || ""),
+    network: String(m.network || ""),
+    reference: r.reference_code || "",
+    method: r.provider === "morse" ? "morse" : "momo",
     currency: r.currency === "USDT" ? "USDT" : "UGX",
-    screenshot_url: r.screenshot_url || null,
-    status: r.status || "pending",
+    screenshot_url: m.screenshot_url ? String(m.screenshot_url) : null,
+    status: toPublicStatus(r.status),
     admin_note: r.admin_note || null,
-    reviewed_by: r.reviewed_by || null,
-    reviewed_at: r.reviewed_at || null,
+    reviewed_by: m.reviewed_by || null,
+    reviewed_at: r.confirmed_at || null,
     created_at: r.created_at,
   };
-}
-
-async function latestBalance(sb: SupabaseClient, userId: string, currency: WalletCurrency): Promise<number> {
-  const { data } = await sb
-    .from("wallet_ledger")
-    .select("balance_after")
-    .eq("user_id", userId)
-    .eq("currency", currency)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return data ? Number((data as { balance_after: number }).balance_after) || 0 : 0;
 }
 
 export async function snapshotWallet(sb: SupabaseClient, userId: string): Promise<WalletState> {
   const [balanceUgx, balanceUsdt, { data: pendRows }, { data: rows }] = await Promise.all([
     latestBalance(sb, userId, "UGX"),
     latestBalance(sb, userId, "USDT"),
-    sb.from("topup_requests").select("id, amount_ugx, reference, network, phone, method, currency, created_at").eq("user_id", userId).eq("status", "pending"),
-    sb.from("wallet_ledger").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50),
+    sb
+      .from("deposits")
+      .select("id, amount, currency, reference_code, provider, metadata, created_at")
+      .eq("user_id", userId)
+      .eq("status", "pending"),
+    sb.from("ledger_entries").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50),
   ]);
 
-  const pendingUgx = (pendRows || []).reduce(
-    (s, r) => s + ((r as { currency: string; amount_ugx: number }).currency === "USDT" ? 0 : Number((r as { amount_ugx: number }).amount_ugx) || 0),
-    0,
-  );
-  const pendingUsdt = (pendRows || []).reduce(
-    (s, r) => s + ((r as { currency: string; amount_ugx: number }).currency === "USDT" ? Number((r as { amount_ugx: number }).amount_ugx) || 0 : 0),
-    0,
-  );
-  const pendingBalance = (r: any) => (r.currency === "USDT" ? balanceUsdt : balanceUgx);
-  const ledger: LedgerEntry[] = (pendRows || []).map((p: any) => ({
-    id: p.id,
-    type: "topup_pending",
-    amountUgx: Number(p.amount_ugx) || 0,
-    balanceAfter: pendingBalance(p),
-    status: "pending",
-    reference: p.reference,
-    currency: p.currency === "USDT" ? "USDT" : "UGX",
-    network: p.method === "morse" ? "Morse" : p.network || undefined,
-    phone: p.phone || undefined,
-    note: p.method === "morse" ? "Waiting for Morse verification" : "Waiting for admin verification",
-    createdAt: p.created_at,
-  }));
-  ledger.push(...(rows || []).map(toLedger));
+  const pend = (pendRows || []) as any[];
+  const sumBy = (cur: WalletCurrency) =>
+    pend.reduce((s, r) => s + (r.currency === cur ? Number(r.amount) || 0 : 0), 0);
+  const pendingUgx = sumBy("UGX");
+  const pendingUsdt = sumBy("USDT");
+
+  // Pending requests are not ledger entries yet, but the customer expects to
+  // see them as "in flight" against the balance they have not been paid into.
+  const pendingEntries: LedgerEntry[] = pend.map((p: any) => {
+    const m = p.metadata || {};
+    return {
+      id: p.id,
+      type: "topup_pending",
+      amountUgx: Number(p.amount) || 0,
+      balanceAfter: p.currency === "USDT" ? balanceUsdt : balanceUgx,
+      status: "pending",
+      reference: p.reference_code || "",
+      currency: p.currency === "USDT" ? "USDT" : "UGX",
+      network: p.provider === "morse" ? "Morse" : m.network || undefined,
+      phone: m.phone || undefined,
+      note: p.provider === "morse" ? "Waiting for Morse verification" : "Waiting for admin verification",
+      createdAt: p.created_at,
+    };
+  });
+
+  const ledger = [
+    ...pendingEntries,
+    ...withRunningBalances(rows || [], balanceUgx, balanceUsdt),
+  ];
 
   return {
     userId,
@@ -169,19 +242,13 @@ export async function creditWallet(
 ): Promise<WalletState> {
   if (!input.amountUgx || input.amountUgx <= 0) throw new Error("Invalid credit amount");
   const currency: WalletCurrency = input.currency === "USDT" ? "USDT" : "UGX";
-  const balance = (await latestBalance(sb, userId, currency)) + input.amountUgx;
-  const { error } = await sb.from("wallet_ledger").insert({
-    user_id: userId,
-    type: "topup",
-    amount_ugx: input.amountUgx,
-    balance_after: balance,
-    status: "posted",
-    currency,
-    reference: input.reference,
-    network: input.network || "",
-    phone: input.phone || "",
-    note: input.note || (currency === "USDT" ? "USDT credited" : "Wallet credited"),
-    related_id: input.relatedId || "",
+  const { error } = await sb.rpc("credit_wallet_currency", {
+    p_user_id: userId,
+    p_amount: Math.round(input.amountUgx),
+    p_currency: currency,
+    p_reference: input.reference,
+    p_note: input.note || (currency === "USDT" ? "USDT credited" : "Wallet credited"),
+    p_meta: { phone: input.phone || "", network: input.network || "", related_id: input.relatedId || "" },
   });
   if (error) throw new Error(error.message);
   return snapshotWallet(sb, userId);
@@ -194,42 +261,33 @@ export async function debitWallet(
 ): Promise<{ wallet: WalletState; entry: LedgerEntry }> {
   if (!input.amountUgx || input.amountUgx <= 0) throw new Error("Invalid amount");
   const currency: WalletCurrency = input.currency === "USDT" ? "USDT" : "UGX";
-  const balance = await latestBalance(sb, userId, currency);
-  if (balance < input.amountUgx) throw new Error("Insufficient wallet balance");
-  const after = balance - input.amountUgx;
-  const { data, error } = await sb.from("wallet_ledger").insert({
-    user_id: userId,
-    type: "payment",
-    amount_ugx: -input.amountUgx,
-    balance_after: after,
-    status: "posted",
-    currency,
-    reference: input.reference,
-    note: input.note,
-  }).select().single();
+  const { data, error } = await sb.rpc("debit_wallet_currency", {
+    p_user_id: userId,
+    p_amount: Math.round(input.amountUgx),
+    p_currency: currency,
+    p_reference: input.reference,
+    p_note: input.note,
+  });
   if (error) throw new Error(error.message);
-  return { wallet: await snapshotWallet(sb, userId), entry: toLedger(data) };
+  const result = (Array.isArray(data) ? data[0] : data) as { success?: boolean; message?: string } | null;
+  if (result && result.success === false) throw new Error(result.message || "Insufficient wallet balance");
+
+  const wallet = await snapshotWallet(sb, userId);
+  const entry =
+    wallet.ledger.find((e) => e.reference === input.reference && e.amountUgx < 0) ??
+    ({ id: "", type: "payment", amountUgx: -input.amountUgx, balanceAfter: wallet.availableUgx,
+       status: "posted", reference: input.reference, currency, note: input.note, createdAt: new Date().toISOString() } as LedgerEntry);
+  return { wallet, entry };
 }
 
 /** Free service fee every new customer gets on signup (covers first orders). */
 export const SIGNUP_BONUS_UGX = 2000;
 
+/** Idempotent: the RPC refuses to grant a second SIGNUP-BONUS entry. */
 export async function grantSignupBonus(sb: SupabaseClient, userId: string): Promise<boolean> {
   try {
-    const { data: existing } = await sb
-      .from("wallet_ledger")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("reference", "SIGNUP-BONUS")
-      .maybeSingle();
-    if (existing) return false;
-    await creditWallet(sb, userId, {
-      amountUgx: SIGNUP_BONUS_UGX,
-      reference: "SIGNUP-BONUS",
-      currency: "UGX",
-      note: `${SIGNUP_BONUS_UGX.toLocaleString()} UGX free service fee — welcome gas fee`,
-    });
-    return true;
+    const { error } = await sb.rpc("grant_signup_bonus", { p_user_id: userId, p_amount: SIGNUP_BONUS_UGX });
+    return !error;
   } catch {
     return false;
   }
@@ -304,36 +362,56 @@ export async function createTopupRequest(
   },
 ): Promise<TopupRequest> {
   // Power-smash-safe: one pending request per reference.
-  const { data: existing } = await sb.from("topup_requests").select("*").eq("reference", input.reference).maybeSingle();
+  const { data: existing } = await sb
+    .from("deposits")
+    .select("*")
+    .eq("reference_code", input.reference)
+    .maybeSingle();
   if (existing) return toTopupRequest(existing);
 
   const method: TopupMethod = input.method === "morse" ? "morse" : "momo";
-  const currency: WalletCurrency = method === "morse" ? "USDT" : "UGX";
-  const { data, error } = await sb.from("topup_requests").insert({
-    user_id: input.userId,
-    user_name: input.userName,
-    user_email: input.userEmail,
-    amount_ugx: input.amountUgx,
-    phone: input.phone,
-    network: method === "morse" ? "usdt" : input.network,
-    reference: input.reference,
-    method,
-    currency,
-    screenshot_url: input.screenshotUrl || null,
-    status: "pending",
-  }).select().single();
+  const currency: WalletCurrency = method === "morse" ? "USDT" : input.currency === "USDT" ? "USDT" : "UGX";
+  const { data, error } = await sb
+    .from("deposits")
+    .insert({
+      user_id: input.userId,
+      provider: method === "morse" ? "morse" : "momo",
+      provider_ref: input.reference,
+      amount: Math.round(input.amountUgx),
+      currency,
+      status: "pending",
+      reference_code: input.reference,
+      metadata: {
+        phone: input.phone,
+        network: method === "morse" ? "usdt" : input.network,
+        user_name: input.userName,
+        user_email: input.userEmail,
+        screenshot_url: input.screenshotUrl || null,
+      },
+    })
+    .select()
+    .single();
   if (error) throw new Error(error.message);
   return toTopupRequest(data);
 }
 
 export async function findTopupRequest(sb: SupabaseClient, userId: string, reference: string): Promise<TopupRequest | null> {
-  const { data } = await sb.from("topup_requests").select("*").eq("reference", reference).eq("user_id", userId).maybeSingle();
+  const { data } = await sb
+    .from("deposits")
+    .select("*, profiles(full_name, name, email)")
+    .eq("reference_code", reference)
+    .eq("user_id", userId)
+    .maybeSingle();
   return data ? toTopupRequest(data) : null;
 }
 
 export async function listTopupRequests(sb: SupabaseClient, status?: string): Promise<TopupRequest[]> {
-  let q = sb.from("topup_requests").select("*").order("created_at", { ascending: false }).limit(200);
-  if (status) q = q.eq("status", status);
+  let q = sb
+    .from("deposits")
+    .select("*, profiles(full_name, name, email)")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (status) q = q.eq("status", fromPublicStatus(status));
   const { data, error } = await q;
   if (error) return [];
   return (data || []).map(toTopupRequest);
@@ -347,17 +425,21 @@ export async function setTopupStatus(
   note: string | null,
 ): Promise<boolean> {
   const upd: Record<string, unknown> = {
-    status,
+    status: fromPublicStatus(status),
     admin_note: note || "",
-    reviewed_by: adminName,
-    reviewed_at: new Date().toISOString(),
+    confirmed_at: new Date().toISOString(),
   };
   // Only a still-pending request can be settled (no double credits).
-  const { error } = await sb.from("topup_requests").update(upd).eq("id", id).eq("status", "pending");
+  const { error } = await sb.from("deposits").update(upd).eq("id", id).eq("status", "pending");
   return !error;
 }
 
 export async function attachTopupScreenshot(sb: SupabaseClient, id: string, screenshotUrl: string): Promise<boolean> {
-  const { error } = await sb.from("topup_requests").update({ screenshot_url: screenshotUrl }).eq("id", id);
+  // `metadata` is merged in SQL so attaching a proof image never discards the
+  // phone/network the customer already submitted with the request.
+  const { error } = await sb.rpc("attach_deposit_screenshot", {
+    p_deposit_id: id,
+    p_screenshot_url: screenshotUrl,
+  });
   return !error;
 }

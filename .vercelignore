@@ -8,3 +8,64 @@ web-app
 tsconfig.tsbuildinfo
 supabase-*.sql
 SUPABASE_MIGRATION.sql
+
+# Local scratch — screenshots, verification scripts, decoded PNGs.
+.tmp
+__pycache__
+
+# One-off live-verification probes. The rest of scripts/ is real operational
+# tooling (sql.mjs, apply-sql.mjs, probe-db.mjs) and must stay in the upload.
+scripts/verify-app.mjs
+scripts/verify-live.js
+scripts/verify-loading.js
+scripts/verify-rider-fixes.mjs
+scripts/verify-rider-accept.mjs
+scripts/verify-ride-accept.mts
+scripts/verify-wallet-security.mjs
+scripts/verify-stopover.mts
+scripts/verify-stopover-guards.mts
+scripts/verify-accept-handler.mts
+scripts/register-alias.mjs
+scripts/alias-loader.mjs
+scripts/tap-targets.mjs
+scripts/loc-check.mjs
+
+# Pre-revert snapshot of the workspace (kept locally for rollback).
+.backup
+.vercel-prod-bundle
+
+# Secrets — .env.local holds SUPABASE_SERVICE_ROLE_KEY, which bypasses Row
+# Level Security. Vercel only consults .vercelignore (NOT .gitignore) once this
+# file exists, so without these lines the service-role key would be uploaded as
+# a static asset and served at /.env.local. Real values are set with
+# `vercel env add`, which stores them in the project's encrypted env store.
+.env*
+!.env.example
+scripts/rider-live.js
+scripts/ridecheck.js
+scripts/.test-token
+*.test-token
+
+# One-off production probes written while reproducing the rider bugs. Each
+# reads .env.vercel-prod (service role) or contains the operator's live test
+# accounts, so none of it belongs in a deployment artifact.
+scripts/live-rider-test.mjs
+scripts/e2e-ride.mjs
+scripts/probe-pub.mjs
+scripts/probe-access.mjs
+scripts/probe-appsettings.mjs
+scripts/list-prod-tables.mjs
+scripts/dump-cols.mjs
+scripts/try-both-dbs.mjs
+scripts/test-realtime.mjs
+scripts/rider-state.mjs
+scripts/e2e-lifecycle.mjs
+scripts/e2e-dispute.mjs
+scripts/cleanup-check.mjs
+scripts/purge-test-rides.mjs
+
+# Login-diagnosis probes. set-pw.mjs holds the operator's live account
+# passwords in plaintext; the other two hold their email addresses.
+scripts/set-pw.mjs
+scripts/test-pw.mjs
+scripts/test-login-ui.mjs

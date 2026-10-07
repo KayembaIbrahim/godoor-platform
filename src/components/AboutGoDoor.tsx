@@ -98,16 +98,25 @@ export function AboutGoDoor() {
           their contrast on the light canvas. */}
       <div className="mt-2 flex items-center gap-1">
         {SLIDES.map((s, i) => (
+          // The tick stays a 4px hairline, but a 4px-tall control is untappable
+          // on a phone. The button carries the 44px hit area and the bar is a
+          // child, so the visual weight is unchanged. (A ::after overlay was
+          // tried first — Tailwind emits `content: var(--tw-content)` but never
+          // defines the variable, so no pseudo-element rendered.)
           <button
             key={s.title}
             type="button"
             onClick={() => setCurrent(i)}
             aria-label={s.title}
             aria-current={i === current}
-            className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-              i === current ? "navy-tick-on" : "navy-tick-off"
-            }`}
-          />
+            className="flex min-h-11 flex-1 items-center"
+          >
+            <span
+              className={`block h-1 w-full rounded-full transition-colors duration-300 ${
+                i === current ? "navy-tick-on" : "navy-tick-off"
+              }`}
+            />
+          </button>
         ))}
       </div>
     </div>

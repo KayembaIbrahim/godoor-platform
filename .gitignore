@@ -11,3 +11,11 @@ android/app/build
 android/.gradle
 .DS_Store
 *.log
+.test-token
+.backup
+.pocketdev
+.tmp
+attachments/
+scripts/.*.json
+
+

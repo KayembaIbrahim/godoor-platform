@@ -25,14 +25,23 @@ export function ProductSearch({
     inputRef.current?.focus();
     setQuery("");
     if (!loaded) {
+      // Both endpoints answer with a WRAPPED body — `{ products: [...] }` and
+      // `{ merchants: [...] }` — not a bare array. This used to store the whole
+      // wrapper, so `for (const m of merchants)` and `products.filter(...)`
+      // below threw "is not iterable" / "is not a function" the moment the
+      // sheet opened, which Next surfaced as the error page. Every other caller
+      // (src/lib/db.ts, src/app/page.tsx) already unwraps correctly.
       Promise.all([
-        fetch("/api/products").then((r) => r.json()),
-        fetch("/api/merchants").then((r) => r.json()),
-      ]).then(([p, m]) => {
-        setProducts(p);
-        setMerchants(m);
-        setLoaded(true);
-      });
+        fetch("/api/products").then((r) => r.json().catch(() => ({}))),
+        fetch("/api/merchants").then((r) => r.json().catch(() => ({}))),
+      ])
+        .then(([p, m]) => {
+          setProducts(Array.isArray(p?.products) ? p.products : []);
+          setMerchants(Array.isArray(m?.merchants) ? m.merchants : []);
+          setLoaded(true);
+        })
+        // Without this the sheet spun forever on any network or 500 failure.
+        .catch(() => setLoaded(true));
     }
   }, [open, loaded]);
 
@@ -59,11 +68,14 @@ export function ProductSearch({
 
   const results = useMemo(() => {
     if (!debounced) return [];
+    // `description` and `category` are nullable columns, so a shop that never
+    // filled them in made `.toLowerCase()` throw and took the whole sheet down.
+    const hay = (v: string | null | undefined) => (v || "").toLowerCase();
     const matched = products.filter(
       (p) =>
-        p.name.toLowerCase().includes(debounced) ||
-        p.description.toLowerCase().includes(debounced) ||
-        p.category.toLowerCase().includes(debounced)
+        hay(p.name).includes(debounced) ||
+        hay(p.description).includes(debounced) ||
+        hay(p.category).includes(debounced)
     );
     const grouped = new Map<
       string,

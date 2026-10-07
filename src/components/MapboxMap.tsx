@@ -106,6 +106,14 @@ type Props = {
   congestion?: number[] | null;
   fitBounds?: LatLng[];
   fitPadding?: Padding;
+  /** Heading-up navigation for the DRIVER's own map.
+      When set (and the rider is the one being followed) the map rotates to this
+      compass bearing so the road ahead points up the screen. Left null on the
+      customer's tracking map, where rotating would make the map unreadable. */
+  navigationBearing?: number | null;
+  /** Zoom used when following the driver. Street-level beats the 14° default
+      a city-wide overview uses. */
+  navigationZoom?: number;
   userLocation?: LatLng | null;
   /** Radius (metres) of the reported GPS fix — drawn as a halo around the
       user dot so people can see how precise "you are here" really is. */
@@ -406,7 +414,7 @@ function lerpCoord(pts: LatLng[], d: number): LatLng {
 function MapboxMapInner({
   center, markers = [], onMapClick, zoom = 14, height = 300, fillHeight = false,
   className, userLocation, userAccuracy, onError, fitBounds, fitPadding: outerPadding, route, maneuvers,
-  congestion = null,
+  congestion = null, navigationBearing = null, navigationZoom = 16.5,
 }: Props & { onError?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -421,6 +429,12 @@ function MapboxMapInner({
   const userMovedRef = useRef(false);
   const lastCenterRef = useRef<{ lat: number; lng: number } | null>(null);
   const readyRef = useRef(false);
+  /* Latest rider/user position for the navigation camera, kept out of
+     `applyFocus`'s deps on purpose — see the note in applyFocus. */
+  const liveMarkersRef = useRef<MarkerData[]>([]);
+  const userLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  liveMarkersRef.current = markers;
+  userLocationRef.current = userLocation ?? null;
   const styleAppliedRef = useRef<boolean | null>(null);
   const [ready, setReady] = useState(false);
   const [userMoved, setUserMoved] = useState(false);
@@ -707,10 +721,61 @@ function MapboxMapInner({
     [fitBounds]
   );
 
+  /* ── Smooth the compass before it drives the map ──
+     A phone's GPS heading is noisy: it can jump 40° between two fixes while the
+     bike is barely turning. Rotating the map with the raw value makes the whole
+     screen spin, which is far more alarming — and more dangerous — than a
+     slightly stale heading. Low-pass it, and take the shortest way round so it
+     never unwinds the long way. */
+  const [smoothBearing, setSmoothBearing] = useState<number | null>(null);
+  const rawBearing =
+    navigationBearing != null && Number.isFinite(navigationBearing) ? navigationBearing : null;
+  useEffect(() => {
+    if (rawBearing == null) { setSmoothBearing(null); return; }
+    setSmoothBearing((prev) => {
+      if (prev == null) return rawBearing;
+      let delta = ((rawBearing - prev + 540) % 360) - 180; // shortest arc
+      // A U-turn is a real instruction, not noise — snap rather than lag.
+      if (Math.abs(delta) > 90) return rawBearing;
+      const next = prev + delta * 0.25;
+      return ((next % 360) + 360) % 360;
+    });
+  }, [rawBearing]);
+  const navBearing = smoothBearing;
+
   const applyFocus = useCallback(() => {
     if (!mapRef.current || !ready) return;
     try {
       const pts = (fitBounds || []).filter((p) => p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9));
+      /* When the rider is actively navigating, "focus" means street level on
+         the RIDER with the road ahead pointing up — not a zoomed-out overview
+         of the whole pickup→drop-off. fitBounds caps at zoom 15.5, so the
+         previous unconditional branch fought the navigationZoom (16.5) the
+         follow loop is trying to hold, and every re-focus (including the
+         rider's own Navigate tap) snapped the camera back out to the full
+         journey. That is the "map is too small to navigate, markings are
+         wrong" complaint: at 15.5 on a phone the next junction is off-screen. */
+      if (navBearing != null) {
+        /* Read the rider position from a ref, NOT from `markers` directly.
+           Listing `markers` in the deps would rebuild this callback on every
+           GPS fix, and the effect below re-runs `applyFocus` — so the camera
+           would flyTo on every single fix instead of easing, which is the
+           jumpy "alarming" camera this whole path exists to remove. */
+        const liveMarkers = liveMarkersRef.current;
+        const liveUser = userLocationRef.current;
+        const rider = liveMarkers.find((m) => m.isRider)?.position;
+        const self = rider || (liveUser && (Math.abs(liveUser.lat) > 1e-9 || Math.abs(liveUser.lng) > 1e-9) ? liveUser : null);
+        const c = self ? { lat: Number(self.lat), lng: Number(self.lng) } : validCenter(center);
+        mapRef.current.flyTo({
+          center: [c.lng, c.lat],
+          zoom: navigationZoom,
+          pitch: 0,
+          bearing: navBearing,
+          duration: 900,
+        });
+        lastCenterRef.current = c;
+        return;
+      }
       if (pts.length >= 2) {
         const lats = pts.map((p) => p.lat);
         const lngs = pts.map((p) => p.lng);
@@ -720,11 +785,17 @@ function MapboxMapInner({
         );
       } else {
         const c = validCenter(center);
-        mapRef.current.flyTo({ center: [c.lng, c.lat], zoom, pitch: 35, bearing: 0, duration: 900 });
+        mapRef.current.flyTo({
+          center: [c.lng, c.lat],
+          zoom,
+          pitch: 35,
+          bearing: 0,
+          duration: 900,
+        });
       }
       lastCenterRef.current = { lat: center.lat, lng: center.lng };
     } catch {}
-  }, [ready, fitKey, center.lat, center.lng, zoom, fitPadding]); // eslint-disable-line
+  }, [ready, fitKey, center.lat, center.lng, zoom, fitPadding, navBearing, navigationZoom]); // eslint-disable-line
 
   useEffect(() => {
     if (!mapRef.current || !ready) return;
@@ -739,15 +810,47 @@ function MapboxMapInner({
     const movedKm = last
       ? Math.hypot((c.lat - last.lat) * 111, (c.lng - last.lng) * 111 * Math.cos((c.lat * Math.PI) / 180))
       : Infinity;
-    if (movedKm < 0.5) return;
+    /* The threshold used to be a flat 500 m for everyone. At city speeds that
+       is several minutes of riding with the map pinned to a stale centre, so
+       the rider's own map felt like it had lost him. A driver is followed far
+       more tightly — ~8 m, roughly one GPS fix — and continuously eased rather
+       than flown, so the pin never snaps. */
+    const minMoveKm = navBearing != null ? 0.008 : 0.5;
+    if (movedKm < minMoveKm) return;
     lastCenterRef.current = c;
     try {
-      mapRef.current.flyTo({ center: [c.lng, c.lat], zoom, pitch: 35, bearing: 0, duration: 1000 });
+      if (navBearing != null) {
+        mapRef.current.easeTo({
+          center: [c.lng, c.lat],
+          zoom: navigationZoom,
+          pitch: 0,
+          bearing: navBearing,
+          duration: 900,
+          easing: (t: number) => t, // linear: a constant chase reads as "attached"
+        });
+      } else {
+        mapRef.current.flyTo({ center: [c.lng, c.lat], zoom, pitch: 35, bearing: 0, duration: 1000 });
+      }
     } catch {}
-  }, [center.lat, center.lng, zoom, ready]); // eslint-disable-line
+  }, [center.lat, center.lng, zoom, ready, navBearing, navigationZoom]); // eslint-disable-line
+
+  /* Heading changes while the rider is stopped at a junction — the centre has
+     not moved, so the follow effect above never fires. Rotate on the bearing
+     alone, otherwise the map freezes pointing down the road behind them. */
+  useEffect(() => {
+    if (!mapRef.current || !ready || navBearing == null || isUserMoved()) return;
+    try {
+      mapRef.current.easeTo({ bearing: navBearing, duration: 700, easing: (t: number) => t });
+    } catch {}
+  }, [navBearing, ready]); // eslint-disable-line
 
   useEffect(() => {
     if (!mapRef.current || !ready || isUserMoved()) return;
+    /* While driving, do NOT keep re-fitting the whole pickup→drop-off extent.
+       Every route re-render would yank the camera back out to the full journey
+       and fight the heading-up follow below. The driver needs the next 100 m,
+       not a zoomed-out overview of a trip they are already committed to. */
+    if (navBearing != null) return;
     const pts = (fitBounds || []).filter((p) => p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9));
     if (pts.length < 2) return;
     try {
@@ -758,13 +861,23 @@ function MapboxMapInner({
         { padding: fitPadding, duration: 900, maxZoom: 15.5 }
       );
     } catch {}
-  }, [fitKey, ready]); // eslint-disable-line
+  }, [fitKey, ready, navBearing]); // eslint-disable-line
 
   const recenter = useCallback(() => {
     userMovedRef.current = false;
     setUserMoved(false);
     applyFocus();
   }, [applyFocus]);
+
+  /* The rider's "Navigate" button lives outside the map (it is a trip control,
+     not a map control), so it re-centres by broadcast rather than prop-drilling
+     a ref down. This is what makes that button do something: re-arm follow and
+     put the camera back on the rider with the road ahead pointing up. */
+  useEffect(() => {
+    const onRecenter = () => recenter();
+    window.addEventListener("godoor:recenter", onRecenter);
+    return () => window.removeEventListener("godoor:recenter", onRecenter);
+  }, [recenter]);
 
   const zoomBy = useCallback((delta: number) => {
     const map = mapRef.current;
@@ -981,13 +1094,29 @@ function MapboxMapInner({
 
   /* ── Recentre on the user ──
      Panning is never punished: the map keeps the manual view, and one tap
-     puts the pin back in the middle at a street-level zoom. */
+     puts the pin back in the middle at a street-level zoom.
+     This used to call markUserMoved(), which is backwards for a button whose
+     whole purpose is "get me back onto me". It set the follow lock, so one tap
+     silently stopped the map tracking a moving rider for the rest of the
+     session — they would pan away to look at the road, tap locate, and the
+     map would never move again. Re-centring must RESUME following. */
   const recentre = useCallback(() => {
     const map = mapRef.current;
     if (!map || !userLocation) return;
-    markUserMoved();
-    map.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: 16, pitch: 0, bearing: 0, duration: 700 });
-  }, [userLocation?.lat, userLocation?.lng, markUserMoved]); // eslint-disable-line
+    userMovedRef.current = false;
+    setUserMoved(false);
+    lastCenterRef.current = { lat: userLocation.lat, lng: userLocation.lng };
+    map.flyTo({
+      center: [userLocation.lng, userLocation.lat],
+      zoom: navBearing != null ? navigationZoom : 16,
+      pitch: 0,
+      // Re-centring while navigating used to snap the map back to north, which
+      // pointed the rider's own chevron at the edge of the screen — the exact
+      // moment they most need it facing up.
+      bearing: navBearing ?? 0,
+      duration: 700,
+    });
+  }, [userLocation?.lat, userLocation?.lng, navBearing, navigationZoom]); // eslint-disable-line
 
   if (!MAPBOX_TOKEN) {
     return (

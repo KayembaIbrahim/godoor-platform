@@ -101,9 +101,10 @@ export function SignupModal({
           setCooldown(60);
           setError("Too many attempts. Waiting 60 seconds...");
         } else if (res.hint === "wrong_credentials") {
-          // Offer to sign up instead
-          setError("Wrong email or password. Want to create an account?");
-          setIsLogin(false);
+          // Stay on the login form — "Invalid login credentials" is returned
+          // for an unregistered email as well as a wrong password, so
+          // switching modes claimed the account did not exist.
+          setError("Wrong email or password. Check both and try again.");
         } else {
           setError(res.error);
         }

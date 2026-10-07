@@ -46,7 +46,13 @@ function AuthModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       if (res.error) {
         setLoading(false);
         if (res.hint === "rate_limited") { setCooldown(60); setError("Too many attempts. Waiting 60 seconds..."); }
-        else if (res.hint === "wrong_credentials") { setError("Wrong email or password. Want to create an account?"); setIsLogin(false); }
+        // Do NOT switch to sign-up here. Supabase answers "Invalid login
+        // credentials" for BOTH a wrong password AND an email that was never
+        // registered, so flipping the form told every existing customer who
+        // mistyped a password that they had "no account" — and then tried to
+        // create a duplicate. Stay on the login form and say nothing that
+        // implies the account is missing.
+        else if (res.hint === "wrong_credentials") { setError("Wrong email or password. Check both and try again."); }
         else setError(res.error);
         return;
       }
@@ -253,8 +259,8 @@ export function HeaderAuth() {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-full bg-go px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-go-2 active:scale-[0.97]">
-        <User className="h-3.5 w-3.5" />Sign in
+        className="flex min-h-11 items-center gap-1.5 rounded-full bg-go px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-go-2 active:scale-[0.97]">
+        <User aria-hidden className="h-3.5 w-3.5" />Sign in
       </button>
       <AuthModal open={open} onClose={() => setOpen(false)} />
     </>

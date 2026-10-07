@@ -6,6 +6,7 @@ import {
   MapPin, Search, Star, Truck, ChevronDown, Bike,
   BadgeCheck, Heart, ShoppingBag, SlidersHorizontal, TrendingUp,
   X, MapPinned, Zap, Clock, Flame,
+  Moon, Sun,
 } from "lucide-react";
 import { ProductSearch } from "@/components/ProductSearch";
 import { AboutGoDoor } from "@/components/AboutGoDoor";
@@ -23,8 +24,9 @@ import { CustomerNav } from "@/components/CustomerNav";
 import { SignupModal, useSignupPrompt } from "@/components/SignupPrompt";
 import { useActiveOrder } from "@/lib/use-active-order";
 import { useFavorites } from "@/lib/customer-stores";
-import { getCategoryIcon } from "@/lib/categories";
+import { getCategoryIcon, categoryMatches, matchCategory } from "@/lib/categories";
 import { AddressSearchModal, getLastAddress } from "@/components/AddressSearchModal";
+import { QuickServicesGrid } from "@/components/QuickServicesGrid";
 
 type SortMode = "nearest" | "rating" | "popular";
 
@@ -41,6 +43,24 @@ export default function CustomerHome() {
   }, [role, onboarded]);
 
   const [cat, setCat] = useState<string>("all");
+  // Theme state: true = dark, false = light. Default to dark per GoDoor 2.0 brief.
+  const [isDark, setIsDark] = useState<boolean>(true);
+
+  const setTheme = (dark: boolean) => {
+    setIsDark(dark);
+    // Persist to localStorage so the choice survives page reloads
+    if (typeof window !== "undefined") {
+      localStorage.setItem("godoor-theme", dark ? "dark" : "light");
+    }
+  };
+
+  // Initialize theme from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("godoor-theme");
+    if (stored === "light") {
+      setIsDark(false);
+    }
+  }, []);
   const [district, setDistrict] = useState<string>("auto");
   const [detectedDistrict, setDetectedDistrict] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -76,13 +96,23 @@ export default function CustomerHome() {
     fetch("/api/stories").then((r) => r.json()).then(({ stories: s }) => setStories(s || [])).catch(() => {});
   }, []);
 
-  // The effective location: searched address takes priority over GPS
+  // The effective location: searched address takes priority over GPS.
+  //
+  // GPS is not guaranteed — permission can be denied, indoors can defeat a
+  // fix, and on a weak connection the read can time out. When that happens the
+  // catalogue still has to render, so fall back to the Kampala city centre
+  // rather than leaving the map, sorting and district detection inert.
+  const KAMPALA: LatLng = { lat: 0.3163, lng: 32.5822 };
   const effectiveLoc: LatLng | null = deliveryAddr
     ? { lat: deliveryAddr.lat, lng: deliveryAddr.lng }
-    : gpsLoc;
+    : gpsLoc ?? (locStatus === "denied" || locStatus === "idle" ? KAMPALA : null);
 
-  const displayAddress = deliveryAddr?.place
-    || (locStatus === "locating" ? "Detecting location…" : "Set your delivery address");
+  // Tapping this opens the address picker, so the copy must stay actionable.
+  // "Detecting location…" told the user nothing and, if the permission prompt
+  // went unanswered, sat there indefinitely; a GPS read on a cold start also
+  // routinely takes ~10s. "Set your delivery address" is always true and can
+  // be acted on immediately, whether or not a fix eventually lands.
+  const displayAddress = deliveryAddr?.place || "Set your delivery address";
 
   // Detect district from effective location
   useEffect(() => {
@@ -98,8 +128,20 @@ export default function CustomerHome() {
     return () => { cancelled = true; };
   }, [effectiveLoc?.lat, effectiveLoc?.lng]);
 
+  // Chips are keyed by the CANONICAL category id, not the merchant's raw text.
+// A shop registered as "Furniture " (trailing space) would otherwise produce a
+// chip reading "Furniture " that matches nothing, and its count would disagree
+// with what the filter actually returns.
   const categories = useMemo(
-    () => [...new Set(merchants.map((m) => m.category).filter(Boolean))].sort(),
+    () =>
+      [
+        ...new Set(
+          merchants
+            .map((m) => m.category)
+            .filter(Boolean)
+            .map((c) => matchCategory(c)?.id ?? c)
+        ),
+      ].sort(),
     [merchants],
   );
 
@@ -107,7 +149,9 @@ export default function CustomerHome() {
   const catCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const m of merchants) {
-      if (m.category) counts[m.category] = (counts[m.category] || 0) + 1;
+      if (!m.category) continue;
+      const id = matchCategory(m.category)?.id ?? m.category;
+      counts[id] = (counts[id] || 0) + 1;
     }
     return counts;
   }, [merchants]);
@@ -126,7 +170,7 @@ export default function CustomerHome() {
 
   const list = useMemo(() => {
     let filtered = merchants.filter((m) => {
-      if (cat !== "all" && m.category !== cat) return false;
+      if (cat !== "all" && !categoryMatches(m.category, cat)) return false;
       const mDistrict = (m.district || m.area || "").toLowerCase();
       const hasDistrict = !!mDistrict && mDistrict !== "uganda";
       if (activeDistrictName && hasDistrict) {
@@ -158,9 +202,13 @@ export default function CustomerHome() {
     return sorted;
   }, [cat, activeDistrictName, q, effectiveLoc, merchants, sortMode, minRating, freeDeliveryOnly, verifiedOnly]);
 
+  // "Detecting your area…" was gated purely on `locStatus === "locating"`, which
+  // used to be able to stick permanently when the GPS read and IP fallback both
+  // failed. Gate it on the merchants request actually being in flight instead,
+  // so this always resolves to a real count.
   const areaHeading = activeDistrictName
     ? `${activeDistrictName} · ${list.length} business${list.length !== 1 ? "es" : ""}`
-    : district === "auto" && locStatus === "locating"
+    : district === "auto" && merchantsLoading
       ? "Detecting your area…"
       : `${merchantsLoading ? "Loading businesses…" : `All Uganda · ${list.length} businesses`}`;
 
@@ -180,79 +228,96 @@ export default function CustomerHome() {
   }, []);
 
   return (
-    <div className="mx-auto min-h-[70vh] max-w-lg bg-bg pb-24 md:max-w-3xl lg:max-w-6xl">
-      <header className="relative z-20 border-b border-border bg-bg/90 backdrop-blur-xl">
-        <div className="space-y-2 px-4 pt-3 pb-3 md:mx-auto md:max-w-3xl">
-          {/* Delivery address bar — Uber style */}
-          <button
-            type="button"
-            onClick={() => setAddressSearchOpen(true)}
-            className="flex w-full items-center gap-2 rounded-xl bg-surface px-3 py-2.5 text-left shadow-xs transition hover:bg-elevated hover:shadow-card"
-          >
-            <MapPin className="h-4 w-4 text-go shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] uppercase font-semibold text-go tracking-wider">Deliver to</p>
-              <p className="text-sm font-medium text-fg truncate">{displayAddress}</p>
+    <div className="mx-auto min-h-[70vh] max-w-lg pb-24 md:max-w-3xl lg:max-w-6xl">
+      <header className="relative z-20 border-b border-border bg-navy/80 backdrop-blur-xl">
+        {/* The page had no <h1> at all — headings jumped straight to merchant
+            names, so assistive tech and crawlers had no page title. Kept
+            screen-reader-only so the visual header is unchanged. */}
+        <h1 className="sr-only">GoDoor — order food, groceries, rides and medicines in Uganda</h1>
+        <div className="space-y-3 px-4 pt-3 pb-3 md:mx-auto md:max-w-3xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {/* GoDoor logo — the official current logo, unchanged */}
+              <Link href="/app" className="group">
+                <img
+                  src="/logo.svg"
+                  alt="GoDoor"
+                  className="h-8 w-auto"
+                />
+              </Link>
+              {/* Location selector */}
+              <button
+                type="button"
+                onClick={() => setAddressSearchOpen(true)}
+                className="flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 hover:border-white/20 hover:bg-white/10 transition focus:outline-none focus:ring-2 focus:ring-go/40 focus:ring-offset-2"
+              >
+                <MapPin className="h-4 w-4 text-go" />
+                <span className="hidden md:inline">Set delivery location</span>
+              </button>
             </div>
-            <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
-          </button>
+            <div className="flex items-center gap-4">
+              {/* Theme toggle */}
+              <button
+                type="button"
+                onClick={() => setTheme(!isDark)}
+                className="rounded-full p-1.5 bg-white/5 hover:bg-white/10 transition"
+                aria-label="Toggle theme"
+              >
+                {isDark ? (
+                  <Moon className="h-4 w-4 text-slate-300" />
+                ) : (
+                  <Sun className="h-4 w-4 text-slate-300" />
+                )}
+              </button>
+            </div>
+          </div>
 
-          {/* Active delivery banner — only while the order row is genuinely
-              still moving, so it disappears the moment the rider completes it. */}
-          {activeOrder && <ActiveDeliveryCard order={activeOrder} />}
+          {/* GoDoor Pay wallet - premium wallet section */}
+          <WalletBalanceCard className="border border-purple/20" />
 
-          {/* Wallet balance. Checkout is wallet-only, so this is the first place
-              a customer can see they need to top up before they can order. */}
-          <WalletBalanceCard />
-
-          {/* Search — filters the shop list as you type. Product-level search
-              stays one tap below, because people mean a shop 9 times out of 10. */}
-          <div className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2.5 shadow-xs transition focus-within:shadow-card">
-            <Search className="h-4 w-4 shrink-0 text-navy" />
+          {/* Search — universal search across the entire GoDoor ecosystem */}
+          <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#131F38] px-3.5 py-2.5 shadow-sm transition focus-within:border-purple/40">
+            <Search className="h-4 w-4 shrink-0 text-slate-400" />
             <input
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search shops, areas, food…"
-              aria-label="Search shops"
-              className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-muted"
+              placeholder="Search food, shops, groceries, medicines, rides..."
+              aria-label="Search GoDoor ecosystem"
+              className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-400"
             />
             {q ? (
-              <button type="button" onClick={() => setQ("")} aria-label="Clear search"
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-elevated text-muted transition hover:bg-navy hover:text-white">
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                aria-label="Clear search"
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-slate-300 transition hover:bg-go hover:text-white"
+              >
                 <X className="h-3.5 w-3.5" />
               </button>
             ) : (
-              <button type="button" onClick={() => setProductSearchOpen(true)}
-                className="chip chip-nav shrink-0 bg-navy/10 text-navy transition hover:bg-navy hover:text-white dark:bg-navy-soft dark:text-slate-200">
+              <button
+                type="button"
+                onClick={() => setProductSearchOpen(true)}
+                className="shrink-0 rounded-xl bg-[#1B2848] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#22335c] border border-white/5 active:scale-95"
+              >
                 All products
               </button>
             )}
           </div>
 
-          {/* Services — Food delivery + Boda ride (super-app grid seed) */}
-          <div className="grid grid-cols-2 gap-2">
-            <a href="#merchants"
-              className="flex items-center gap-2.5 rounded-2xl bg-go/10 px-3.5 py-3 transition hover:bg-go/15">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-go text-white">
-                <ShoppingBag className="h-4.5 w-4.5" />
-              </span>
-              <span>
-                <span className="block text-sm font-bold">Food & Shops</span>
-                <span className="block text-[10px] text-muted">Order for delivery</span>
-              </span>
-            </a>
-            <Link href="/ride"
-              className="flex items-center gap-2.5 rounded-2xl bg-primary/10 px-3.5 py-3 transition hover:bg-primary/15">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-white">
-                <Bike className="h-4.5 w-4.5" />
-              </span>
-              <span>
-                <span className="block text-sm font-bold">Boda Ride</span>
-                <span className="block text-[10px] text-muted">Go anywhere now</span>
-              </span>
-            </Link>
-          </div>
+          {/* Active delivery tracker - prominent when order is active */}
+          {activeOrder && (
+            <div className="mt-4">
+              <ActiveDeliveryCard order={activeOrder} className="border border-purple/20" />
+            </div>
+          )}
+
+          {/* 8-item Super-App Grid & Safe Mobility banner */}
+          <QuickServicesGrid
+          onSelectCategory={(chosen) => setCat(chosen)}
+          catCounts={catCounts}
+        />
 
           {/* ── Catalogue nav ───────────────────────────────────────────
               One row answers "how many, sorted how", one rail switches
@@ -480,8 +545,10 @@ export default function CustomerHome() {
                   {m.verified && <span className="chip gap-0.5 bg-primary/90 text-white shadow-xs"><BadgeCheck className="h-3 w-3" /> Verified</span>}
                 </div>
                 <button type="button" onClick={(e) => { e.preventDefault(); toggleFav(m.id); }}
-                  className="absolute top-2 right-2 grid h-8 w-8 place-items-center rounded-full bg-black/30 backdrop-blur-sm transition active:scale-90">
-                  <Heart className={`h-4 w-4 ${favIds.includes(m.id) ? "fill-go text-go" : "text-white"}`} />
+                  aria-pressed={favIds.includes(m.id)}
+                  aria-label={`${favIds.includes(m.id) ? "Remove" : "Add"} ${m.name} ${favIds.includes(m.id) ? "from" : "to"} favourites`}
+                  className="tap-44 absolute top-2 right-2 grid h-8 w-8 place-items-center rounded-full bg-black/30 backdrop-blur-sm transition active:scale-90">
+                  <Heart aria-hidden className={`h-4 w-4 ${favIds.includes(m.id) ? "fill-go text-go" : "text-white"}`} />
                 </button>
                 {cartCount > 0 && (
                   <div className="absolute bottom-2 right-2 rounded-full bg-go px-2 py-0.5 text-[10px] font-bold text-white shadow-xs num">Cart · {cartCount}</div>

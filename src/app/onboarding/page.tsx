@@ -157,7 +157,7 @@ export default function OnboardingPage() {
 
         <div className="mt-6 text-center">
           <p className="text-xs text-dim">
-          <Link href="/tutorial" className="inline-flex items-center gap-1.5 text-xs font-medium text-go hover:underline mb-2">
+          <Link href="/tutorial" className="min-h-11 inline-flex items-center gap-1.5 text-xs font-medium text-go hover:underline mb-2">
             <Play className="h-3 w-3" /> Watch how it works
           </Link>
             Already have an account?{" "}

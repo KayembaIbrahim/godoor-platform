@@ -10,6 +10,7 @@ import {
 import { useSession } from "@/lib/session-store";
 import { fetchMerchants, fetchProducts, saveProduct, deleteProduct, apiAuthHeaders, type DBProduct } from "@/lib/db";
 import { CATEGORIES, getCategoryIcon, getCategoryColor } from "@/lib/categories";
+import { noDeadline } from "@/lib/net";
 
 const CATEGORY_IDS = CATEGORIES.map((c) => c.id);
 
@@ -141,7 +142,11 @@ export default function BusinessProductsPage() {
       fd.append("bucket", "product-images");
       fd.append("path", `products/${merchantId || "misc"}/${Date.now()}.${file.name.split(".").pop()}`);
       try {
-        const res = await fetch("/api/upload", { method: "POST", headers: await apiAuthHeaders(false), body: fd });
+        const res = await fetch("/api/upload", noDeadline({
+      // A photo upload on a metered 3G link can legitimately outlast the
+      // global 20s ceiling, so this one opts out of the deadline.
+      method: "POST", headers: await apiAuthHeaders(false), body: fd,
+    }));
         const json = await res.json().catch(() => ({}));
         if (json.url) urls.push(json.url);
       } catch {}

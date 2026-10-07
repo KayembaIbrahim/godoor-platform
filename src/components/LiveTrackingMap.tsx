@@ -95,6 +95,12 @@ type Props = {
   trafficAware?: boolean;
   /** Per-segment congestion (Mapbox 0-4) painted onto the route line. */
   congestion?: number[] | null;
+  /** Heading-up navigation for the driver's own map: rotates the map to the
+      compass bearing so the road ahead points up. Only ever set by the rider
+      screen — a customer watching a ride must not get a rotating map. */
+  navigationBearing?: number | null;
+  /** Street-level zoom for the driving view. */
+  navigationZoom?: number;
 };
 
 export function LiveTrackingMap({
@@ -104,6 +110,7 @@ export function LiveTrackingMap({
      ride must not be told "Drive northwest…", so the banner is opt-in. */
   showNavigation = true,
   quotedFeeUgx = null, trafficAware = false, congestion = null,
+  navigationBearing = null, navigationZoom = 16.5,
 }: Props) {
   const UG_DEFAULT: LatLng = { lat: 0.3163, lng: 32.5822 };
   const hasCoords = (p: LatLng | null | undefined) => !!p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9);
@@ -262,6 +269,8 @@ export function LiveTrackingMap({
           congestion={congestion}
           fitBounds={fitBounds}
           markers={markers}
+          navigationBearing={navigationBearing}
+          navigationZoom={navigationZoom}
           fitPadding={fitPad}
         />
 

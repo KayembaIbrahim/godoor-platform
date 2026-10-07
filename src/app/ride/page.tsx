@@ -10,6 +10,7 @@ import { useGeolocation, distanceKm, type LatLng } from "@/lib/location";
 import { useRoadRoute } from "@/lib/routing";
 import { formatUgx } from "@/lib/utils";
 import { createRide, fetchMyRides, fetchRideById, rideAction, subscribeToRide, fetchRiderLocation, subscribeToRiderLocation, type DBRide } from "@/lib/db";
+import { StopoverAlert } from "@/components/StopoverAlert";
 
 const LiveTrackingMap = dynamic(() => import("@/components/LiveTrackingMap").then((m) => m.LiveTrackingMap), {
   ssr: false,
@@ -159,6 +160,14 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
             </button>
           )}
         </div>
+        {/* Declared waiting. Sits directly under the fare: if a rider starts a
+            wait, the customer's next question is "what is this costing me",
+            and the answer must be on the same screen as the total. */}
+        {ride.status === "in_progress" && (
+          <div className="mt-3">
+            <StopoverAlert rideId={ride.id} active />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -253,8 +262,8 @@ export default function RidePage() {
   return (
     <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-24 pt-4 md:max-w-4xl">
       <div className="flex items-center gap-3">
-        <Link href="/app" className="grid h-9 w-9 place-items-center rounded-full bg-surface text-muted hover:bg-elevated transition">
-          <ArrowLeft className="h-4 w-4" />
+        <Link href="/app" aria-label="Back to GoDoor home" className="grid h-9 w-9 place-items-center rounded-full bg-surface text-muted hover:bg-elevated transition">
+          <ArrowLeft aria-hidden className="h-4 w-4" />
         </Link>
         <div>
           <h1 className="font-display text-lg font-bold flex items-center gap-2">

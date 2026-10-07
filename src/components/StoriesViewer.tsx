@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { X, ChevronLeft, ChevronRight, Camera, Loader2, Trash2 } from "lucide-react";
 import { useSession } from "@/lib/session-store";
 import { apiAuthHeaders } from "@/lib/db";
+import { noDeadline } from "@/lib/net";
 
 export type Story = {
   id: string;
@@ -265,7 +266,11 @@ export function StoryComposer({ merchantId, onDone }: { merchantId: string; onDo
       const fd = new FormData();
       fd.append("file", file);
       fd.append("bucket", "stories");
-      const uploadRes = await fetch("/api/upload", { method: "POST", headers: await apiAuthHeaders(false), body: fd });
+      const uploadRes = await fetch("/api/upload", noDeadline({
+      // A photo upload on a metered 3G link can legitimately outlast the
+      // global 20s ceiling, so this one opts out of the deadline.
+      method: "POST", headers: await apiAuthHeaders(false), body: fd,
+    }));
       const { url } = await uploadRes.json().catch(() => ({}));
       if (!url) throw new Error("Upload failed");
 

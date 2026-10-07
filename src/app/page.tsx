@@ -8,7 +8,10 @@ import {
   Clock, UtensilsCrossed, Pill, Package,
   MapPinned, ChevronDown, Play, TrendingUp,
   Download, Wifi, Globe, Users, BadgePercent, Flame,
+  Bike, Store, Search, CircleUser, Bell, Menu,
+  Navigation, PackageCheck, CreditCard,
 } from "lucide-react";
+import { categoryVisual } from "@/lib/visuals";
 import { Logo } from "@/components/Logo";
 import { MorseLogo } from "@/components/MorseLogo";
 import { useSession, roleHomePath } from "@/lib/session-store";
@@ -76,22 +79,13 @@ function FaqAccordion({ q, a }: { q: string; a: string }) {
   );
 }
 
-const HOW_IT_WORKS_STEPS = [
+/* ─── GoDoor 2.0: Core workflow steps ─── */
+const CORE_WORKFLOW_STEPS = [
   { icon: Smartphone, title: "Browse & Order", desc: "Discover local shops and restaurants near you. Browse menus, compare prices, and add items to your cart in seconds.", color: "from-go/20 to-go/5" },
   { icon: Wallet, title: "Pay with GoDoor Wallet", desc: "Fund your wallet via Morse and check out in seconds. Your payment is held in escrow until delivery.", color: "from-primary/20 to-primary/5" },
   { icon: Truck, title: "Track & Receive", desc: "Watch your rider in real-time on the map. Average delivery in under 30 minutes, right to your door.", color: "from-success/20 to-success/5" },
 ];
-
-const CATEGORY_ICONS: Record<string, { emoji: string; bg: string }> = {
-  Food: { emoji: "🍜", bg: "bg-amber-500/20" },
-  Restaurant: { emoji: "🍽️", bg: "bg-amber-500/20" },
-  Pharmacy: { emoji: "💊", bg: "bg-blue-500/20" },
-  Groceries: { emoji: "🛒", bg: "bg-emerald-500/20" },
-  Shopping: { emoji: "🛍️", bg: "bg-purple-500/20" },
-  Packages: { emoji: "📦", bg: "bg-orange-500/20" },
-  Documents: { emoji: "📄", bg: "bg-slate-500/20" },
-};
-const DEFAULT_CATEGORY = { emoji: "🏪", bg: "bg-gray-500/20" };
+const HOW_IT_WORKS_STEPS = CORE_WORKFLOW_STEPS;
 
 /* Rotating content for the deep-navy hero banner. */
 const HERO_SLIDES = [
@@ -174,7 +168,9 @@ function SlideBanner({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      {/* Progress ticks double as a position indicator. */}
+      {/* Progress ticks double as a position indicator. The bar is a 3px hairline,
+            but a 3px-tall control cannot be tapped reliably on a phone, so the
+            button carries the 44px hit area and the bar is a child. */}
       <div className="mt-3 flex items-center gap-1.5">
         {HERO_SLIDES.map((s, i) => (
           <button
@@ -183,16 +179,36 @@ function SlideBanner({ compact = false }: { compact?: boolean }) {
             onClick={() => setIndex(i)}
             aria-label={`Show ${s.eyebrow}`}
             aria-current={i === index}
-            className={`h-[3px] flex-1 rounded-full transition-colors duration-300 ${
-              i === index ? "navy-tick-on" : "navy-tick-off"
-            }`}
-            style={i === index ? { animation: `navy-tick ${HERO_SLIDE_MS}ms ease-in-out infinite` } : undefined}
-          />
+            className="flex min-h-11 flex-1 items-center"
+          >
+            <span
+              className={`block h-[3px] w-full rounded-full transition-colors duration-300 ${
+                i === index ? "navy-tick-on" : "navy-tick-off"
+              }`}
+              style={i === index ? { animation: `navy-tick ${HERO_SLIDE_MS}ms ease-in-out infinite` } : undefined}
+            />
+          </button>
         ))}
       </div>
     </div>
   );
 }
+
+/* ─── GoDoor 2.0 service catalog (brand-first) ───
+   Each tile is the same geometry so the grid reads as one ecosystem,
+   differentiated only by icon, name, short copy and a subtle accent plate.
+   Purple is used as the new premium emphasis token while GoDoor's orange
+   stays the action color. Status shows which channels are live. */
+const SERVICES_20 = [
+  { icon: Bike, label: "GoRide", desc: "Boda & Car", color: "text-purple-600", plate: "bg-purple-100", status: "live", badge: "Live" },
+  { icon: UtensilsCrossed, label: "GoFood", desc: "Meals & restaurants", color: "text-primary", plate: "bg-primary-2", status: "live", badge: "Live" },
+  { icon: ShoppingBag, label: "GoMart", desc: "Supermarket & groceries", color: "text-success", plate: "bg-success-light", status: "live", badge: "Live" },
+  { icon: PackageCheck, label: "GoExpress", desc: "Send parcel", color: "text-navy", plate: "bg-navy-soft", status: "live", badge: "Live" },
+  { icon: Pill, label: "GoPharma", desc: "Medicines & wellness", color: "text-blue-600", plate: "bg-blue-100", status: "live", badge: "Live" },
+  { icon: CreditCard, label: "GoPay", desc: "Money & payments", color: "text-purple-600", plate: "bg-purple-100", status: "live", badge: "Live" },
+  { icon: Zap, label: "Airtime", desc: "MTN & Airtel top-up", color: "text-warning", plate: "bg-warning", status: "live", badge: "Live" },
+  { icon: Menu, label: "Services", desc: "GoDoor services directory", color: "text-muted", plate: "bg-surface", status: "upcoming", badge: "Directory" },
+] as const;
 
 const LANDING_CATEGORIES = [
   { icon: UtensilsCrossed, label: "Restaurants", desc: "Hot meals & snacks", color: "text-amber-500", bg: "bg-amber-500/10", status: "live" },
@@ -281,9 +297,9 @@ export default function HomePage() {
 
       {/* Hero */}
       <section ref={heroRef} className="relative mx-auto max-w-5xl px-4 pb-14 pt-24 md:pt-28">
-        <div className="pointer-events-none absolute -left-24 top-6 -z-10 h-72 w-72 rounded-full bg-go/15 blur-3xl animate-float" />
-        <div className="pointer-events-none absolute -right-16 top-40 -z-10 h-80 w-80 rounded-full bg-primary/10 blur-3xl animate-float" style={{ animationDelay: "1.2s" }} />
-        <div className="pointer-events-none absolute left-1/2 top-10 -z-10 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-go/8 via-primary/8 to-success/8 blur-3xl" />
+        <div className="deco-glow pointer-events-none absolute -left-24 top-6 -z-10 h-72 w-72 rounded-full bg-go/15 blur-3xl animate-float" />
+        <div className="deco-glow pointer-events-none absolute -right-16 top-40 -z-10 h-80 w-80 rounded-full bg-primary/10 blur-3xl animate-float" style={{ animationDelay: "1.2s" }} />
+        <div className="deco-glow pointer-events-none absolute left-1/2 top-10 -z-10 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-go/8 via-primary/8 to-success/8 blur-3xl" />
         <div className="grid items-center gap-10 md:grid-cols-2">
           <div className="animate-fade-in">
             {/* Urgency badge */}
@@ -368,7 +384,7 @@ export default function HomePage() {
 
           {/* Phone mockup */}
           <div className="relative hidden md:block">
-            <div className="absolute inset-0 -z-10 mx-auto w-72 rounded-full bg-go/20 blur-3xl" />
+            <div className="deco-glow absolute inset-0 -z-10 mx-auto w-72 rounded-full bg-go/20 blur-3xl" />
             <div className="animate-float mx-auto w-64 rounded-[2.6rem] bg-surface/90 p-3 shadow-pop">
               <div className="space-y-2 rounded-3xl bg-gradient-to-b from-bg to-elevated p-3">
                 <div className="flex items-center justify-between">
@@ -490,15 +506,39 @@ export default function HomePage() {
           ) : merchants.length > 0 ? (
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger">
               {merchants.slice(0, 8).map((m) => {
-                const cat = CATEGORY_ICONS[m.category] || DEFAULT_CATEGORY;
+                const cat = categoryVisual(m.category);
+                const CatIcon = cat.icon;
                 return (
                   <Link key={m.id} href={`/business?merchantId=${m.id}`} className="group card-hover overflow-hidden rounded-2xl bg-surface shadow-xs">
                     <div className={`relative ${cat.bg} flex h-32 items-center justify-center`}>
                       {m.logo_url ? (
-                        <img src={m.logo_url} alt={m.name} className="h-20 w-20 rounded-xl object-cover" />
-                      ) : (
-                        <span className="text-5xl">{cat.emoji}</span>
-                      )}
+                        /* A merchant row can carry a logo_url that no longer
+                           resolves — the object was deleted from the
+                           `store-photos` bucket, or the row predates it. That
+                           rendered a broken image frame, so fall back to the
+                           category icon the same way a missing URL does. */
+                        <img
+                          src={m.logo_url}
+                          alt={m.name}
+                          className="h-20 w-20 rounded-2xl object-cover shadow-md"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                            e.currentTarget.parentElement
+                              ?.querySelector("[data-logo-fallback]")
+                              ?.classList.remove("hidden");
+                          }}
+                        />
+                      ) : null}
+                      {/* A plate rather than a bare glyph — reads as designed
+                          artwork instead of a placeholder. */}
+                      <span
+                        data-logo-fallback
+                        className={`grid h-16 w-16 place-items-center rounded-2xl bg-surface/95 shadow-lg shadow-black/5 ring-1 ring-border transition-transform duration-300 group-hover:scale-105 ${
+                          m.logo_url ? "hidden" : ""
+                        }`}
+                      >
+                        <CatIcon className={`h-7 w-7 ${cat.text}`} aria-hidden />
+                      </span>
                       {m.verified && (
                         <span className="absolute top-2 right-2 rounded-full bg-success px-2 py-0.5 text-[10px] font-semibold text-white">
                           Verified
@@ -707,18 +747,23 @@ export default function HomePage() {
               </div>
               <div className="grid gap-3">
                 {[
-                  { emoji: "🛍️", title: "Customers", desc: "One-tap checkout, live order tracking, zero payment stress." },
-                  { emoji: "🏪", title: "Businesses", desc: "Get paid swiftly on every order — no POS, no paperwork." },
-                  { emoji: "🛵", title: "Riders", desc: "Swift payouts and clear earnings on every delivery." },
-                ].map((c) => (
-                  <div key={c.title} className="card-lift flex items-start gap-3 rounded-2xl bg-surface p-4">
-                    <span className="text-2xl">{c.emoji}</span>
-                    <div>
-                      <p className="text-sm font-semibold">{c.title}</p>
-                      <p className="mt-0.5 text-xs text-muted leading-relaxed">{c.desc}</p>
+                  { icon: ShoppingBag, title: "Customers", desc: "One-tap checkout, live order tracking, zero payment stress." },
+                  { icon: Store, title: "Businesses", desc: "Get paid swiftly on every order — no POS, no paperwork." },
+                  { icon: Bike, title: "Riders", desc: "Swift payouts and clear earnings on every delivery." },
+                ].map((c) => {
+                  const CIcon = c.icon;
+                  return (
+                    <div key={c.title} className="card-lift flex items-start gap-3 rounded-2xl bg-surface p-4">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-go/10">
+                        <CIcon className="h-5 w-5 text-go" aria-hidden />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold">{c.title}</p>
+                        <p className="mt-0.5 text-xs text-muted leading-relaxed">{c.desc}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div className="flex items-center justify-center gap-2 rounded-2xl bg-go/5 px-4 py-3">
                   <MorseLogo className="h-3.5 text-go" />
                   <p className="text-[11px] font-medium text-muted">Morse wallet · free deposits</p>
@@ -735,7 +780,7 @@ export default function HomePage() {
           <div className="grid gap-4 md:grid-cols-2">
             {/* Merchants */}
             <div className="relative overflow-hidden rounded-2xl bg-primary/5 bg-gradient-to-br from-primary/10 via-surface to-surface p-6 shadow-card">
-              <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" aria-hidden />
+              <div className="deco-glow absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" aria-hidden />
               <div className="relative">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-[10px] font-bold text-primary uppercase">
                 For Merchants
@@ -756,7 +801,7 @@ export default function HomePage() {
             </div>
             {/* Riders */}
             <div className="relative overflow-hidden rounded-2xl bg-success/5 bg-gradient-to-br from-success/10 via-surface to-surface p-6 shadow-card">
-              <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-success/10 blur-3xl" aria-hidden />
+              <div className="deco-glow absolute -right-10 -top-10 h-40 w-40 rounded-full bg-success/10 blur-3xl" aria-hidden />
               <div className="relative">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-[10px] font-bold text-success uppercase">
                 For Riders
@@ -915,7 +960,7 @@ export default function HomePage() {
       {/* Final CTA */}
       <section className="border-t border-border bg-gradient-to-b from-go/5 to-transparent py-14">
         <div className="relative mx-auto max-w-5xl px-4 text-center">
-          <div className="pointer-events-none absolute left-1/2 top-0 -z-10 h-64 w-64 -translate-x-1/2 rounded-full bg-go/15 blur-3xl" aria-hidden />
+          <div className="deco-glow pointer-events-none absolute left-1/2 top-0 -z-10 h-64 w-64 -translate-x-1/2 rounded-full bg-go/15 blur-3xl" aria-hidden />
           <Logo size="lg" className="justify-center" />
           <p className="mt-4 text-lg text-muted">Delivering Possibilities.</p>
 
@@ -936,7 +981,7 @@ export default function HomePage() {
             {onboarded ? "Open app" : "Try GoDoor now — it's free"}
           </Link>
           <p className="mt-3 text-xs text-dim">No card needed. Just your phone — pay with Morse for the swiftest checkout.</p>
-          <Link href="/tutorial" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-go hover:underline">Watch how it works <Play className="h-3 w-3" /></Link>
+          <Link href="/tutorial" className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-go hover:underline">Watch how it works <Play className="h-3 w-3" /></Link>
         </div>
       </section>
     </div>

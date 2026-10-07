@@ -154,6 +154,12 @@ async function tablesExist(): Promise<boolean> {
   return _tablesExist;
 }
 
+// Network deadlines live in ./net so low-level consumers (geocoding, IP
+// fallback) can bound a request without importing the database layer.
+// Re-exported here because most callers already import from db.
+import { READ_TIMEOUT_MS, withTimeout, fetchTimed, noDeadline } from "./net";
+export { READ_TIMEOUT_MS, withTimeout, fetchTimed };
+
 // ─── Public API ────────────────────────────────────────────────
 
 function genId(prefix: string) {
@@ -329,10 +335,12 @@ export async function fetchMerchants(): Promise<DBMerchant[]> {
   // We still store local merchants but don't let them override server data.
   const localMerchants = loadLocal().merchants;
   // Prefer the server API (service-role key) so customers see every active business
+  let serverOk = false;
   try {
-    const res = await fetch("/api/merchants");
+    const res = await fetchTimed("/api/merchants");
     const json = await res.json().catch(() => ({}));
     if (Array.isArray(json.merchants)) {
+      serverOk = true;
       for (const m of json.merchants) merged.set(m.id, merchantFromRow(m));
     }
   } catch {}
@@ -340,16 +348,29 @@ export async function fetchMerchants(): Promise<DBMerchant[]> {
   for (const m of localMerchants) {
     if (!merged.has(m.id)) merged.set(m.id, m);
   }
-  // Fallback: direct Supabase read (works when RLS policies allow it)
-  try {
-    const sb = getSupabase();
-    if (sb) {
-      const { data, error } = await sb.from("merchants").select("*").eq("status", "active").order("rating", { ascending: false });
-      if (!error && data?.length) {
-        for (const m of data) merged.set(m.id, merchantFromRow(m));
+  // Direct Supabase read — ONLY when the server gave us nothing.
+  //
+  // This used to run unconditionally, so every signed-out visitor downloaded
+  // the whole merchants table a second time straight from Supabase on their
+  // metered phone. It could only ever return a subset of what /api/merchants
+  // already returned (RLS), and it was serialised after it — which is why the
+  // catalogue took 8s to appear. It is genuinely useful only as an offline
+  // fallback, so it now runs only when the server produced no rows.
+  if (!serverOk) {
+    try {
+      const sb = getSupabase();
+      if (sb) {
+        const { data, error } = await withTimeout(
+          sb.from("merchants").select("*").eq("status", "active").order("rating", { ascending: false }),
+          READ_TIMEOUT_MS,
+          "merchants fallback",
+        );
+        if (!error && data?.length) {
+          for (const m of data) merged.set(m.id, merchantFromRow(m));
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
   return [...merged.values()].sort((a, b) => b.created_at - a.created_at);
 }
 
@@ -500,6 +521,11 @@ export async function fetchOrders(filters?: { merchant_id?: string; customer_id?
   // Use API route (service-role) to bypass RLS — pass filters to server
   const merged = new Map<string, DBOrder>();
   let dbOk = false;
+  // A 401/403 is a real answer ("nobody is signed in"), not a transport
+  // failure. Treating it as a failure sent every signed-out visitor into the
+  // direct-Supabase fallback below, which downloaded up to 200 full order rows
+  // from their phone for data RLS would refuse to return anyway.
+  let authFailed = false;
   try {
     const params = new URLSearchParams();
     if (filters?.merchant_id) params.set("merchant_id", filters.merchant_id);
@@ -507,15 +533,18 @@ export async function fetchOrders(filters?: { merchant_id?: string; customer_id?
     if (filters?.customer_email) params.set("customer_email", filters.customer_email);
     if (filters?.status) params.set("status", filters.status);
     const qs = params.toString();
-    const res = await fetch(`/api/orders${qs ? "?" + qs : ""}`, { cache: "no-store", headers: await apiAuthHeaders(false) });
+    const res = await fetchTimed(`/api/orders${qs ? "?" + qs : ""}`, { cache: "no-store", headers: await apiAuthHeaders(false) });
+    if (res.status === 401 || res.status === 403) authFailed = true;
     const json = await res.json().catch(() => ({}));
     if (Array.isArray(json.orders)) {
       dbOk = true;
       for (const o of json.orders) merged.set(o.id, dbOrder(o));
+    } else if (authFailed) {
+      dbOk = true;
     }
   } catch {}
   // Fallback: direct Supabase client (works if RLS allows it)
-  if (!dbOk) {
+  if (!dbOk && !authFailed) {
     try {
       const sb = getSupabase();
       if (sb) {
@@ -524,7 +553,7 @@ export async function fetchOrders(filters?: { merchant_id?: string; customer_id?
         if (filters?.customer_id) q = q.eq("customer_id", filters.customer_id);
         if (filters?.customer_email) q = q.eq("customer_email", filters.customer_email);
         if (filters?.status) q = q.eq("status", filters.status);
-        const { data, error } = await q;
+        const { data, error } = await withTimeout(q, READ_TIMEOUT_MS, "orders fallback");
         if (!error && data?.length) {
           dbOk = true;
           for (const o of data) merged.set(o.id, dbOrder(o));
@@ -572,20 +601,30 @@ export async function fetchOrderById(id: string): Promise<DBOrder | undefined> {
   return local || undefined;
 }
 
-export async function createOrder(o: Omit<DBOrder, "id" | "created_at" | "updated_at">): Promise<DBOrder> {
+export async function createOrder(
+  o: Omit<DBOrder, "id" | "created_at" | "updated_at">,
+  walletGrant?: string,
+): Promise<DBOrder> {
   // Use server API route (service-role). FAIL LOUDLY on any error: returning a
   // locally-generated "ord_…" order means the business never receives it and
   // payment proofs get orphaned in the DB. Never simulate success.
   try {
+    /* The grant is what authorises the escrow hold server-side. It is passed as
+       a header rather than in the body so it can never be logged alongside the
+       order contents or replayed out of a stored request. */
+    const headers = await apiAuthHeaders(true);
+    if (walletGrant) headers["x-wallet-grant"] = walletGrant;
     const res = await fetch("/api/orders", {
       method: "POST",
-      headers: await apiAuthHeaders(true),
+      headers,
       body: JSON.stringify(o),
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.order) {
       const msg = (json && typeof (json as any).error === "string" && (json as any).error) || `Order failed (${res.status})`;
-      throw new Error(msg);
+      const err = new Error(msg) as Error & { code?: string };
+      err.code = (json && typeof (json as any).code === "string") ? (json as any).code : undefined;
+      throw err;
     }
     const db = dbOrder(json.order);
     // Cache under the SERVER id and drop any phantom "ord_…" ghosts so local
@@ -1072,7 +1111,17 @@ export async function fetchDriverRides(): Promise<DBRide[]> {
 }
 
 export async function fetchOpenRides(): Promise<DBRide[]> {
-  const res = await fetch("/api/rides?open=1", { cache: "no-store", headers: await apiAuthHeaders(false) });
+  const send = async () =>
+    fetch("/api/rides?open=1", { cache: "no-store", headers: await apiAuthHeaders(false) });
+  let res = await send();
+  /* A stale JWT silently 401s. This was the one ride call that threw on a
+     non-OK status, so a token that had merely expired — with the rider very
+     much signed in — surfaced "Sign in to continue" as a red banner in the
+     middle of the Boda tab. Refresh once and retry before believing a 401. */
+  if (res.status === 401 || res.status === 403) {
+    try { await getSupabase()?.auth.refreshSession(); } catch {}
+    res = await send();
+  }
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || "Could not load ride requests");
   return Array.isArray(json.rides) ? (json.rides as DBRide[]) : [];
@@ -1089,14 +1138,99 @@ export async function fetchRideById(id: string): Promise<DBRide | null> {
 }
 
 export async function rideAction(id: string, action: "accept" | "start" | "complete" | "cancel", extra?: Record<string, unknown>): Promise<DBRide> {
-  const res = await fetch("/api/rides", {
-    method: "PATCH",
-    headers: await apiAuthHeaders(true),
-    body: JSON.stringify({ id, action, ...(extra || {}) }),
-  });
+  const send = async () =>
+    fetch("/api/rides", {
+      method: "PATCH",
+      headers: await apiAuthHeaders(true),
+      body: JSON.stringify({ id, action, ...(extra || {}) }),
+    });
+  let res = await send();
+  /* Retry once on an auth failure. A rider accepting a ride is at the roadside
+     with a token minted over an hour ago; if it lapsed mid-session this call
+     threw "Sign in to continue" and the tap looked like it did nothing. The
+     request is idempotent-safe to repeat: accept is a conditional update on
+     status='requested', so a retry that already succeeded reports 409 rather
+     than double-claiming. */
+  if (res.status === 401 || res.status === 403) {
+    try { await getSupabase()?.auth.refreshSession(); } catch {}
+    res = await send();
+  }
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json.ride) throw new Error(json.error || "Action failed");
   return json.ride as DBRide;
+}
+
+/* ─── Stopover / waiting on customer ────────────────────────────────────────── */
+
+/**
+ * Stopover calls go through a helper that retries once on a stale JWT.
+ *
+ * This matters more here than for an ordinary read: the rider is standing next
+ * to a waiting passenger tapping a button, and a 401 would surface as "Sign in
+ * to continue" — the exact message that made riders believe they were logged
+ * out mid-trip. Retrying the refresh turns that into an invisible retry.
+ */
+async function stopoverPost(
+  rideId: string,
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const send = async () =>
+    fetch("/api/rides/stopover", {
+      method: "POST",
+      headers: await apiAuthHeaders(true),
+      body: JSON.stringify({ rideId, ...body }),
+    });
+  let res = await send();
+  if (res.status === 401 || res.status === 403) {
+    try { await getSupabase()?.auth.refreshSession(); } catch {}
+    res = await send();
+  }
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || "Could not update the wait");
+  return json as Record<string, unknown>;
+}
+
+/** Rider declares "I am waiting on the customer". The clock starts server-side. */
+export async function startRideStopover(rideId: string, reason: string): Promise<Record<string, unknown>> {
+  return stopoverPost(rideId, { action: "start", reason });
+}
+
+/** Rider ends the wait. Minutes are computed by the server and added to the fare. */
+export async function endRideStopover(rideId: string): Promise<Record<string, unknown>> {
+  return stopoverPost(rideId, { action: "end" });
+}
+
+/** Customer contests a wait charge. An admin resolves it from the portal. */
+export async function disputeRideStopover(
+  rideId: string,
+  reason: string,
+  note?: string,
+): Promise<void> {
+  await stopoverPost(rideId, { action: "dispute", reason, note });
+}
+
+export type StopoverSnapshot = {
+  stopover: import("@/lib/stopover-core").StopoverLiveView;
+  viewer: "customer" | "rider";
+};
+
+/**
+ * Fetch the authoritative wait state, including the server's clock.
+ *
+ * The `server_now` field is what makes the ticking counter trustworthy on a
+ * phone whose own clock is wrong — the client re-anchors against the server
+ * rather than trusting the handset.
+ */
+export async function fetchRideStopover(rideId: string): Promise<StopoverSnapshot | null> {
+  try {
+    const res = await fetch(`/api/rides/stopover?rideId=${encodeURIComponent(rideId)}`);
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => ({}));
+    if (!json?.stopover) return null;
+    return json as StopoverSnapshot;
+  } catch {
+    return null;
+  }
 }
 
 /** Live ride-request board for boda mode — INSERT + UPDATE from the start. */
@@ -1613,7 +1747,11 @@ export async function uploadFile(file: File, bucket: string, path?: string): Pro
     fd.append("file", file);
     fd.append("bucket", bucket);
     if (path) fd.append("path", path);
-    const res = await fetch("/api/upload", { method: "POST", headers: await apiAuthHeaders(false), body: fd });
+    const res = await fetch("/api/upload", noDeadline({
+      // A photo upload on a metered 3G link can legitimately outlast the
+      // global 20s ceiling, so this one opts out of the deadline.
+      method: "POST", headers: await apiAuthHeaders(false), body: fd,
+    }));
     const json = await res.json().catch(() => ({}));
     return json.url || "";
   } catch { return ""; }

@@ -1073,8 +1073,16 @@ function TrackingContent() {
   const loadOrder = useCallback(() => {
     if (!orderId) return Promise.resolve();
     return fetchOrderById(orderId).then((o) => {
-      if (o) setOrder(o);
-      else setError("Order not found");
+      if (o) {
+        setOrder(o);
+        /* Clear the previous miss. `loadOrder` also runs from the live poll, so
+           a single early fetch (before the order replicated, or on a dropped
+           packet) left "Order not found" pinned for the rest of the session
+           even once the order was loading and tracking fine. */
+        setError("");
+      } else {
+        setError("Order not found");
+      }
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [orderId]);

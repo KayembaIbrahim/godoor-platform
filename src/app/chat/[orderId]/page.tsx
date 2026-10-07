@@ -11,6 +11,7 @@ import { useSession } from "@/lib/session-store";
 import { useChat, useOrder, usePayments } from "@/lib/hooks";
 import { updateOrder, createDispute, fetchOrderById, subscribeToOrder, apiAuthHeaders, type DBOrder } from "@/lib/db";
 import { formatUgx } from "@/lib/utils";
+import { noDeadline } from "@/lib/net";
 
 export default function ChatPage() {
   const params = useParams();
@@ -119,7 +120,11 @@ export default function ChatPage() {
       fd.append("file", file);
       fd.append("bucket", "chat-images");
       fd.append("path", `chat/${orderId}/${Date.now()}.${file.name.split(".").pop() || "jpg"}`);
-      const res = await fetch("/api/upload", { method: "POST", headers: await apiAuthHeaders(false), body: fd });
+      const res = await fetch("/api/upload", noDeadline({
+      // A photo upload on a metered 3G link can legitimately outlast the
+      // global 20s ceiling, so this one opts out of the deadline.
+      method: "POST", headers: await apiAuthHeaders(false), body: fd,
+    }));
       const json = await res.json();
       const url = json?.url;
       if (url) {

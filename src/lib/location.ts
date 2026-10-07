@@ -2,6 +2,7 @@
 
 import { Geolocation, type Position } from "@capacitor/geolocation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchTimed, firstOf, withTimeout, GEO_TIMEOUT_MS } from "./net";
 
 export type LatLng = { lat: number; lng: number };
 export const KAMPALA: LatLng = { lat: 0.3163, lng: 32.5822 };
@@ -111,8 +112,10 @@ export async function detectDistrict(c: LatLng): Promise<string | null> {
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
   if (mapboxToken) {
     try {
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${c.lng.toFixed(7)},${c.lat.toFixed(7)}.json?access_token=${mapboxToken}&country=UG&language=en&limit=1`
+      const res = await fetchTimed(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${c.lng.toFixed(7)},${c.lat.toFixed(7)}.json?access_token=${mapboxToken}&country=UG&language=en&limit=1`,
+        undefined,
+        GEO_TIMEOUT_MS,
       );
       const json = await res.json();
       const feature = json.features?.[0];
@@ -125,9 +128,10 @@ export async function detectDistrict(c: LatLng): Promise<string | null> {
   }
 
   try {
-    const res = await fetch(
+    const res = await fetchTimed(
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${c.lat.toFixed(7)}&lon=${c.lng.toFixed(7)}&zoom=10&addressdetails=1`,
       { headers: { "Accept-Language": "en", "User-Agent": "GoDoor/1.0" } },
+      GEO_TIMEOUT_MS,
     );
     const json = await res.json();
     if (json?.address) {
@@ -153,8 +157,10 @@ export async function reverseGeocode(c: LatLng): Promise<string> {
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
   if (mapboxToken) {
     try {
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${c.lng.toFixed(7)},${c.lat.toFixed(7)}.json?access_token=${mapboxToken}&types=address,neighborhood,locality,place&country=UG&language=en&limit=1`
+      const res = await fetchTimed(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${c.lng.toFixed(7)},${c.lat.toFixed(7)}.json?access_token=${mapboxToken}&types=address,neighborhood,locality,place&country=UG&language=en&limit=1`,
+        undefined,
+        GEO_TIMEOUT_MS,
       );
       const json = await res.json();
       if (json.features && json.features.length > 0) {
@@ -175,9 +181,10 @@ export async function reverseGeocode(c: LatLng): Promise<string> {
 
   // Source 2: Nominatim (free fallback)
   try {
-    const res = await fetch(
+    const res = await fetchTimed(
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${c.lat.toFixed(7)}&lon=${c.lng.toFixed(7)}&zoom=18&addressdetails=1`,
       { headers: { "Accept-Language": "en", "User-Agent": "GoDoor/1.0" } },
+      GEO_TIMEOUT_MS,
     );
     const json = await res.json();
     if (json?.address) {
@@ -242,13 +249,23 @@ export function useGeolocation() {
   const processPosition = useCallback((pos: GeolocationPosition) => {
     const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
     const acc = pos.coords.accuracy;
-    const newHeading = pos.coords.heading ?? null;
+    /* `?? null`, not `|| null`. Heading 0 is due north and is a REAL bearing, but
+       `||` threw it away — so a rider travelling north had their heading dropped
+       and the map snapped back to north-up mid-journey, which is exactly the
+       "markings are wrong, it's alarming" report from the rider side. */
+    const newHeading =
+      pos.coords.heading != null && Number.isFinite(pos.coords.heading) ? pos.coords.heading : null;
     // Update when the device physically moved (>=10m) or got a better fix,
     // or turned significantly (>25°) so the rider arrow stays truthful.
     const movedMeters = lastCoordsRef.current ? (distanceKm(lastCoordsRef.current, c) * 1000) : NaN;
     const moved = !lastCoordsRef.current || movedMeters >= 10;
-    const turned = newHeading != null && lastHeadingRef.current != null
-      && Math.abs(newHeading - lastHeadingRef.current) > 25;
+    /* Shortest arc, not a raw difference: a 359° → 1° turn is 2°, not 358°. With
+       the naive form that turn looked like a U-turn, tripped the >90° "real
+       instruction" branch in the map's bearing smoother and snapped the map the
+       long way round. */
+    const turned =
+      newHeading != null && lastHeadingRef.current != null &&
+      Math.abs(((newHeading - lastHeadingRef.current + 540) % 360) - 180) > 25;
     // Also keep the best fix (lowest accuracy value = most precise)
     if (moved || turned || acc < bestAccuracyRef.current) {
       lastCoordsRef.current = c;
@@ -256,8 +273,8 @@ export function useGeolocation() {
       if (acc < bestAccuracyRef.current) bestAccuracyRef.current = acc;
       setCoords(c);
       setAccuracy(acc);
-      setHeading(pos.coords.heading || null);
-      setSpeed(pos.coords.speed || null);
+      setHeading(newHeading);
+      setSpeed(pos.coords.speed ?? null);
       setStatus("watching");
       // Debounce reverse geocoding
       if (addrTimerRef.current) clearTimeout(addrTimerRef.current);
@@ -265,46 +282,68 @@ export function useGeolocation() {
         const addr = await reverseGeocode(c);
         setAddress(addr);
       }, 1500);
+    } else if (newHeading != null && newHeading !== lastHeadingRef.current) {
+      /* Heading is a direction, not a position — it must not be gated behind
+         the 10 m movement test. A rider stopped at a junction (Kampala Road at
+         the traffic light) turns the bike 90° without moving a metre; the old
+         gate ignored that fix entirely, so the puck pointed down the road they
+         had just left while they were waiting to turn. Track heading on its own
+         so the heading-up map keeps the road ahead on top. */
+      lastHeadingRef.current = newHeading;
+      setHeading(newHeading);
     }
   }, []);
 
   // IP fallback — auto-gets approximate location (≈ city-level) so map and orders never stay blank
   // Users can still refine via "Use my location" or address search for street accuracy
+  //
+  // These two providers were previously fetched with a bare `fetch()` and no
+  // timeout, in sequence. This runs *after* the 10s GPS read has already failed,
+  // so a provider that never answered left the user staring at "DETECTING YOUR
+  // AREA…" for 10s plus an unbounded wait. Each attempt is now bounded.
+  // `ipapi.co` used to be first here, but it now sits behind a Cloudflare
+  // "Just a moment..." challenge and answers 403 to every non-browser client
+  // (verified: no CORS header, HTML challenge body). It could never succeed,
+  // so every user who reached this fallback paid a guaranteed-failed request
+  // and a CORS console error before the provider that actually works.
+  // `freeipapi` 307-redirects to `free.freeipapi.com`, which serves
+  // `access-control-allow-origin: *` and real Uganda coordinates.
   const ipFallback = useCallback(async () => {
-    const tryIpApis: Array<() => Promise<LatLng | null>> = [
-      async () => {
-        const r = await fetch("https://ipapi.co/json/");
-        const j = await r.json();
-        if (j.latitude && j.longitude) return { lat: Number(j.latitude), lng: Number(j.longitude) };
-        return null;
-      },
-      async () => {
-        const r = await fetch("https://freeipapi.com/api/json");
-        const j = await r.json();
-        if (j.latitude && j.longitude) return { lat: Number(j.latitude), lng: Number(j.longitude) };
-        return null;
-      },
-    ];
-    for (const fn of tryIpApis) {
-      try {
-        const c = await fn();
-        if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
-          // Uganda bounds check — if IP says outside Uganda, clamp to Kampala fallback
-          const inUg = c.lat >= -1.5 && c.lat <= 4.5 && c.lng >= 28 && c.lng <= 36;
-          const loc = inUg ? c : { lat: 0.3163, lng: 32.5822 };
-          setCoords(loc);
-          setAccuracy(5000);
-          setStatus("watching");
-          // Reverse geocode for display
-          try {
-            const addr = await reverseGeocode(loc);
-            setAddress(addr);
-          } catch {}
-          return true;
-        }
-      } catch {}
-    }
-    return false;
+    const found = await firstOf<{ lat: number; lng: number }>(
+      [
+        async () => {
+          const r = await fetchTimed("https://freeipapi.com/api/json", undefined, GEO_TIMEOUT_MS);
+          const j = await r.json();
+          if (j.latitude && j.longitude) return { lat: Number(j.latitude), lng: Number(j.longitude) };
+          return null;
+        },
+        // Backup only. Primary geocoding is Mapbox, which we already hold a
+        // token for — reuse it rather than depend on a third-party IP database.
+        async () => {
+          const r = await fetchTimed("https://ipwho.is/", undefined, GEO_TIMEOUT_MS);
+          const j = await r.json();
+          if (j.latitude && j.longitude) return { lat: Number(j.latitude), lng: Number(j.longitude) };
+          return null;
+        },
+      ],
+      (c) => Number.isFinite(c.lat) && Number.isFinite(c.lng),
+      GEO_TIMEOUT_MS,
+      "ip geolocation",
+    );
+    if (!found) return false;
+
+    // Uganda bounds check — if IP says outside Uganda, clamp to Kampala fallback
+    const inUg = found.lat >= -1.5 && found.lat <= 4.5 && found.lng >= 28 && found.lng <= 36;
+    const loc = inUg ? found : { lat: 0.3163, lng: 32.5822 };
+    setCoords(loc);
+    setAccuracy(5000);
+    setStatus("watching");
+    // Reverse geocode for display — already bounded, and display-only anyway
+    try {
+      const addr = await reverseGeocode(loc);
+      setAddress(addr);
+    } catch {}
+    return true;
   }, []);
 
   const startWatching = useCallback(async () => {
@@ -326,16 +365,31 @@ export function useGeolocation() {
     bestAccuracyRef.current = Infinity;
 
     try {
-      const pos = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      });
+      // The plugin's `timeout` option is not honoured on every platform, and a
+      // permission prompt the user simply never answers makes the promise hang
+      // forever. Either way the home screen showed a permanent "Detecting
+      // location…". Race it against our own deadline so the UI always moves on.
+      const pos = await withTimeout(
+        Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }),
+        10000,
+        "gps fix",
+      );
       processPosition(pos as unknown as GeolocationPosition);
     } catch {
       if (bestAccuracyRef.current === Infinity) {
         const ok = await ipFallback();
-        if (!ok) setError("Location access denied. Tap to retry.");
+        if (!ok) {
+          // This used to only set an error string and leave `status` on
+          // "locating" forever, so the home screen rendered a permanent
+          // "Detecting location…". Denied/failed is a definite answer —
+          // say so, and let the UI fall back to a usable default.
+          setStatus("denied");
+          setError("Location access denied. Tap to retry.");
+        }
       }
     }
 
@@ -348,6 +402,7 @@ export function useGeolocation() {
             return;
           }
           if (bestAccuracyRef.current === Infinity) {
+            setStatus("denied");
             setError(
               err && err.code === 1
                 ? "GPS access denied. Enable location services in your browser settings."
@@ -426,8 +481,10 @@ export function formatDistance(km: number): string {
 export function fetchPlaceSuggestions(query: string): Promise<{ place: string; lat: number; lng: number }[]> {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
   if (!token || !query.trim()) return Promise.resolve([]);
-  return fetch(
-    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=UG&language=en&types=address,neighborhood,locality,place&limit=5`
+  return fetchTimed(
+    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=UG&language=en&types=address,neighborhood,locality,place&limit=5`,
+    undefined,
+    GEO_TIMEOUT_MS,
   )
     .then((r) => r.json())
     .then((json) => {

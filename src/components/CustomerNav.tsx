@@ -2,24 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, ShoppingBag, User, ShoppingCart, Bike } from "lucide-react";
+import { Home, Bike, Wallet, ShoppingBag, User } from "lucide-react";
 import { useCart } from "@/lib/cart-store";
+import { useActiveOrder } from "@/lib/use-active-order";
 import { cn } from "@/lib/utils";
 
 /**
- * Bottom tab bar for customers.
+ * Bottom Navigation Bar for GoDoor customers.
  *
- * Two things make it feel broken if you get them wrong:
- *  - The active tab must come from `usePathname()`. A `popstate` listener only
- *    fires on back/forward, so tapping a <Link> left the old tab highlighted.
- *  - Cart carries a live item count. Without it people cannot tell whether
- *    anything is in there, so they re-browse the whole shop list to find out.
+ * Matches the reference design with 5 tabs:
+ * 1. Home (active by default on /app)
+ * 2. GoRide (/ride)
+ * 3. Pay (/wallet)
+ * 4. Activity (/orders)
+ * 5. Account (/account)
+ *
+ * GoDoor 2.0 update: Orange remains the primary brand color.
+ * Purple is used strategically for selected states per the 50/50 color balance.
  */
 const tabs = [
   { href: "/app", label: "Home", icon: Home },
-  { href: "/ride", label: "GoBoda", icon: Bike },
-  { href: "/cart", label: "Cart", icon: ShoppingCart },
-  { href: "/orders", label: "Orders", icon: ShoppingBag },
+  { href: "/ride", label: "GoRide", icon: Bike },
+  { href: "/wallet", label: "Pay", icon: Wallet },
+  { href: "/orders", label: "Activity", icon: ShoppingBag },
   { href: "/account", label: "Account", icon: User },
 ];
 
@@ -31,55 +36,71 @@ function isTabActive(pathname: string, href: string): boolean {
 export function CustomerNav() {
   const pathname = usePathname() || "/app";
   const cartCount = useCart((s) => s.count());
+  const activeOrder = useActiveOrder();
 
   return (
-    <nav aria-label="Main" className="pointer-events-none fixed inset-x-0 bottom-0 z-30 safe-area-bottom">
-      <div className="pointer-events-auto relative flex items-center justify-around border-t border-white/8 bg-gradient-to-t from-black/25 via-black/10 to-transparent px-1 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-2xl">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" aria-hidden />
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const isActive = isTabActive(pathname, t.href);
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "group relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-2xl px-1 py-1.5 transition-all duration-200 active:scale-90",
-                isActive ? "text-white" : "text-slate-400 hover:text-slate-100"
-              )}
-            >
-              <span
+    <nav
+      aria-label="Bottom Navigation"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 safe-area-bottom"
+    >
+      <div className="pointer-events-auto relative mx-auto max-w-lg lg:max-w-6xl border-t border-white/10 bg-[#0B132B]/95 backdrop-blur-2xl px-2 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl">
+        <div className="flex items-center justify-around">
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            const isActive = isTabActive(pathname, t.href);
+            const isActivity = t.href === "/orders";
+
+            return (
+              <Link
+                key={t.href}
+                href={t.href}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "absolute -top-[9px] h-0.5 rounded-full bg-primary transition-all duration-300",
-                  isActive ? "w-8 opacity-100" : "w-0 opacity-0"
+                  "group relative flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl py-1 px-1 transition-all duration-200 active:scale-95",
+                  isActive
+                    ? "text-white bg-purple/10"
+                    : "text-slate-400 hover:text-slate-200"
                 )}
-                aria-hidden
-              />
-              <span
-                className={cn(
-                  "absolute inset-0 rounded-2xl transition-all duration-200",
-                  isActive ? "scale-100 bg-white/10 opacity-100" : "scale-90 opacity-0 group-hover:opacity-100 group-hover:bg-white/5"
-                )}
-                aria-hidden
-              />
-              <span className="relative">
-                <Icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "scale-110")} />
-                {t.href === "/cart" && cartCount > 0 && (
-                  <span
-                    className="num absolute -right-2.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-bold text-white ring-2 ring-navy-deep"
-                    aria-label={`${cartCount} items in cart`}
-                  >
-                    {cartCount > 99 ? "99+" : cartCount}
+              >
+                {/* Active indicator capsule */}
+                <div
+                  className={cn(
+                    "flex flex-col items-center justify-center rounded-2xl px-3 py-1 transition-all duration-200",
+                    isActive
+                      ? "bg-white/10 shadow-sm"
+                      : "group-hover:bg-white/5"
+                  )}
+                >
+                  <span className="relative">
+                    <Icon
+                      className={cn(
+                        "h-5 w-5 transition-transform duration-200",
+                        isActive && "scale-105 text-white"
+                      )}
+                    />
+                    {/* Live delivery or cart indicator on Activity tab */}
+                    {isActivity && (activeOrder || cartCount > 0) && (
+                      <span
+                        className="absolute -right-2 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-go px-1 text-[8px] font-bold text-white ring-2 ring-[#0B132B]"
+                        aria-label="Active order or cart items"
+                      >
+                        {activeOrder ? "!" : cartCount}
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-              <span className={cn("relative text-[10px] font-medium leading-none transition-colors", isActive && "font-semibold text-white")}>
-                {t.label}
-              </span>
-            </Link>
-          );
-        })}
+                  <span
+                    className={cn(
+                      "mt-0.5 text-[10px] font-medium leading-none tracking-tight transition-colors",
+                      isActive ? "font-bold text-white" : "text-slate-400 group-hover:text-slate-200"
+                    )}
+                  >
+                    {t.label}
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

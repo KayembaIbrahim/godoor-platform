@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
-import { creditWallet, setTopupStatus } from "@/lib/wallet-store";
 import { verifyWebhookSignature } from "@/lib/momo";
 
 /**
@@ -52,9 +51,9 @@ export async function POST(req: Request) {
   if (!sb) return NextResponse.json({ error: "Wallet unavailable" }, { status: 503 });
 
   const { data: reqRow } = await sb
-    .from("topup_requests")
+    .from("deposits")
     .select("*")
-    .eq("reference", reference)
+    .eq("reference_code", reference)
     .eq("status", "pending")
     .maybeSingle();
   if (!reqRow) return NextResponse.json({ ok: true, credited: false, note: "already settled or unknown" });
@@ -62,32 +61,40 @@ export async function POST(req: Request) {
   const row = reqRow as {
     id: string;
     user_id: string;
-    amount_ugx: number;
-    phone: string;
-    network: string;
+    amount: number;
     currency: string;
+    provider_ref: string | null;
   };
   // Provider amount must cover the requested amount (tolerate fees rounding).
-  if (amountUgx + 1 < Number(row.amount_ugx)) {
+  if (amountUgx + 1 < Number(row.amount)) {
     return NextResponse.json({ error: "Amount mismatch" }, { status: 400 });
   }
 
-  try {
-    await creditWallet(sb, String(row.user_id), {
-      amountUgx: Number(row.amount_ugx),
-      reference,
-      currency: String(row.currency) === "USDT" ? "USDT" : "UGX",
-      phone: String(row.phone || ""),
-      network: String(row.network || ""),
-      note: `MoMo top-up ${reference} confirmed by provider`,
-      relatedId: String(row.id),
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Credit failed" },
-      { status: 500 },
-    );
+  // Settle and pay inside one transaction. The previous flow credited the
+  // wallet and only then marked the request settled, so a provider retry after
+  // a failure paid the same reference twice.
+  // NOTE: must not be named `data` — `data` is already declared at the top of
+  // this handler (the normalized provider payload). Redeclaring it in the same
+  // block is TS2451 and a hard SyntaxError once compiled, so this binding is
+  // deliberately distinct. Semantics are unchanged: `data` below is unused.
+  const { data: rpcData, error } = await sb.rpc("credit_deposit", {
+    p_deposit_id: row.id,
+    p_note: `MoMo top-up ${reference} confirmed by provider`,
+  });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  await setTopupStatus(sb, String(row.id), "credited", "provider-webhook", "Confirmed by provider webhook");
+  const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as { success?: boolean; message?: string } | null;
+  if (!result || result.success !== true) {
+    return NextResponse.json({ ok: true, credited: false, note: result?.message || "not settled" });
+  }
+
+  const { error: refError } = await sb
+    .from("deposits")
+    .update({ provider_ref: row.provider_ref || reference })
+    .eq("id", row.id);
+  if (refError) {
+    return NextResponse.json({ error: "Could not record provider reference" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, credited: true, reference });
 }

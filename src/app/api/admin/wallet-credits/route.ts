@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
-import { creditWallet, listTopupRequests, setTopupStatus, type WalletCurrency } from "@/lib/wallet-store";
+import { listTopupRequests, type WalletCurrency } from "@/lib/wallet-store";
 import { collectionConfig, refreshRateUgx, usdtConfig } from "@/lib/momo";
 import { isUuid } from "@/lib/api-auth";
 
@@ -47,33 +47,40 @@ export async function PATCH(req: Request) {
 
   // Load the request while it is still pending.
   const { data: reqRow } = await sb
-    .from("topup_requests")
+    .from("deposits")
     .select("*")
     .eq("id", id)
     .eq("status", "pending")
     .maybeSingle();
   if (!reqRow) return NextResponse.json({ error: "Request not found or already settled" }, { status: 404 });
 
+  // Settle through the deposit RPC. It flips the row to settled AND pays the
+  // wallet inside one transaction — crediting first and marking afterwards let a
+  // crash between the two steps pay the customer a second time on retry.
   const adminName = "Admin";
-  if (status === "credited") {
-    const currency: WalletCurrency = String(reqRow.currency) === "USDT" ? "USDT" : "UGX";
-    try {
-      await creditWallet(sb, String(reqRow.user_id), {
-        amountUgx: Number(reqRow.amount_ugx),
-        reference: String(reqRow.reference),
-        currency,
-        phone: String(reqRow.phone || ""),
-        network: String(reqRow.network || ""),
-        note: `Top-up ${reqRow.reference} verified by admin`,
-        relatedId: String(reqRow.id),
-      });
-    } catch (e) {
-      return NextResponse.json({ error: e instanceof Error ? e.message : "Could not credit wallet" }, { status: 500 });
-    }
-    await setTopupStatus(sb, String(reqRow.id), "credited", adminName, admin_note || "Credited");
-    return NextResponse.json({ ok: true, credited: true, amountUgx: Number(reqRow.amount_ugx), currency });
+  const isCredit = status === "credited";
+  const fn = isCredit ? "credit_deposit" : "reject_deposit";
+  const args = isCredit
+    ? { p_deposit_id: id, p_note: admin_note || "Credited" }
+    : { p_deposit_id: id, p_note: admin_note || "Rejected" };
+
+  const { data, error } = await sb.rpc(fn, args);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  const result = (Array.isArray(data) ? data[0] : data) as { success?: boolean; message?: string } | null;
+  if (!result || result.success !== true) {
+    return NextResponse.json({ error: result?.message || "Could not settle deposit" }, { status: 409 });
   }
 
-  await setTopupStatus(sb, String(reqRow.id), "rejected", adminName, admin_note || "Rejected");
-  return NextResponse.json({ ok: true, credited: false });
+  if (!isCredit) return NextResponse.json({ ok: true, credited: false });
+
+  const currency: WalletCurrency = String(reqRow.currency) === "USDT" ? "USDT" : "UGX";
+  return NextResponse.json({
+    ok: true,
+    credited: true,
+    amountUgx: Number(reqRow.amount),
+    currency,
+    reviewedBy: adminName,
+  });
 }
