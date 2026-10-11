@@ -601,7 +601,7 @@ export default function AccountPage() {
                 </p>
               ) : role === "rider" ? (
                 <p className="text-[10px] text-dim">
-                  Choose your Morse username — confirm your Morse wallet to GoDoor and use it for any purchases. Delivery earnings are paid via mobile money. Confirmed once; you can request a change anytime through support.
+                  Choose your Morse username — confirm your Morse wallet to GoDoor and use it for any purchases. Withdrawals are paid out to this Morse wallet. Confirmed once; you can request a change anytime through support.
                 </p>
               ) : (
                 <p className="text-[10px] text-dim">

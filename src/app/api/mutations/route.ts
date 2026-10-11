@@ -7,7 +7,7 @@ const TABLE_SCHEMA: Record<string, { allowed: string[] }> = {
   payments:      { allowed: ["order_id", "merchant_id", "amount_ugx", "method", "screenshot_url", "transaction_ref", "status", "submitted_by", "note"] },
   chat_messages: { allowed: ["order_id", "sender_id", "sender_name", "sender_role", "text", "read", "image_url"] },
   products:      { allowed: ["merchant_id", "name", "description", "price_ugx", "category", "image_url", "available", "sort_order", "images", "bulky"] },
-  merchants:     { allowed: ["name", "category", "tagline", "area", "district", "lat", "lng", "momo_number", "momo_name", "opens_at", "closes_at", "delivery_fee_ugx", "rating", "status", "logo_url", "shop_photo_url", "phone", "live_location_enabled"] },
+  merchants:     { allowed: ["name", "category", "tagline", "area", "district", "lat", "lng", "momo_number", "momo_name", "opens_at", "closes_at", "open_days", "delivery_fee_ugx", "rating", "status", "logo_url", "shop_photo_url", "phone", "live_location_enabled"] },
   riders:        { allowed: ["name", "email", "phone", "vehicle_type", "plate", "service_area", "lat", "lng", "status", "verified"] },
   follows:       { allowed: ["customer_id", "merchant_id"] },
   stories:       { allowed: ["merchant_id", "merchant_name", "media_url", "caption", "type", "expires_at"] },

@@ -4,8 +4,14 @@ import { useEffect } from "react";
 import { useSession } from "@/lib/session-store";
 import { getSupabase } from "@/lib/supabase";
 import { installFetchDeadline } from "@/lib/net";
+import { useOrderNotifications } from "@/lib/use-notifications";
+import { FlyerPopup } from "@/components/FlyerPopup";
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
+  // Order/ride alerts and the service worker, app-wide. Must sit above the
+  // session restore below so it re-runs once auth is known.
+  useOrderNotifications();
+
   // Restore the Supabase auth session on every page load so the correct
   // role (customer/business/rider) is always restored — never falls back to customer.
   useEffect(() => {
@@ -36,5 +42,13 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
     return () => { subscription?.unsubscribe?.(); };
   }, []);
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {/* Announcements and flyer promos. Mounted once, app-wide, so a campaign
+          can run anywhere without each page opting in — and so there is only
+          ever one popup competing for attention. */}
+      <FlyerPopup />
+    </>
+  );
 }

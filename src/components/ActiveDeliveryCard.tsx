@@ -51,7 +51,7 @@ export default function ActiveDeliveryCard({
   return (
     <Link
       href={`/tracking?orderId=${order.id}`}
-      className={`group block rounded-2xl border border-white/10 bg-[#131F38] p-3.5 shadow-sm transition hover:border-go/40 active:scale-[0.99] ${className}`}
+      className={`group block rounded-2xl border border-white/10 bg-ink p-3.5 shadow-sm transition hover:border-go/40 active:scale-[0.99] ${className}`}
     >
       <div className="flex items-center gap-2.5">
         <Truck className={`h-4.5 w-4.5 shrink-0 text-go ${inTransit ? "animate-pulse" : ""}`} />

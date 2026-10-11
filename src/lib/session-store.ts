@@ -32,6 +32,7 @@ export type OnboardingData = {
   district?: string;
   opensAt?: string;
   closesAt?: string;
+  openDays?: string;
   businessLat?: number;
   businessLng?: number;
   momoNumber?: string;

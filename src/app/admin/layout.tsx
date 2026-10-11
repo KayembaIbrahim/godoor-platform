@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Package, AlertTriangle, Store, Users, Settings,
   Shield, ShieldCheck, Truck, BarChart3, ChevronLeft, Menu, X, Bell, Tag, Wallet, ClipboardList, AtSign,
-  BanknoteArrowDown, Download, Clock
+  BanknoteArrowDown, Download, Clock, ArrowUpRight, Megaphone, PanelTop, ArrowLeftRight, CalendarCheck
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -29,8 +29,13 @@ const NAV = [
   { href: "/admin/settings", label: "Fees & Settings", icon: Settings },
   { href: "/admin/wallets", label: "Wallet Credits", icon: Wallet },
   { href: "/admin/payouts", label: "Payouts", icon: BanknoteArrowDown },
+  { href: "/admin/withdrawals", label: "Withdrawals", icon: ArrowUpRight },
+  { href: "/admin/transfers", label: "Transfers", icon: ArrowLeftRight },
+  { href: "/admin/bookings", label: "Table Booking", icon: CalendarCheck },
   { href: "/admin/apk", label: "App Release", icon: Download },
   { href: "/admin/promos", label: "Promo Codes", icon: Tag },
+  { href: "/admin/campaigns", label: "Flyer Popups", icon: Megaphone },
+  { href: "/admin/hero-banner", label: "Sponsored Banner", icon: PanelTop },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
@@ -60,14 +65,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (gate === "denied") {
     return (
-      <div className="min-h-screen bg-bg">
+      <div className="min-h-screen bg-bg" data-admin-portal>
         <AdminLogin onAuthed={() => setGate("ok")} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-bg">
+    /* `data-admin-portal` is read by <FlyerPopup />. The portal is reached via
+       the secret path, which the browser sees as /{secret}/… — not /admin — so
+       the URL alone cannot tell the two apart. A DOM marker can, and it keeps
+       an admin from being interrupted by the very campaign they are editing. */
+    <div className="min-h-screen bg-bg" data-admin-portal>
       {/* Top bar */}
       <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">

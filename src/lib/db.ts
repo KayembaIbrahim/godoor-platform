@@ -45,6 +45,7 @@ export type DBMerchant = {
   momo_name: string;
   opens_at: string;
   closes_at: string;
+  open_days?: string;
   delivery_fee_ugx: number;
   rating: number;
   status: "active" | "suspended" | "pending";
@@ -158,6 +159,7 @@ async function tablesExist(): Promise<boolean> {
 // fallback) can bound a request without importing the database layer.
 // Re-exported here because most callers already import from db.
 import { READ_TIMEOUT_MS, withTimeout, fetchTimed, noDeadline } from "./net";
+import { apiAuthHeaders } from "./api-auth-headers";
 export { READ_TIMEOUT_MS, withTimeout, fetchTimed };
 
 // ─── Public API ────────────────────────────────────────────────
@@ -218,31 +220,10 @@ function isUuid(v: string | null | undefined): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 }
 
-/** Attach the signed-in user's Supabase token to API calls once auth lands.
- *  A stale/expired token silently turns every server write into a 401, which
- *  used to make orders "succeed" as phantom local-only entries — so refresh
- *  the token before sending whenever it is expired or nearly so. */
-export async function apiAuthHeaders(json: boolean): Promise<Record<string, string>> {
-  const h: Record<string, string> = {};
-  if (json) h["Content-Type"] = "application/json";
-  try {
-    const sb = getSupabase();
-    if (!sb) return h;
-    let session = (await sb.auth.getSession()).data.session;
-    if (session) {
-      const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0;
-      const stale = expiresAtMs <= 0 || expiresAtMs - Date.now() < 60_000;
-      if (stale) {
-        try {
-          const { data: refreshed } = await sb.auth.refreshSession();
-          session = refreshed.session || null;
-        } catch {}
-      }
-    }
-    if (session?.access_token) h.Authorization = `Bearer ${session.access_token}`;
-  } catch {}
-  return h;
-}
+/** Re-exported from its own module so `@/lib/api-auth-headers` can be imported
+ *  without dragging the whole data layer in. Every existing `apiAuthHeaders`
+ *  call site below is unchanged. */
+export { apiAuthHeaders } from "./api-auth-headers";
 
 function normalizeLineItems(row: any): ReorderLine[] {
   const raw = Array.isArray(row.line_items) ? row.line_items : [];
@@ -604,6 +585,10 @@ export async function fetchOrderById(id: string): Promise<DBOrder | undefined> {
 export async function createOrder(
   o: Omit<DBOrder, "id" | "created_at" | "updated_at">,
   walletGrant?: string,
+  /* The promo CODE, never a discounted amount. The server resolves it against
+     the live admin table and decides what is actually charged — see
+     `resolvePromoServer` in src/lib/promo-server.ts. */
+  promoCode?: string,
 ): Promise<DBOrder> {
   // Use server API route (service-role). FAIL LOUDLY on any error: returning a
   // locally-generated "ord_…" order means the business never receives it and
@@ -617,7 +602,7 @@ export async function createOrder(
     const res = await fetch("/api/orders", {
       method: "POST",
       headers,
-      body: JSON.stringify(o),
+      body: JSON.stringify(promoCode ? { ...o, promo_code: promoCode } : o),
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.order) {
@@ -1223,7 +1208,14 @@ export type StopoverSnapshot = {
  */
 export async function fetchRideStopover(rideId: string): Promise<StopoverSnapshot | null> {
   try {
-    const res = await fetch(`/api/rides/stopover?rideId=${encodeURIComponent(rideId)}`);
+    // Same class of defect as the wallet card: this read went out with no
+    // `Authorization`, so `/api/rides/stopover` answered 401 and the helper
+    // reported "no stopover" for a ride that had one. `stopoverPost` above
+    // already did this correctly, which is why the button worked while the
+    // read silently did not.
+    const res = await fetch(`/api/rides/stopover?rideId=${encodeURIComponent(rideId)}`, {
+      headers: await apiAuthHeaders(false),
+    });
     if (!res.ok) return null;
     const json = await res.json().catch(() => ({}));
     if (!json?.stopover) return null;

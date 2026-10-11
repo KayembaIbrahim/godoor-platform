@@ -10,12 +10,12 @@ import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
  * ownership of the referenced rows.
  */
 
-export type ApiUser = { id: string; email: string; role?: string };
+export type ApiUser = { id: string; email: string; role?: string; name?: string };
 
 /** An actor is either the admin (login cookie) or a signed-in Godoor user (JWT). */
 export type Actor =
   | { kind: "admin" }
-  | { kind: "user"; id: string; email: string; role?: string };
+  | { kind: "user"; id: string; email: string; role?: string; name?: string };
 
 /** True when the request carries a valid admin (HMAC-signed) session cookie. */
 export async function isAdminCookieValid(): Promise<boolean> {
@@ -47,8 +47,18 @@ export async function getApiUser(req: Request): Promise<ApiUser | null> {
   try {
     const { data, error } = await sb.auth.getUser(token);
     if (error || !data.user) return null;
-    const meta = data.user.user_metadata || {};
-    return { id: data.user.id, email: data.user.email || "", role: typeof meta.role === "string" ? meta.role : undefined };
+    const meta = (data.user.user_metadata || {}) as Record<string, unknown>;
+    // Expose the display name so routes can label a record with something the
+    // guest recognises. Previously the booking route reached for
+    // `actor.user_metadata`, which this type never had — it would have failed
+    // the build, and at runtime silently yielded the "GoDoor guest" fallback.
+    const rawName = meta.full_name ?? meta.name;
+    return {
+      id: data.user.id,
+      email: data.user.email || "",
+      role: typeof meta.role === "string" ? meta.role : undefined,
+      name: typeof rawName === "string" && rawName.trim() ? rawName.trim().slice(0, 120) : undefined,
+    };
   } catch {
     return null;
   }

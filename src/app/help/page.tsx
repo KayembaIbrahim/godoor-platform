@@ -15,7 +15,8 @@ const FAQ_ITEMS = [
   { q: "Is GoDoor available in my area?", a: "GoDoor is live across Uganda — Kampala, Masaka, Jinja, Mbale, Mbarara, Gulu, Fort Portal, and more. We're expanding every month." },
   { q: "How do I top up my GoDoor wallet?", a: "Go to your Wallet in the app and select 'Top up'. Enter the amount and you'll be redirected to Morse to complete the payment." },
   { q: "What are the delivery fees?", a: "Delivery fees vary by distance. They start from UGX 2,000 for nearby deliveries. The exact fee is shown before you place your order." },
-  { q: "How do I get a refund?", a: "If your order wasn't delivered or had issues, file a dispute or contact support. Refunds are processed to your GoDoor wallet or mobile money account within 48 hours." },
+  { q: "How do I get a refund?", a: "If your order wasn't delivered or had issues, file a dispute or contact support. Refunds are processed to your GoDoor wallet or your Morse wallet within 48 hours." },
+  { q: "Where do my withdrawals go?", a: "Withdrawals are paid to your GoDoor Morse wallet only — the Morse ID on your profile. You need a Morse ID set before you can withdraw." },
 ];
 
 function FaqItem({ q, a }: { q: string; a: string }) {

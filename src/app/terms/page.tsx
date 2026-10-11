@@ -29,7 +29,7 @@ export default function TermsPage() {
         </section>
         <section>
           <h2 className="font-semibold text-fg mb-2">5. Disputes & Refunds</h2>
-          <p>If you experience issues with an order, you may file a dispute through the Platform. GoDoor will review disputes within 24 hours. Refunds, when applicable, are processed to your GoDoor wallet or mobile money account within 48 hours.</p>
+          <p>If you experience issues with an order, you may file a dispute through the Platform. GoDoor will review disputes within 24 hours. Refunds, when applicable, are processed to your GoDoor wallet or your Morse wallet within 48 hours.</p>
         </section>
         <section>
           <h2 className="font-semibold text-fg mb-2">6. Liability</h2>

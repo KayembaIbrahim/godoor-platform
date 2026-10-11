@@ -8,7 +8,6 @@ import {
   Gift,
   Loader2,
   Smartphone,
-  Wallet,
   KeyRound,
   Send,
   ExternalLink,
@@ -20,12 +19,7 @@ import { formatUgx } from "@/lib/utils";
 import { useSession } from "@/lib/session-store";
 import { apiAuthHeaders } from "@/lib/db";
 import { MorseLogo } from "@/components/MorseLogo";
-
-type EscrowWallet = {
-  user_id: string;
-  available_balance: number;
-  escrow_balance: number;
-};
+import TransferSheet from "@/components/TransferSheet";
 
 type EscrowLedgerRow = {
   id: string;
@@ -73,65 +67,6 @@ function copyToClipboard(text: string) {
 function usd(ugx: number, rate: number): string {
   const r = rate > 0 ? rate : 3800;
   return `$${(ugx / r).toFixed(2)}`;
-}
-
-/* ── Rate strip — always shows the live UGX/USD rate ─────────────── */
-function LiveRate({ rate }: { rate: number }) {
-  return (
-    <div className="flex items-center gap-2 rounded-xl border border-border bg-elevated/60 px-3 py-2">
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-60" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
-      </span>
-      <p className="text-[11px] font-medium text-muted">
-        Live rate · 1 USD = <span className="num font-bold text-fg">{formatUgx(rate)}</span> UGX
-      </p>
-    </div>
-  );
-}
-
-/* ── Balance card ─────────────────────────────────────────────── */
-function BalanceCard({ wallet, rate }: { wallet: EscrowWallet | null; rate: number }) {
-  const available = wallet?.available_balance || 0;
-  const escrow = wallet?.escrow_balance || 0;
-
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-6 shadow-xl">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-muted">Available balance</p>
-          {/* UGX is the headline number — most Ugandans do not think in USD. */}
-          <p className="mt-1 font-display text-4xl font-bold tabular-nums tracking-tight text-go">
-            {wallet ? formatUgx(available) : "—"}
-          </p>
-          <p className="mt-0.5 text-xs text-muted tabular-nums">
-            {wallet ? `${usd(available, rate)} USD` : "Loading…"}
-          </p>
-        </div>
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-go/15 text-go">
-          <Wallet className="h-6 w-6" />
-        </div>
-      </div>
-
-      {escrow > 0 && (
-        <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-          <div>
-            <p className="text-sm font-semibold tabular-nums text-warning">
-              {formatUgx(escrow)} <span className="text-xs font-normal text-muted">({usd(escrow, rate)} USD)</span> in escrow
-            </p>
-            <p className="mt-0.5 text-[11px] text-muted">
-              Held safely until delivery is confirmed. You are refunded in full if an order is cancelled.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4">
-        <LiveRate rate={rate} />
-      </div>
-    </div>
-  );
 }
 
 /* ── Ledger history ───────────────────────────────────────────── */
@@ -533,22 +468,23 @@ function MorseIdentity() {
 
 /* ── Panel ────────────────────────────────────────────────────── */
 export function WalletPanel() {
-  const [wallet, setWallet] = useState<EscrowWallet | null>(null);
   const [ledger, setLedger] = useState<EscrowLedgerRow[]>([]);
   const [cfg, setCfg] = useState<MorseConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   const rate = cfg?.rateUgx || 3800;
 
   const load = useCallback(async () => {
     try {
       const headers = await apiAuthHeaders(false);
-      const [balRes, ledRes, cfgRes] = await Promise.all([
-        fetch("/api/wallet/balance", { headers, cache: "no-store" }),
+      // `/api/wallet/balance` is no longer fetched here: the balance card above
+      // owns that figure, and asking twice meant every top-up and every send
+      // triggered two identical reads of the same row.
+      const [ledRes, cfgRes] = await Promise.all([
         fetch("/api/wallet/ledger", { headers, cache: "no-store" }),
         fetch("/api/morse"),
       ]);
-      if (balRes.ok) setWallet((await balRes.json()).data);
       if (ledRes.ok) setLedger((await ledRes.json()).data || []);
       if (cfgRes.ok) {
         const j = await cfgRes.json().catch(() => ({}));
@@ -575,7 +511,10 @@ export function WalletPanel() {
   return (
     <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-5">
       <section className="space-y-6 lg:col-span-3">
-        <BalanceCard wallet={wallet} rate={rate} />
+        {/* No balance card here. `WalletBalanceCard` already renders one above
+            this panel on /wallet — available balance, escrow, Send and Withdraw —
+            so keeping a second one here showed the customer the same number
+            twice in one screen and gave them two different-looking balances. */}
         <TopUpCard rate={rate} onDeposited={() => void load()} />
         {/* Anchor sits on the wrapper so it resolves in BOTH of MorseIdentity's
             render branches (tag confirmed vs. tag not yet set). */}
@@ -586,6 +525,23 @@ export function WalletPanel() {
 
       <aside className="lg:col-span-2">
         <div className="space-y-6">
+          <div className="rounded-2xl border border-border bg-surface p-5">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Send className="h-4 w-4 text-go" /> Send money
+            </h2>
+            <p className="mt-1.5 text-[11px] text-muted">
+              Move your balance to another GoDoor account using their email. It lands
+              in their wallet straight away.
+            </p>
+            <button
+              type="button"
+              onClick={() => setTransferOpen(true)}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-go py-2.5 text-sm font-bold text-white transition active:scale-[0.98]"
+            >
+              <Send className="h-4 w-4" />
+              Send money
+            </button>
+          </div>
           <LedgerCard rows={ledger} rate={rate} />
           <div id="protection" className="scroll-mt-24 rounded-2xl border border-border bg-surface p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -600,6 +556,14 @@ export function WalletPanel() {
           </div>
         </div>
       </aside>
+
+      {/* A transfer debits this wallet, so the panel re-reads the balance and
+          the ledger once the sheet reports the send went through. */}
+      <TransferSheet
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        onSent={() => void load()}
+      />
     </div>
   );
 }

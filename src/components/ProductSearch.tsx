@@ -4,14 +4,17 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X, ArrowRight, Store } from "lucide-react";
 import { formatUgx } from "@/lib/utils";
-import type { DBMerchant, DBProduct } from "@/lib/db";
+import { apiAuthHeaders, type DBMerchant, type DBProduct } from "@/lib/db";
 
 export function ProductSearch({
   open,
   onClose,
+  initialQuery,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Pre-fills the box so a search bar elsewhere can hand its query over. */
+  initialQuery?: string;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -23,7 +26,7 @@ export function ProductSearch({
   useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
-    setQuery("");
+    setQuery(initialQuery ?? "");
     if (!loaded) {
       // Both endpoints answer with a WRAPPED body — `{ products: [...] }` and
       // `{ merchants: [...] }` — not a bare array. This used to store the whole
@@ -31,10 +34,17 @@ export function ProductSearch({
       // below threw "is not iterable" / "is not a function" the moment the
       // sheet opened, which Next surfaced as the error page. Every other caller
       // (src/lib/db.ts, src/app/page.tsx) already unwraps correctly.
-      Promise.all([
-        fetch("/api/products").then((r) => r.json().catch(() => ({}))),
-        fetch("/api/merchants").then((r) => r.json().catch(() => ({}))),
-      ])
+      //
+      // Both routes also authorise via `authorize(req)` and 401 without a
+      // Supabase Bearer token, which these calls never sent — so a signed-in
+      // customer got `{ error: ... }`, the `Array.isArray` guards above turned
+      // that into empty lists, and "All products" silently searched nothing.
+      apiAuthHeaders(false).then((h) =>
+        Promise.all([
+          fetch("/api/products", { headers: h }).then((r) => r.json().catch(() => ({}))),
+          fetch("/api/merchants", { headers: h }).then((r) => r.json().catch(() => ({}))),
+        ])
+      )
         .then(([p, m]) => {
           setProducts(Array.isArray(p?.products) ? p.products : []);
           setMerchants(Array.isArray(m?.merchants) ? m.merchants : []);
@@ -43,7 +53,7 @@ export function ProductSearch({
         // Without this the sheet spun forever on any network or 500 failure.
         .catch(() => setLoaded(true));
     }
-  }, [open, loaded]);
+  }, [open, loaded, initialQuery]);
 
   useEffect(() => {
     if (!open) return;

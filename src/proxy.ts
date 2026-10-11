@@ -69,6 +69,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Password recovery must also be reachable WITHOUT a session: it exists
+  // precisely for the owner who has been locked out and therefore cannot log
+  // in. It carries its own guards (the admin URL secret as a header, the
+  // security answer, and a 5-attempt lock) inside the route handler.
+  if (pathname.startsWith("/api/admin/recovery")) {
+    return NextResponse.next();
+  }
+
   const secret = process.env.ADMIN_PATH_SECRET || "admin";
 
   // 1) The real admin address. Rewrite server-side so the app renders the

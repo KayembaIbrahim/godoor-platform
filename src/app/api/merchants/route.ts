@@ -53,6 +53,21 @@ function legacyBusinessToMerchant(row: LegacyBusiness) {
   };
 }
 
+/**
+ * The public merchant catalogue.
+ *
+ * This response measured 1.1-1.6 s of server time for a ~743-byte payload —
+ * it is the main reason /app felt slow even though the data is tiny. The list
+ * only changes when a shop is approved, suspended or re-rated, so it is safe
+ * to let the edge hold it briefly and serve a stale copy while it refreshes.
+ * The catalogue is public (no customer data), so this is a shared cache hit
+ * rather than a per-user one.
+ */
+function catalogue(res: NextResponse) {
+  res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+  return res;
+}
+
 export async function GET() {
   const sb = getServiceClient() || getPublicClient();
   if (!sb) return NextResponse.json({ merchants: [], error: "Supabase is not configured" }, { status: 503 });
@@ -64,7 +79,7 @@ export async function GET() {
     .order("rating", { ascending: false })
     .limit(200);
 
-  if (!error) return NextResponse.json({ merchants: data || [] });
+  if (!error) return catalogue(NextResponse.json({ merchants: data || [] }));
 
   const { data: businesses, error: businessError } = await sb
     .from("businesses")
@@ -74,7 +89,7 @@ export async function GET() {
     .limit(200);
 
   if (!businessError) {
-    return NextResponse.json({ merchants: (businesses || []).map(legacyBusinessToMerchant) });
+    return catalogue(NextResponse.json({ merchants: (businesses || []).map(legacyBusinessToMerchant) }));
   }
 
   return NextResponse.json(
@@ -162,6 +177,7 @@ export async function PUT(req: NextRequest) {
     ...(patch.momo_name !== undefined && { momo_name: patch.momo_name }),
     ...(patch.opens_at !== undefined && { opens_at: patch.opens_at }),
     ...(patch.closes_at !== undefined && { closes_at: patch.closes_at }),
+    ...(patch.open_days !== undefined && { open_days: patch.open_days }),
     ...(patch.delivery_fee_ugx !== undefined && { delivery_fee_ugx: Number(patch.delivery_fee_ugx) }),
     ...(patch.logo_url !== undefined && { logo_url: patch.logo_url }),
     ...(patch.live_location_enabled !== undefined && { live_location_enabled: Boolean(patch.live_location_enabled) }),

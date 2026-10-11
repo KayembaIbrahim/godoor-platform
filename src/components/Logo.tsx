@@ -32,16 +32,39 @@ export function Logo({
   size = "md",
   markOnly = false,
   showWordmark = true,
+  surface = "auto",
 }: {
   className?: string;
   size?: "sm" | "md" | "lg";
   markOnly?: boolean;
   showWordmark?: boolean;
+  /**
+   * The background this logo actually sits on.
+   *
+   * `auto` follows the global light/dark theme, which is right almost
+   * everywhere. It is wrong on the hybrid customer home: that screen paints
+   * a warm cream page (`.hybrid`) while `<html>` still carries whatever
+   * theme the customer picked. Someone on the dark theme therefore got the
+   * NEAR-WHITE artwork drawn on a cream background — a white logo on
+   * off-white, i.e. invisible. Pass `light` there and the navy artwork is
+   * used regardless of the theme class.
+   *
+   * Purely className-driven, so there is no client JS and no hydration risk.
+   */
+  surface?: "auto" | "light" | "dark";
 }) {
   const height = HEIGHT[size];
   const variant = !markOnly && showWordmark ? ART.lockup : ART.mark;
   const intrinsic = variant === ART.lockup ? LOCKUP : MARK;
   const width = Math.round((intrinsic.width / intrinsic.height) * height);
+
+  const forceLight = surface === "light";
+  const forceDark = surface === "dark";
+
+  // When the surface is known, drop the theme variant entirely: show exactly
+  // one image rather than relying on which class happens to win.
+  const navyClass = forceDark ? "hidden" : forceLight ? "" : "dark:hidden";
+  const whiteClass = forceLight ? "hidden" : forceDark ? "" : "hidden dark:block";
 
   return (
     <span className={cn("inline-flex items-center", className)}>
@@ -52,7 +75,7 @@ export function Logo({
         height={intrinsic.height}
         sizes={`${width}px`}
         style={{ height, width: "auto" }}
-        className="dark:hidden"
+        className={navyClass || undefined}
       />
       {/* Same artwork with the navy lifted to near-white; hidden from
           assistive tech because the light variant above already names it. */}
@@ -64,7 +87,7 @@ export function Logo({
         height={intrinsic.height}
         sizes={`${width}px`}
         style={{ height, width: "auto" }}
-        className="hidden dark:block"
+        className={whiteClass || undefined}
       />
     </span>
   );

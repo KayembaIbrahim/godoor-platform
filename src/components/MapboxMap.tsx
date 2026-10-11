@@ -205,6 +205,7 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
       cursor: pointer;
       position: relative;
       transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
+      animation: marker-bounce 0.6s cubic-bezier(0.34,1.56,0.64,1) both;
     `;
 
     const pulse = document.createElement("div");
@@ -302,6 +303,7 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
     position: relative;
     transform-origin: 50% 100%;
     transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
+    animation: marker-bounce 0.6s cubic-bezier(0.34,1.56,0.64,1) both;
   `;
   el.innerHTML = svg;
 

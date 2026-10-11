@@ -21,13 +21,20 @@ const poppins = Poppins({
   weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-poppins",
+  /* Published under the names the design system actually reads.
+     These used to be --font-poppins / --font-inter, which nothing referenced:
+     tailwind.config.ts consumes var(--font-display) and var(--font-sans), and
+     globals.css:286 sets font-family: var(--font-display). The shipped CSS
+     referenced the old names zero times, so ~80 KB of woff2 was preloaded on
+     every page and never applied — the whole site rendered in the browser
+     fallback while claiming to use the brand typeface. */
+  variable: "--font-display",
 });
 
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-sans",
 });
 
 /* The canonical origin. Without an explicit `metadataBase`, Next derives
@@ -96,7 +103,7 @@ const themePreloadScript = `
     root.classList.remove("light", "dark");
     root.classList.add(resolved);
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", resolved === "dark" ? "#060B18" : "#F8F7FC");
+    if (meta) meta.setAttribute("content", resolved === "dark" ? "#0A0A0B" : "#FFFFFF");
   } catch (e) {}
 })();
 `.trim();
@@ -105,7 +112,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#F8F7FC",
+  themeColor: "#FFFFFF",
+  // REQUIRED for the safe-area insets to report anything. Without
+  // `viewport-fit=cover`, `env(safe-area-inset-*)` resolves to 0 on every
+  // device, so a `sticky top-0` header is drawn underneath the status bar
+  // and the dynamic island when the app runs fullscreen/standalone — the
+  // header row (logo, location, search) disappears behind the notch.
+  // The padding side of the fix lives in `.safe-area-top` / `.safe-area-bottom`.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

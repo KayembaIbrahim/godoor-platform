@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Star, MapPin, Clock, Plus, Minus, ShoppingCart, BadgeCheck, Heart, Users, UtensilsCrossed, ShoppingCart as GroceryIcon, Pill, Shirt, Package, FileText, Store, ShoppingBag, MessageCircle, X } from "lucide-react";
-import { fetchMerchantById, fetchProducts, type DBMerchant, type DBProduct } from "@/lib/db";
+import { fetchMerchantById, fetchProducts, apiAuthHeaders, type DBMerchant, type DBProduct } from "@/lib/db";
 import { formatUgx } from "@/lib/utils";
 import { Price } from "@/components/Price";
 import { useCart } from "@/lib/cart-store";
@@ -71,11 +71,18 @@ export default function MerchantPage() {
   const toggleFollow = async () => {
     if (!supabaseUser?.id || !merchant) return;
     const action = isFollowing ? "unfollow" : "follow";
-    await fetch("/api/followers", {
+    // `/api/followers` POST authorises via `authorize(req)` and 401s without a
+    // Bearer token. This call sent only `content-type`, so it always failed —
+    // yet the optimistic `setIsFollowing` below still flipped the heart, so
+    // tapping Follow looked like it worked and was gone after a reload. The
+    // server derives `customer_id` from the token and ignores the body copy, so
+    // that field is not trusted either way.
+    const res = await fetch("/api/followers", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ customer_id: supabaseUser.id, merchant_id: merchant.id, action }),
+      headers: await apiAuthHeaders(true),
+      body: JSON.stringify({ merchant_id: merchant.id, action }),
     });
+    if (!res.ok) return;
     setIsFollowing(!isFollowing);
     setFollowerCount((p) => isFollowing ? p - 1 : p + 1);
   };

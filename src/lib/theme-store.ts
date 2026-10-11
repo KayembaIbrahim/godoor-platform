@@ -68,9 +68,13 @@ function paint(resolved: "dark" | "light") {
 
   // Keep the browser chrome in step with the canvas. Values match the
   // `themePreloadScript` in `src/app/layout.tsx` so the two never disagree.
+  // Light is a true white and dark is a true black — the previous #F8F7FC /
+  // #060B18 pair tinted the Android status bar and the iOS notch a soft
+  // lavender-blue in light and a navy-black in dark, which is visible even
+  // before a single pixel of page renders.
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    meta.setAttribute("content", resolved === "dark" ? "#060B18" : "#F8F7FC");
+    meta.setAttribute("content", resolved === "dark" ? "#0A0A0B" : "#FFFFFF");
   }
 }
 

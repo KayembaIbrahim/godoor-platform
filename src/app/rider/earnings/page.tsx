@@ -6,11 +6,15 @@ import { useSession } from "@/lib/session-store";
 import { fetchOrders, type DBOrder } from "@/lib/db";
 import { formatUgx } from "@/lib/utils";
 import { orderFees } from "@/lib/fees";
+import WalletSecuritySection from "@/components/WalletSecuritySection";
+import WithdrawSheet from "@/components/WithdrawSheet";
+import { ArrowUpRight } from "lucide-react";
 
 export default function RiderEarningsPage() {
   const { profile, supabaseUser } = useSession();
   const [orders, setOrders] = useState<DBOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   useEffect(() => {
     const uid = supabaseUser?.id || profile.email || "rider";
@@ -37,6 +41,18 @@ export default function RiderEarningsPage() {
           <div className="rounded-xl bg-white/10 p-2.5"><p className="text-[10px] text-white/60">Avg per delivery</p><p className="text-sm font-bold">{orders.length > 0 ? formatUgx(net / orders.length) : "—"}</p></div>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setWithdrawOpen(true)}
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface py-3 text-sm font-bold text-fg transition active:scale-[0.98]"
+      >
+        <ArrowUpRight className="h-4 w-4 text-go" />
+        Withdraw earnings
+      </button>
+      <p className="mt-1.5 text-center text-[11px] text-dim">
+        Paid out from your GoDoor Pay balance, free of charge.
+      </p>
 
       <div className="mt-4 rounded-2xl border border-border bg-surface p-4">
         <h3 className="text-sm font-semibold">Fee breakdown</h3>
@@ -92,7 +108,15 @@ export default function RiderEarningsPage() {
           </div>
         )}
       </div>
+
+      {/* Riders are earners with a real GoDoor Pay balance. Without this the
+          wallet-PIN authorisation had no way to be set up for their role, so
+          every check on their money was silently skipped. */}
+      <div className="mx-auto max-w-3xl px-4 pb-24">
+        <WalletSecuritySection />
+      </div>
     </div>
+    <WithdrawSheet open={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
     <RiderNav />
   </>);
 }

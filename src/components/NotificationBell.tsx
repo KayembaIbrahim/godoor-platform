@@ -2,8 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Bell, Package, CheckCircle2, Truck, Clock, X } from "lucide-react";
-import { useNotifications, type Notification } from "@/lib/notifications-store";
+import { useNotifications } from "@/lib/notifications-store";
 import { useSession } from "@/lib/session-store";
+import PushToggle from "@/components/PushToggle";
+import { labelForStatus } from "@/lib/notification-core";
 
 const ICONS: Record<string, typeof Bell> = {
   payment_confirmed: CheckCircle2,
@@ -30,7 +32,7 @@ function timeAgo(ms: number): string {
 }
 
 export function NotificationBell() {
-  const { role } = useSession();
+  const { role, supabaseUser } = useSession();
   const { items, unreadCount, markAllRead } = useNotifications();
   const myItems = items.filter((n) => !n.role || !role || n.role === role);
   const [open, setOpen] = useState(false);
@@ -95,13 +97,23 @@ export function NotificationBell() {
                             <Icon className="h-3.5 w-3.5" />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium capitalize">{n.title.replace(/_/g, " ")}</p>
+                            <p className="text-xs font-medium">{labelForStatus(n.title)}</p>
                             <p className="text-[10px] leading-snug text-muted">{n.body}</p>
                             <p className="mt-0.5 text-[9px] text-dim">{timeAgo(n.createdAt)}</p>
                           </div>
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* Alerts used to be opt-in from `/account` only, so a customer
+                    looking at the bell had no way to switch them on from where
+                    the question arises. `PushToggle` renders nothing where push
+                    cannot work (the Capacitor WebView, a denied permission). */}
+                {supabaseUser && (
+                  <div className="border-t border-border p-2.5">
+                    <PushToggle className="!border-0 !bg-bg !p-0" />
                   </div>
                 )}
               </div>

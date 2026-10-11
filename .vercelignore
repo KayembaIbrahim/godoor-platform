@@ -25,6 +25,8 @@ scripts/verify-wallet-security.mjs
 scripts/verify-stopover.mts
 scripts/verify-stopover-guards.mts
 scripts/verify-accept-handler.mts
+scripts/verify-withdrawal.mts
+scripts/verify-wallet-fallback.mts
 scripts/register-alias.mjs
 scripts/alias-loader.mjs
 scripts/tap-targets.mjs
@@ -73,3 +75,67 @@ scripts/test-login-ui.mjs
 # Signed-in customer-home audit. Defaults to a live account's email/password.
 scripts/audit-app-home.mjs
 scripts/dead-class-audit.mjs
+scripts/verify-campaigns.mjs
+
+# Round-trip and signed-in audits written while fixing the login bug. All four
+# hardcode the operator's live account emails and plaintext passwords, so they
+# must never ship inside a deployment artifact.
+scripts/verify-round.mjs
+scripts/verify-login-fix.mjs
+scripts/verify-live-ux.mts
+scripts/verify-loc-wallet.mts
+
+# P2P transfer tests and the admin security-question recovery suite. Pure unit
+# tests with no credentials, but they are development tooling — the app does not
+# need them and they do not belong in a deployment artifact.
+scripts/verify-transfer.mjs
+scripts/verify-admin-recovery.mjs
+
+# P2P transfer E2E probes. These sign in as the operator's live customer and
+# rider accounts and hold their email addresses and plaintext password, so they
+# must never ship inside a deployment artifact.
+scripts/e2e-transfer.mjs
+scripts/verify-admin-transfer-view.mjs
+scripts/check-send-ui.mjs
+
+# Wallet-security diagnosis probe. Reads .env.vercel-prod and signs in as a live
+# operator account to reproduce the "Sign in to continue" failure during PIN
+# setup, so it must not ship.
+scripts/test-wallet-security.mjs
+
+# Notification dedup, category-rail navigation and sheet-history balance tests.
+# Pure unit tests with no credentials, but development tooling — the app does not
+# need them inside a deployment artifact.
+scripts/verify-notifications.mjs
+scripts/verify-service-slugs.mjs
+scripts/verify-sheet-history.mjs
+
+# Wallet-lock probes written while reproducing the "stuck at Checking your
+# wallet…" sheet. Both hold the operator's live account email and plaintext
+# password, so neither may ship inside a deployment artifact. The unit suite
+# that guards the fix holds no credentials, but is still dev tooling.
+scripts/probe-wallet-lock.mts
+scripts/probe-lock-ui.mjs
+scripts/verify-wallet-lock-status.mts
+scripts/probe-wallet-card.mjs
+scripts/purge-test-pin.mjs
+
+# Live notification-bell probe. Also holds the operator's live account email and
+# plaintext password, and had been missing from this file entirely.
+scripts/verify-bell-live.mjs
+scripts/scan-live-secrets.mjs
+scripts/probe-home-sections.mjs
+
+# local probes / dev tooling (never a build input)
+scripts/probe-push.mjs
+scripts/probe-push-table.mjs
+scripts/fix-service-grid.mjs
+scripts/fix-hero.mjs
+scripts/check-classes.mjs
+scripts/verify-app-home-ui.mjs
+scripts/verify-rail-scroll.mjs
+scripts/_theme.mjs
+scripts/_navcheck.mjs
+scripts/probe-location-timeline.mjs
+scripts/verify-home-spec.mjs
+scripts/verify-discount-live.mjs

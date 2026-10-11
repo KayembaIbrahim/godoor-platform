@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Package, MessageCircle, ArrowLeft, MapPin, Navigation, Star, RotateCcw, X } from "lucide-react";
 import { useSession } from "@/lib/session-store";
-import { fetchOrders, subscribeToOrderStatus, apiAuthHeaders, type DBOrder } from "@/lib/db";
-import { useNotifications, orderSummary } from "@/lib/notifications-store";
+import { fetchOrders, apiAuthHeaders, type DBOrder } from "@/lib/db";
 import { useActiveOrder } from "@/lib/use-active-order";
 import { formatUgx } from "@/lib/utils";
 import { Price } from "@/components/Price";
@@ -46,7 +45,6 @@ export default function OrdersPage() {
   const [ratingOrder, setRatingOrder] = useState<string | null>(null);
   const [ratingStars, setRatingStars] = useState(5);
   const [ratingText, setRatingText] = useState("");
-  const { addNotification } = useNotifications();
 
   // Cancel order (only for pending/payment_submitted)
   const cancelOrder = async (orderId: string) => {
@@ -63,23 +61,11 @@ export default function OrdersPage() {
     }
   };
 
-  // Live order status alerts — notify the customer on every status change
-  useEffect(() => {
-    if (orders.length === 0) return;
-    const unsubs = orders
-      .filter((o) => o.customer_id === supabaseUser?.id || o.customer_email === profile.email)
-      .map((o) => subscribeToOrderStatus(o.id, (status) => {
-        if (status === o.status) return;
-        addNotification({
-          title: status,
-          body: `${o.merchant_name} · Order #${o.id.slice(-6)} (${o.items || "items"}) is now ${status.replace(/_/g, " ")} · ${orderSummary(o)}`,
-          orderId: o.id,
-          role: "customer",
-        });
-      }));
-    return () => unsubs.forEach((u) => u());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders.length, supabaseUser?.id, profile.email]);
+  // Live order status alerts are handled app-wide by `useOrderNotifications`
+  // (mounted in ClientProviders). They used to live here, which meant the bell
+  // was only fed while the customer sat on this tab — so `/app`, where the bell
+  // actually is, stayed permanently empty. Keeping a second copy here would
+  // announce every status change twice.
 
   const loadOrders = async () => {
     try {

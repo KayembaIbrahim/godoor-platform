@@ -2,6 +2,7 @@
 "use client";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { normalisePromoCode, PROMOS, type Promo } from "./promo";
 
 type FavState = {
   merchantIds: string[];
@@ -44,34 +45,61 @@ export const useRatings = create<RatingState>()(
   ),
 );
 
-// Promo codes store
+/* ── Promo codes store ────────────────────────────────────────────────────────
+ * This store only decides what the checkout *displays*. The server resolves the
+ * code and decides what is actually charged, so a stale or tampered client can
+ * never move a price.
+ *
+ * The table used to be a frozen module constant. That is what let the checkout
+ * and the escrow disagree: the screen showed a discounted total while
+ * `/api/orders` held the full amount. It now accepts the live table fetched
+ * from `/api/promos`, falling back to the shipped defaults when that fetch is
+ * unavailable — so the fallback is only ever a display detail, never a charge. */
 type PromoState = {
   appliedPromo: { code: string; discount: number; type: "percent" | "flat" } | null;
+  /** Live table from `/api/promos`. Undefined until it loads. */
+  table: Record<string, Promo> | undefined;
+  setTable: (table: Record<string, Promo>) => void;
   apply: (code: string) => boolean;
   clear: () => void;
 };
 
-const VALID_PROMOS: Record<string, { discount: number; type: "percent" | "flat" }> = {
-  "GODOOR10": { discount: 10, type: "percent" },
-  "WELCOME": { discount: 5000, type: "flat" },
-  "FIRSTORDER": { discount: 15, type: "percent" },
-  "FREEDEL": { discount: 2000, type: "flat" },
-};
-
 export const usePromo = create<PromoState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       appliedPromo: null,
+      table: undefined,
+      setTable: (table) => set({ table }),
       apply: (code) => {
-        const promo = VALID_PROMOS[code.toUpperCase()];
-        if (promo) { set({ appliedPromo: { code: code.toUpperCase(), ...promo } }); return true; }
-        return false;
+        const normalised = normalisePromoCode(code);
+        if (!normalised) return false;
+        // Live admin table when available; shipped defaults otherwise.
+        const source = get().table ?? PROMOS;
+        const hit = source[normalised];
+        if (!hit || !hit.active) return false;
+        set({ appliedPromo: { code: normalised, discount: hit.discount, type: hit.type } });
+        return true;
       },
       clear: () => set({ appliedPromo: null }),
     }),
-    { name: "godoor-promo" },
+    // `table` is deliberately NOT persisted: it is live configuration and must
+    // be re-read, not restored from a possibly days-old cache on the device.
+    { name: "godoor-promo", partialize: (s) => ({ appliedPromo: s.appliedPromo }) as never },
   ),
 );
+
+/** Load the live promo table once per checkout visit. Failure is non-fatal. */
+export async function refreshPromoTable(): Promise<void> {
+  try {
+    const res = await fetch("/api/promos", { cache: "no-store" });
+    if (!res.ok) return;
+    const json = (await res.json()) as { table?: unknown };
+    if (!json || typeof json.table !== "object" || json.table === null) return;
+    usePromo.getState().setTable(json.table as Record<string, Promo>);
+  } catch {
+    // Offline or the route is not deployed yet — the shipped defaults apply.
+  }
+}
 
 // Saved addresses store
 type AddressState = {

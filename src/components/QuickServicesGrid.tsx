@@ -14,28 +14,35 @@ import {
   ChevronRight,
   ShieldCheck,
   X,
-  Store,
-  PhoneCall,
   MapPin,
-  Clock,
-  ArrowRight,
   CheckCircle2,
 } from "lucide-react";
 import { formatUgx } from "@/lib/utils";
+import { serviceDiscRgb } from "@/lib/category-discs";
 
-interface QuickServicesGridProps {
-  onSelectCategory?: (category: string) => void;
-  /** Shops available per canonical category id, so no tile leads to an empty list. */
-  catCounts?: Record<string, number>;
-}
+/**
+ * The eight super-app services, in the brief's order. One row, one definition.
+ *
+ * Each entry is either a ROUTE (`href`) or an in-page FLOW (`action`): GoRide,
+ * GoFood, GoMart, GoPharma and GoPay have somewhere to go, while GoExpress,
+ * Airtime and Services run through this component's own sheets — a parcel quote
+ * and an airtime purchase are not pages, they are transactions.
+ */
+const SERVICES = [
+  { id: "GoRide", label: "GoRide", sub: "Boda & Car", icon: Bike, href: "/ride", action: null },
+  { id: "GoFood", label: "GoFood", sub: "Meals", icon: UtensilsCrossed, href: "/browse/food", action: null },
+  { id: "GoMart", label: "GoMart", sub: "Groceries", icon: ShoppingBag, href: "/browse/mart", action: null },
+  { id: "GoExpress", label: "GoExpress", sub: "Send parcel", icon: Package, href: null, action: "express" },
+  { id: "GoPharma", label: "GoPharma", sub: "Prescriptions", icon: Pill, href: "/browse/pharma", action: null },
+  { id: "GoPay", label: "GoPay", sub: "Wallet", icon: Wallet, href: "/wallet", action: null },
+  { id: "Airtime", label: "Airtime", sub: "MTN & Airtel", icon: Smartphone, href: null, action: "airtime" },
+  { id: "Services", label: "Services", sub: "All directory", icon: Sparkles, href: null, action: "services" },
+] as const;
 
-export function QuickServicesGrid({ onSelectCategory, catCounts }: QuickServicesGridProps) {
+export function QuickServicesGrid() {
   const [allServicesOpen, setAllServicesOpen] = useState(false);
   const [airtimeOpen, setAirtimeOpen] = useState(false);
   const [expressOpen, setExpressOpen] = useState(false);
-  // Set when someone taps a category with no shops registered yet, so the tile
-  // explains itself instead of silently filtering the catalogue to nothing.
-  const [emptyCategory, setEmptyCategory] = useState<string | null>(null);
 
   // Airtime modal state
   const [airtimePhone, setAirtimePhone] = useState("");
@@ -49,223 +56,104 @@ export function QuickServicesGrid({ onSelectCategory, catCounts }: QuickServices
   const [parcelDesc, setParcelDesc] = useState("");
   const [parcelSuccess, setParcelSuccess] = useState(false);
 
-  // Category filters must be CANONICAL ids from lib/categories. This used to
-  // pass the ad-hoc strings "Groceries" and "Pharmacy"; the real ids are
-  // "Groceries & Market" and "Pharmacy", and the home filter compares against
-  // canonical ids — so the GoMart tile silently produced an empty shop list.
-  const handleServiceClick = (key: string, categoryFilter?: string) => {
+  /**
+   * Only the flows that genuinely run *inside* this component go through here.
+   * Anything with a destination of its own is a <Link> now.
+   */
+  const handleServiceClick = (key: string) => {
     if (key === "services") {
       setAllServicesOpen(true);
     } else if (key === "airtime") {
       setAirtimeOpen(true);
     } else if (key === "express") {
       setExpressOpen(true);
-    } else if (categoryFilter && onSelectCategory) {
-      // No registered shops in this category yet — say so, rather than showing
-      // a blank catalogue that reads like the app broke.
-      if (catCounts && (catCounts[categoryFilter] || 0) === 0) {
-        setEmptyCategory(categoryFilter);
-        return;
-      }
-      setEmptyCategory(null);
-      onSelectCategory(categoryFilter);
-      // Smooth scroll to catalogue
-      const el = document.getElementById("merchants");
-      if (el) el.scrollIntoView({ behavior: "smooth" });
     }
   };
 
-  return (
+return (
     <div className="space-y-3">
-      {/* 8-item Super-App Grid */}
-      <div className="grid grid-cols-4 gap-y-4 gap-x-2 pt-1">
-        {/* 1. GoRide */}
-        <div className="flex flex-col items-center">
-          <span className="mb-1 rounded-full bg-[#FF5500]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#FF5500] border border-[#FF5500]/30 leading-none">
-            From 2.5k
-          </span>
-          <Link
-            href="/ride"
-            className="group grid h-14 w-14 place-items-center rounded-full bg-[#FF5500] text-white shadow-lg shadow-[#FF5500]/25 transition hover:scale-105 active:scale-95"
-            aria-label="GoRide - Boda & Car"
-          title="GoRide - Boda & Car"
-          >
-            <Bike className="h-6 w-6 transition group-hover:scale-110" />
-          </Link>
-          <span className="mt-1.5 text-xs font-bold text-white leading-tight">GoRide</span>
-          <span className="text-[10px] text-slate-400 leading-tight">Boda & Car</span>
-        </div>
+      {/* ── C. The eight super-app services ──────────────────────────────────
+          The brief's identity row: GoFood, GoMart, GoPharma, GoExpress,
+          GoRide, GoPay, Airtime, Services — each in a soft pastel disc with
+          its label underneath.
 
-        {/* 2. GoFood */}
-        <div className="flex flex-col items-center">
-          <span className="mb-1 rounded-full bg-[#F59E0B]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#F59E0B] border border-[#F59E0B]/30 leading-none">
-            Popular
-          </span>
-          <button
-            type="button"
-            onClick={() => handleServiceClick("food", "Food & Restaurants")}
-            className="group grid h-14 w-14 place-items-center rounded-full bg-[#F59E0B] text-white shadow-lg shadow-[#F59E0B]/25 transition hover:scale-105 active:scale-95"
-            aria-label="GoFood - Meals & snacks"
-          title="GoFood - Meals & snacks"
-          >
-            <UtensilsCrossed className="h-6 w-6 transition group-hover:scale-110" />
-          </button>
-          <span className="mt-1.5 text-xs font-bold text-white leading-tight">GoFood</span>
-          <span className="text-[10px] text-slate-400 leading-tight">Meals</span>
-        </div>
+          HORIZONTAL, NOT A 4×2 GRID. Eight discs at 68px plus gaps is ~628px
+          of content, so on a 390px phone the row genuinely overflows and
+          scrolls. That is the point: the full directory of every category
+          lives at /categories, and each vertical lands on its own browse page
+          with filters and sorting. The home page is discovery only.
 
-        {/* 3. GoMart */}
-        <div className="flex flex-col items-center">
-          <span className="mb-1 rounded-full bg-[#10B981]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#10B981] border border-[#10B981]/30 leading-none">
-            Fresh
-          </span>
-          <button
-            type="button"
-            onClick={() => handleServiceClick("mart", "Groceries & Market")}
-            className="group grid h-14 w-14 place-items-center rounded-full bg-[#10B981] text-white shadow-lg shadow-[#10B981]/25 transition hover:scale-105 active:scale-95"
-            aria-label="GoMart - Supermarket"
-          title="GoMart - Supermarket"
-          >
-            <ShoppingBag className="h-6 w-6 transition group-hover:scale-110" />
-          </button>
-          <span className="mt-1.5 text-xs font-bold text-white leading-tight">GoMart</span>
-          <span className="text-[10px] text-slate-400 leading-tight">Groceries</span>
-        </div>
+          ONE DEFINITION, NOT TWO. This component already owned these eight
+          tiles with their working modals, and it had become orphaned — the
+          home was rendering a *different* category rail built from merchant
+          data, which showed category names ("Clothing & Fashion") rather
+          than the platform's services. Rendering this row instead removes the
+          second, competing set. */}
+      <div
+        className="scrollbar-hide -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 rail-fade"
+        role="list"
+        aria-label="GoDoor services"
+      >
+        {SERVICES.map((s) => {
+          const Icon = s.icon;
+          const disc = (
+            <span
+              className="hybrid-disc h-14 w-14"
+              style={{ ["--disc-rgb" as string]: serviceDiscRgb(s.id) }}
+              aria-hidden="true"
+            >
+              <Icon className="h-6 w-6" />
+            </span>
+          );
 
-        {/* 4. GoExpress */}
-        <div className="flex flex-col items-center">
-          <span className="mb-1 rounded-full bg-[#8B5CF6]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#8B5CF6] border border-[#8B5CF6]/30 leading-none">
-            Tracked
-          </span>
-          <button
-            type="button"
-            onClick={() => handleServiceClick("express")}
-            className="group grid h-14 w-14 place-items-center rounded-full bg-[#8B5CF6] text-white shadow-lg shadow-[#8B5CF6]/25 transition hover:scale-105 active:scale-95"
-            aria-label="GoExpress - Send parcel"
-          title="GoExpress - Send parcel"
-          >
-            <Package className="h-6 w-6 transition group-hover:scale-110" />
-          </button>
-          <span className="mt-1.5 text-xs font-bold text-white leading-tight">GoExpress</span>
-          <span className="text-[10px] text-slate-400 leading-tight">Send parcel</span>
-        </div>
-
-        {/* 5. GoPharma */}
-        <div className="flex flex-col items-center">
-          <span className="mb-1 rounded-full bg-[#3B82F6]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#3B82F6] border border-[#3B82F6]/30 leading-none">
-            Care
-          </span>
-          <button
-            type="button"
-            onClick={() => handleServiceClick("pharma", "Pharmacy")}
-            className="group grid h-14 w-14 place-items-center rounded-full bg-[#3B82F6] text-white shadow-lg shadow-[#3B82F6]/25 transition hover:scale-105 active:scale-95"
-            aria-label="GoPharma - Prescriptions"
-          title="GoPharma - Prescriptions"
-          >
-            <Pill className="h-6 w-6 transition group-hover:scale-110" />
-          </button>
-          <span className="mt-1.5 text-xs font-bold text-white leading-tight">GoPharma</span>
-          <span className="text-[10px] text-slate-400 leading-tight">Prescriptions</span>
-        </div>
-
-        {/* 6. GoPay */}
-        <div className="flex flex-col items-center">
-          <span className="mb-1 rounded-full bg-slate-700/60 px-1.5 py-0.5 text-[9px] font-bold text-slate-300 border border-slate-600 leading-none">
-            0% fee
-          </span>
-          <Link
-            href="/wallet"
-            className="group grid h-14 w-14 place-items-center rounded-full bg-[#1E293B] text-white border border-white/10 shadow-lg transition hover:bg-[#253550] active:scale-95"
-            aria-label="GoPay - Morse & Mobile Money"
-          title="GoPay - Morse & Mobile Money"
-          >
-            <Wallet className="h-6 w-6 text-slate-200 transition group-hover:scale-110" />
-          </Link>
-          <span className="mt-1.5 text-xs font-bold text-white leading-tight">GoPay</span>
-          <span className="text-[10px] text-slate-400 leading-tight">Wallet</span>
-        </div>
-
-        {/* 7. Airtime */}
-        <div className="flex flex-col items-center">
-          <span className="mb-1 rounded-full bg-[#EAB308]/20 px-1.5 py-0.5 text-[9px] font-bold text-[#EAB308] border border-[#EAB308]/30 leading-none">
-            Instant
-          </span>
-          <button
-            type="button"
-            onClick={() => handleServiceClick("airtime")}
-            className="group grid h-14 w-14 place-items-center rounded-full bg-[#EAB308] text-white shadow-lg shadow-[#EAB308]/25 transition hover:scale-105 active:scale-95"
-            aria-label="Airtime - MTN & Airtel"
-          title="Airtime - MTN & Airtel"
-          >
-            <Smartphone className="h-6 w-6 transition group-hover:scale-110" />
-          </button>
-          <span className="mt-1.5 text-xs font-bold text-white leading-tight">Airtime</span>
-          <span className="text-[10px] text-slate-400 leading-tight">MTN & Airtel</span>
-        </div>
-
-        {/* 8. Services */}
-        <div className="flex flex-col items-center">
-          <span className="mb-1 rounded-full bg-slate-700/60 px-1.5 py-0.5 text-[9px] font-bold text-slate-300 border border-slate-600 leading-none">
-            More
-          </span>
-          <button
-            type="button"
-            onClick={() => handleServiceClick("services")}
-            className="group grid h-14 w-14 place-items-center rounded-full bg-[#1E293B] text-white border border-white/10 shadow-lg transition hover:bg-[#253550] active:scale-95"
-            aria-label="Services - All directory"
-          title="Services - All directory"
-          >
-            <Sparkles className="h-6 w-6 text-slate-200 transition group-hover:scale-110" />
-          </button>
-          <span className="mt-1.5 text-xs font-bold text-white leading-tight">Services</span>
-          <span className="text-[10px] text-slate-400 leading-tight">All directory</span>
-        </div>
+          return (
+            <div
+              key={s.id}
+              role="listitem"
+              className="flex w-[68px] shrink-0 snap-start flex-col items-center gap-1.5"
+            >
+              {s.href ? (
+                <Link
+                  href={s.href}
+                  className="transition hover:scale-105 active:scale-95"
+                  aria-label={`${s.label} — ${s.sub}`}
+                  title={`${s.label} — ${s.sub}`}
+                >
+                  {disc}
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleServiceClick(s.action!)}
+                  className="transition hover:scale-105 active:scale-95"
+                  aria-label={`${s.label} — ${s.sub}`}
+                  title={`${s.label} — ${s.sub}`}
+                >
+                  {disc}
+                </button>
+              )}
+              <span className="w-full truncate text-center text-[11px] font-bold leading-tight text-fg">
+                {s.label}
+              </span>
+              <span className="w-full truncate text-center text-[10px] leading-tight text-muted">
+                {s.sub}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
-      {/* A category was tapped but nothing is registered there yet. */}
-      {emptyCategory && (
-        <div
-          role="status"
-          className="flex items-start gap-2.5 rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3"
-        >
-          <Store className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold text-amber-200">
-              No {emptyCategory} shops yet
-            </p>
-            <p className="mt-0.5 text-[11px] text-amber-100/80">
-              We&apos;re onboarding partners in this category now.
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Link
-              href="/partner"
-              className="rounded-lg bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-slate-900 transition hover:bg-amber-300"
-            >
-              Register
-            </Link>
-            <button
-              type="button"
-              onClick={() => setEmptyCategory(null)}
-              aria-label="Dismiss"
-              className="grid h-6 w-6 place-items-center rounded-full text-amber-200/70 transition hover:text-amber-100"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Safe Mobility Banner */}
-      <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#131F38] px-4 py-2.5 shadow-sm">
+      {/* Safe Mobility Banner — brand teal, themed in both modes */}
+      <div className="flex items-center justify-between rounded-2xl border border-brand/25 bg-brand/10 px-4 py-2.5 shadow-sm">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold tracking-wider text-slate-200">SAFE MOBILITY</span>
-          <span className="text-slate-500">•</span>
-          <span className="flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-amber-300 border border-amber-400/20">
-            <span>✨</span> Verified Drivers
+          <span className="text-[11px] font-bold tracking-wider text-brand">SAFE MOBILITY</span>
+          <span className="text-muted">•</span>
+          <span className="flex items-center gap-1 rounded-full bg-brand/12 px-2 py-0.5 text-[10px] font-medium text-brand border border-brand/25">
+            <Sparkles className="h-3 w-3" aria-hidden />
+            Verified Drivers
           </span>
         </div>
-        <div className="grid h-7 w-7 place-items-center rounded-full bg-white/10 text-slate-200">
+        <div className="grid h-7 w-7 place-items-center rounded-full bg-brand/15 text-brand">
           <Bike className="h-4 w-4" />
         </div>
       </div>
@@ -277,8 +165,8 @@ export function QuickServicesGrid({ onSelectCategory, catCounts }: QuickServices
           aria-modal="true"
           className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-md animate-fade-in"
         >
-          <div className="relative w-full max-w-md max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#131F38] p-5 text-white shadow-2xl">
-            <div className="sticky top-0 flex items-center justify-between border-b border-white/10 pb-3 bg-[#131F38]">
+          <div className="relative w-full max-w-md max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-ink p-5 text-white shadow-2xl">
+            <div className="sticky top-0 flex items-center justify-between border-b border-white/10 pb-3 bg-ink">
               <div>
                 <h3 className="font-display text-base font-bold">All GoDoor Services</h3>
                 <p className="text-xs text-slate-400">Everything delivered or booked in one tap</p>
@@ -339,13 +227,10 @@ export function QuickServicesGrid({ onSelectCategory, catCounts }: QuickServices
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-go">Shopping & Food</p>
                 <div className="mt-2 space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAllServicesOpen(false);
-                      handleServiceClick("food", "Food & Restaurants");
-                    }}
-                    className="flex w-full items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition text-left"
+                  <Link
+                    href="/browse/food"
+                    onClick={() => setAllServicesOpen(false)}
+                    className="flex items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition"
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#F59E0B] text-white">
@@ -357,14 +242,11 @@ export function QuickServicesGrid({ onSelectCategory, catCounts }: QuickServices
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-slate-400" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAllServicesOpen(false);
-                      handleServiceClick("mart", "Groceries & Market");
-                    }}
-                    className="flex w-full items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition text-left"
+                  </Link>
+                  <Link
+                    href="/browse/mart"
+                    onClick={() => setAllServicesOpen(false)}
+                    className="flex items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition"
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#10B981] text-white">
@@ -376,14 +258,11 @@ export function QuickServicesGrid({ onSelectCategory, catCounts }: QuickServices
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-slate-400" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAllServicesOpen(false);
-                      handleServiceClick("pharma", "Pharmacy");
-                    }}
-                    className="flex w-full items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition text-left"
+                  </Link>
+                  <Link
+                    href="/browse/pharma"
+                    onClick={() => setAllServicesOpen(false)}
+                    className="flex items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition"
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#3B82F6] text-white">
@@ -395,7 +274,7 @@ export function QuickServicesGrid({ onSelectCategory, catCounts }: QuickServices
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-slate-400" />
-                  </button>
+                  </Link>
                 </div>
               </div>
 
@@ -452,7 +331,7 @@ export function QuickServicesGrid({ onSelectCategory, catCounts }: QuickServices
           aria-modal="true"
           className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-md animate-fade-in"
         >
-          <div className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-[#131F38] p-6 text-white shadow-2xl">
+          <div className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-ink p-6 text-white shadow-2xl">
             <button
               type="button"
               onClick={() => {
@@ -579,7 +458,7 @@ export function QuickServicesGrid({ onSelectCategory, catCounts }: QuickServices
           aria-modal="true"
           className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-md animate-fade-in"
         >
-          <div className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-[#131F38] p-6 text-white shadow-2xl">
+          <div className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-ink p-6 text-white shadow-2xl">
             <button
               type="button"
               onClick={() => {

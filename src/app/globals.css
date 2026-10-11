@@ -9,10 +9,14 @@
   --godoor-orange: #F97316;
   --godoor-yellow: #F59E0B;
   --godoor-background: #FFFFFF;
-  --godoor-surface: #F8FAFC;
-  --godoor-text: #0F172A;
-  --godoor-muted: #64748B;
-  --godoor-border: #E2E8F0;
+  /* WHITE, not slate. These were #F8FAFC / #E2E8F0 — a cool blue-grey cast
+     that read as "not quite white" on every card and input across the whole
+     product. The theme is now a true neutral white, and depth comes from the
+     hairline border + soft shadow rather than from tinting the surface. */
+  --godoor-surface: #FFFFFF;
+  --godoor-text: #18181B;
+  --godoor-muted: #52525B;
+  --godoor-border: #D4D4D8;
   --godoor-success: #059669;
   --godoor-error: #DC2626;
 
@@ -30,31 +34,42 @@
   --purple-deep: #3B0764;
 
   /* ─── Trust / Secondary ─── */
-  --secondary: #0F172A;
-  --secondary-hover: #1E293B;
+  --secondary: #18181B;
+  --secondary-hover: #27272A;
 
-  /* Deep navy */
-  --navy: #0F172A;
-  --navy-hover: #1B2B49;
-  --navy-deep: #0A1120;
-  --navy-soft: #1E293B;
-  --navy-line: rgb(148 163 184 / 0.22);
-  --navy-glow: 0 18px 40px -18px rgb(15 23 42 / 0.55);
+  /* Ink — the DARK CARD colour, used on light pages for hero bands, tiles and
+     the location pill. Neutral black rather than navy, so a dark card on white
+     reads as "GoDoor ink" and not as a leftover blue theme. */
+  --navy: #0B0B0D;
+  --navy-hover: #17171A;
+  --navy-deep: #000000;
+  --navy-soft: #1F1F23;
+  --navy-line: rgb(24 24 27 / 0.12);
+  --navy-glow: 0 18px 40px -18px rgb(0 0 0 / 0.55);
 
   /* Success */
   --success: #059669;
   --success-light: #D1FAE5;
 
   /* Surfaces */
+  /* Surfaces — a TRUE white page.
+     `surface` used to be #F8FAFC, a cool blue-grey, so cards and inputs never
+     looked quite white and the whole product read as "slate tinted" rather
+     than white. Page and card are now both #FFFFFF, and depth comes from the
+     hairline border plus the card shadow instead of from tinting the surface.
+     That makes the border load-bearing — it is the only thing separating a
+     white card from the white page behind it — so it is a visible zinc-300
+     rather than a barely-there #E4E4E7, which measures 1.27:1 against white
+     and is effectively invisible. */
   --bg: #FFFFFF;
-  --surface: #F8FAFC;
-  --surface-2: #F1F5F9;
-  --border: #E2E8F0;
+  --surface: #FFFFFF;
+  --surface-2: #F6F6F7;
+  --border: #D4D4D8;
 
   /* Text */
-  --text: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #64748B;
+  --text: #18181B;
+  --text-secondary: #3F3F46;
+  --text-muted: #52525B;
   --text-inverse: #FFFFFF;
 
   /* Radius & Shadow */
@@ -97,15 +112,15 @@
   --rgb-warning: 217 119 6;
   --rgb-danger: 220 38 38;
   --rgb-bg: 255 255 255;
-  --rgb-surface: 248 250 252;
-  --rgb-surface-2: 241 245 249;
-  --rgb-border: 226 232 240;
-  --rgb-text: 15 23 42;
-  --rgb-text-muted: 100 116 139;
-  --rgb-navy: 15 23 42;
-  --rgb-navy-hover: 27 43 73;
-  --rgb-navy-deep: 10 17 32;
-  --rgb-navy-soft: 30 41 59;
+  --rgb-surface: 255 255 255;
+  --rgb-surface-2: 246 246 247;
+  --rgb-border: 212 212 216;
+  --rgb-text: 24 24 27;
+  --rgb-text-muted: 82 82 91;
+  --rgb-navy: 11 11 13;
+  --rgb-navy-hover: 23 23 26;
+  --rgb-navy-deep: 0 0 0;
+  --rgb-navy-soft: 31 31 35;
 
   /* NEW: Purple channel triplets for Tailwind */
   --rgb-purple: 124 58 237;
@@ -122,18 +137,83 @@
   --aurora-a: rgb(249 115 22 / 0.08);
   --aurora-b: rgb(249 115 22 / 0.06);
   --aurora-c: rgb(5 150 105 / 0.04);
+
+  /* ─── Brand: deep teal (trust + freshness) ────────────────────────────
+     Deliberately SEPARATE from --primary. --primary stays GoDoor orange
+     and keeps owning every call-to-action, so the logo and the CTAs are
+     untouched. --brand owns *identity* surfaces instead: sticky nav bars,
+     the bottom nav's active state, hero washes, live badges and section
+     markers.
+
+     Reverting this whole direction is one edit here plus the `brand` entry
+     in tailwind.config.ts — nothing else in the codebase needs to change. */
+  --brand: #0D9488;
+  --brand-hover: #0F766E;
+  --brand-light: #CCFBF1;
+  --brand-deep: #042F2E;
+  --brand-ring: rgb(13 148 136 / 0.35);
+
+  --rgb-brand: 13 148 136;
+  --rgb-brand-hover: 15 118 110;
+  --rgb-brand-light: 204 251 241;
+  --rgb-brand-deep: 4 47 46;
+
+  --rgb-info: 37 99 235;
+  --rgb-info-hover: 30 64 175;
+  --rgb-info-light: 219 234 254;
+
+  /* ─── Ink cards (the dark cards on the customer home) ─────────────────
+     THEME-AWARE, NOT PER-PAGE.
+
+     These tokens used to live inside a `.hybrid` scope whose stated purpose was
+     to paint ONE page — the customer home — cream, with dark cards on it, and
+     deliberately to leave the admin portal, the merchant console and the rider
+     app on the older slate palette. That was the wrong trade: it meant
+     "GoDoor's white theme" existed on a single screen, everywhere else still
+     rendered blue-grey, and because `.hybrid` hard-set a light canvas the
+     customer's own dark-mode choice was ignored on the page they use most.
+
+     So the white theme is now the PLATFORM theme (`:root` above + `.dark`
+     below) and this file only describes the one thing that is genuinely
+     page-specific: the dark ink cards. `canvas` simply mirrors the theme —
+     white in light, black in dark — and the ink cards stay dark in both, where
+     in dark mode they sit ABOVE the canvas as raised surfaces rather than
+     vanishing into it.
+
+     Deliberately does NOT redefine --primary. GoDoor orange stays #F97316,
+     the same value the logo is drawn in, so the CTA, the active nav state and
+     the badge all match the mark rather than a second orange. */
+  --rgb-canvas: 255 255 255;
+  --rgb-canvas-2: 246 246 247;
+  --rgb-ink: 17 17 19;
+  --rgb-ink-2: 26 26 29;
+  --rgb-ink-3: 38 38 42;
+  --rgb-on-ink: 255 255 255;
+  --rgb-on-ink-muted: 173 173 182;
+  --rgb-hairline: 228 228 231;
+  /* Card elevation on the light canvas. Warm-neutral, not blue-grey — a cool
+     shadow on a white page reads as dirt. */
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.05), 0 12px 28px -12px rgb(0 0 0 / 0.18);
 }
 
 .dark {
-  /* ─── GoDoor Design Tokens (dark mode) ─── */
+  /* ─── GoDoor Design Tokens (dark mode) ─────────────────────────────────
+     TRUE BLACK, NOT DEEP NAVY.
+     These were the slate ramp — --godoor-background #0F172A, surface #1E293B,
+     border #334155 — which is a blue-grey, so "dark mode" arrived as a
+     noticeably BLUE screen rather than a black one, and that blue is exactly
+     what made the customer home read as a different product from the rest of
+     the app. Dark mode is now a neutral zinc/black ramp: a near-black canvas,
+     raised near-black cards, and a neutral grey for borders and muted text.
+     Nothing here is tinted. */
   --godoor-purple: #8B5CF6;
   --godoor-purple-dark: #6D28D9;
   --godoor-purple-light: #4C1D95;
-  --godoor-background: #0F172A;
-  --godoor-surface: #1E293B;
-  --godoor-text: #F8FAFC;
-  --godoor-muted: #94A3B8;
-  --godoor-border: #334155;
+  --godoor-background: #0A0A0B;
+  --godoor-surface: #141416;
+  --godoor-text: #FAFAFA;
+  --godoor-muted: #A1A1AA;
+  --godoor-border: #3A3A40;
 
   /* Brand (same orange) */
   --primary: #F97316;
@@ -150,29 +230,30 @@
   --secondary: #F8FAFC;
   --secondary-hover: #E2E8F0;
 
-  /* Deep navy */
-  --navy: #060B18;
-  --navy-hover: #0B1428;
-  --navy-deep: #04070F;
-  --navy-soft: #16223B;
-  --navy-line: rgb(148 163 184 / 0.18);
-  --navy-glow: 0 18px 44px -18px rgb(0 0 0 / 0.8);
+  /* Ink — black in dark mode, so a hero band or the ink card sits just above the
+     canvas instead of reading as a navy panel. */
+  --navy: #000000;
+  --navy-hover: #17171A;
+  --navy-deep: #000000;
+  --navy-soft: #1F1F23;
+  --navy-line: rgb(255 255 255 / 0.12);
+  --navy-glow: 0 18px 44px -18px rgb(0 0 0 / 0.85);
 
   /* Success */
   --success: #34D399;
   --success-light: #064E3B;
 
   /* Surfaces */
-  --bg: #0F172A;
-  --surface: #1E293B;
-  --surface-2: #334155;
-  --border: #334155;
+  --bg: #0A0A0B;
+  --surface: #141416;
+  --surface-2: #1E1E21;
+  --border: #3A3A40;
 
   /* Text */
-  --text: #F8FAFC;
-  --text-secondary: #CBD5E1;
-  --text-muted: #94A3B8;
-  --text-inverse: #0F172A;
+  --text: #FAFAFA;
+  --text-secondary: #D4D4D8;
+  --text-muted: #A1A1AA;
+  --text-inverse: #0A0A0B;
 
   /* Radius & Shadow */
   --shadow: 0 4px 20px -2px rgb(0 0 0 / 0.4);
@@ -211,16 +292,30 @@
   --rgb-success: 52 211 153;
   --rgb-warning: 245 158 11;
   --rgb-danger: 239 68 68;
-  --rgb-bg: 15 23 42;
-  --rgb-surface: 30 41 59;
-  --rgb-surface-2: 51 65 85;
-  --rgb-border: 51 65 85;
-  --rgb-text: 248 250 252;
-  --rgb-text-muted: 148 163 184;
-  --rgb-navy: 6 11 24;
-  --rgb-navy-hover: 11 20 40;
-  --rgb-navy-deep: 4 7 15;
-  --rgb-navy-soft: 22 34 59;
+  --rgb-bg: 10 10 11;
+  --rgb-surface: 20 20 22;
+  --rgb-surface-2: 30 30 33;
+  --rgb-border: 58 58 64;
+  --rgb-text: 250 250 250;
+  --rgb-text-muted: 161 161 170;
+  --rgb-navy: 0 0 0;
+  --rgb-navy-hover: 23 23 26;
+  --rgb-navy-deep: 0 0 0;
+  --rgb-navy-soft: 31 31 35;
+
+  /* Canvas + ink cards, dark values. `canvas` tracks `bg`, so the customer home
+     follows the customer's own choice instead of forcing itself light. The ink
+     cards are RAISED off a near-black canvas (#18181B on #0A0A0B) — painted
+     the same near-black as the canvas they would simply disappear. */
+  --rgb-canvas: 10 10 11;
+  --rgb-canvas-2: 20 20 22;
+  --rgb-ink: 24 24 27;
+  --rgb-ink-2: 32 32 36;
+  --rgb-ink-3: 44 44 49;
+  --rgb-on-ink: 250 250 250;
+  --rgb-on-ink-muted: 168 168 176;
+  --rgb-hairline: 58 58 64;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 28px -12px rgb(0 0 0 / 0.7);
 
   /* Purple channel triplets for dark mode */
   --rgb-purple: 139 102 250;
@@ -238,6 +333,22 @@
   --aurora-b: rgb(249 115 22 / 0.1);
   --aurora-c: rgb(52 211 153 / 0.05);
   --grid-line: var(--border);
+
+  /* Brand teal — lifted for dark surfaces. */
+  --brand: #2DD4BF;
+  --brand-hover: #5EEAD4;
+  --brand-light: #113B38;
+  --brand-deep: #042F2E;
+  --brand-ring: rgb(45 212 191 / 0.4);
+
+  --rgb-brand: 45 212 191;
+  --rgb-brand-hover: 94 234 212;
+  --rgb-brand-light: 17 59 56;
+  --rgb-brand-deep: 4 47 46;
+
+  --rgb-info: 96 165 250;
+  --rgb-info-hover: 147 197 253;
+  --rgb-info-light: 30 58 138;
 }
 
 html {
@@ -305,6 +416,68 @@ h1, h2, h3 {
   display: block;
 }
 
+/* ═══ CUSTOMER HOME ══════════════════════════════════════════════════
+   The GoDoor customer home used to carry its own cream theme in this scope,
+   re-pointing `--rgb-surface` / `--rgb-text` / `--rgb-text-muted` here and
+   painting a cream canvas, so this one screen looked like a different product
+   from every other page — and because the canvas was pinned light, a customer
+   who had chosen dark mode still got a light home screen.
+
+   All of that is gone. GoDoor has ONE theme (`:root` light, `.dark` black) and
+   `.hybrid` now only paints the page canvas, which follows the customer's own
+   choice. The dark ink cards — the location pill, the service tiles — remain
+   page-specific and still opt in below via `.hybrid-card` / `.tile`.
+
+   ── THE RULE THAT MUST NOT BE BROKEN AGAIN ─────────────────────────────
+   A token cannot know what it is sitting on. An earlier version remapped
+   `--rgb-surface` to the ink colour, reasoning that the brief asked for dark
+   cards — but `surface` is the background of EVERY overlay and menu in the
+   design system (avatar dropdown, notification panel, sheets, form inputs all
+   paint `bg-surface` and then set `text-fg` / `text-muted` on top). So every
+   one of those panels became near-black text on a near-black panel:
+
+       ink card + text-fg     1.12 : 1   (WCAG AA needs 4.5)
+       ink card + text-muted  3.64 : 1
+
+   1.12:1 is not "low contrast", it is the same colour drawn twice. That is why
+   the location bar's address, the trust strip and both dropdowns read as
+   blank. So `surface`/`elevated` are NEVER inverted at theme level; a dark
+   card is OPT-IN via `.hybrid-card`, and text on it is opt-in via
+   `text-on-ink`. */
+.hybrid {
+  background-color: rgb(var(--rgb-canvas));
+  color: rgb(var(--rgb-text));
+}
+
+/* The opt-in DARK card. Shadows sit ON cream, so they have to be
+   warm-neutral rather than the cool slate the light theme uses — a blue-grey
+   shadow on a cream page reads as dirt.
+
+   No `border-radius` here on purpose. These rules are UNLAYERED, so they beat
+   every Tailwind utility regardless of specificity; setting a radius would
+   silently override `rounded-2xl` / `rounded-full` at each call site. The
+   radius belongs to the component. */
+.hybrid .tile,
+.hybrid .hybrid-card {
+  background-color: rgb(var(--rgb-ink));
+  color: rgb(var(--rgb-on-ink));
+  box-shadow: var(--shadow-card);
+}
+
+/* ─── Pastel category discs ────────────────────────────────────────────
+   The brief asks for each category icon inside a soft pastel circle. They
+   must stay legible on cream AND on the ink cards, so the palette is chosen
+   by lightness contrast rather than by hue alone, and every disc carries a
+   matching hairline so it has an edge on either background. */
+.hybrid-disc {
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  border: 1px solid rgb(var(--disc-rgb) / 0.22);
+  background-color: rgb(var(--disc-rgb) / 0.14);
+  color: rgb(var(--disc-rgb));
+}
+
 /* ─── Chip / pill ─── */
 .chip {
   display: inline-flex;
@@ -339,6 +512,15 @@ h1, h2, h3 {
   height: max(100%, 44px);
   transform: translate(-50%, -50%);
   pointer-events: auto;
+}
+
+/* Flyer popup — centred card entrance. Short, because it interrupts. */
+@keyframes flyer-pop-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.flyer-pop {
+  animation: flyer-pop-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Selected chip */
@@ -385,9 +567,39 @@ h1, h2, h3 {
 /* Scroll affordances */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-.rail-fade {
-  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2.5rem), transparent 100%);
-  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2.5rem), transparent 100%);
+/* Fade ONLY the edge that has more content behind it.
+   A static mask faded the last chip permanently, including on a rail short
+   enough to need no scrolling — the final chip sat half-invisible and read as a
+   rendering fault rather than as an affordance. Scroll-driven animations let
+   the fade appear when there is somewhere left to go and retract at the end.
+   Browsers without support get no mask at all, which is correct: every chip
+   stays fully visible. */
+@supports (animation-timeline: scroll(self inline)) {
+  .rail-fade {
+    animation: rail-fade-ease linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+@keyframes rail-fade-ease {
+  0% {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 100%);
+    mask-image: linear-gradient(to right, #000 0, #000 100%);
+  }
+  12% {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2.5rem), transparent 100%);
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2.5rem), transparent 100%);
+  }
+  88% {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2.5rem), transparent 100%);
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 2.5rem), transparent 100%);
+  }
+  100% {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 100%);
+    mask-image: linear-gradient(to right, #000 0, #000 100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail-fade { animation: none !important; }
 }
 
 .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -435,6 +647,9 @@ h1, h2, h3 {
 
 .hover\:shadow-card:hover { box-shadow: var(--shadow-lg); }
 .hover\:shadow-floating:hover { box-shadow: var(--shadow-xl); }
+/* `.shadow-pop` is hand-written, so Tailwind cannot hang `hover:` on it and
+   the variant silently compiled to nothing. Matches the rule above. */
+.hover\:shadow-pop:hover { box-shadow: var(--shadow-xl); }
 .focus-within\:shadow-card:focus-within { box-shadow: var(--shadow-lg); }
 
 .card-hover {
@@ -472,8 +687,8 @@ h1, h2, h3 {
   box-shadow: 0 8px 20px rgb(249 115 22 / 0.3), 0 2px 6px rgb(15 23 42 / 0.15);
 }
 .btn-primary:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: 0 2px 8px rgb(15 23 42 / 0.25);
+  animation: elastic-press 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.35);
 }
 .btn-primary:focus-visible {
   outline: none;
@@ -492,7 +707,7 @@ h1, h2, h3 {
   box-shadow: var(--shadow-sm);
 }
 .btn-secondary:active {
-  transform: translateY(0) scale(0.98);
+  animation: elastic-press 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 .btn-secondary:focus-visible {
   outline: none;
@@ -510,7 +725,7 @@ h1, h2, h3 {
   box-shadow: 0 8px 20px rgb(15 23 42 / 0.3), 0 2px 6px rgb(15 23 42 / 0.15);
 }
 .btn-navy:active {
-  transform: translateY(0) scale(0.98);
+  animation: elastic-press 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 .btn-navy:focus-visible {
   outline: none;
@@ -530,8 +745,8 @@ h1, h2, h3 {
   box-shadow: 0 8px 20px rgb(124 58 237 / 0.35), 0 2px 6px rgb(124 58 237 / 0.2);
 }
 .btn-purple:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: 0 2px 8px rgb(124 58 237 / 0.4);
+  animation: elastic-press 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  box-shadow: 0 1px 3px rgb(124 58 237 / 0.5);
 }
 .btn-purple:focus-visible {
   outline: none;
@@ -550,6 +765,7 @@ h1, h2, h3 {
 }
 .btn-ghost:active {
   background: var(--surface-2);
+  animation: elastic-press 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 .btn-success {
@@ -573,7 +789,9 @@ h1, h2, h3 {
   transform: translateY(-1px);
   box-shadow: 0 8px 20px rgb(220 38 38 / 0.3);
 }
-.btn-danger:active { transform: translateY(0) scale(0.98); }
+.btn-danger:active {
+  animation: elastic-press 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
 .btn-danger:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 40%, transparent);
@@ -599,6 +817,7 @@ h1, h2, h3 {
   cursor: not-allowed;
   transform: none !important;
   box-shadow: none !important;
+  animation: none !important;
 }
 
 /* ─── Card system ─── */
@@ -630,6 +849,47 @@ h1, h2, h3 {
   box-shadow: 0 8px 32px -8px rgb(124 58 237 / 0.3);
   color: #fff;
 }
+
+/* ─── Themed premium panel ────────────────────────────────────────────────
+   The customer home header and the GoDoor Pay card were both hardcoded to
+   dark navy (#131F38 / #1B2848) with white and slate text. Those literals do
+   not change with the theme, so light mode rendered a dark card floating on
+   a white page — the "light mode looks broken" report.
+
+   These classes read the same tokens as everything else, so one class flips
+   with the theme. Light mode gets the light surface the brief asks for
+   (browsing, menus, carts, profile); dark mode keeps the premium navy. */
+.gd-panel {
+  background-color: rgb(var(--rgb-surface));
+  border-color: rgb(var(--rgb-border));
+  color: rgb(var(--rgb-text));
+}
+.dark .gd-panel {
+  background-color: #131f38;
+  border-color: rgb(255 255 255 / 0.1);
+  color: #fff;
+}
+
+/* Secondary/label text inside a panel. */
+.gd-panel-sub { color: rgb(var(--rgb-text-muted)); }
+.dark .gd-panel-sub { color: #94a3b8; }
+
+/* Raised chip inside a panel (the balance plate, icon buttons). */
+.gd-panel-chip {
+  background-color: rgb(var(--rgb-surface-2));
+  border-color: rgb(var(--rgb-border));
+  color: rgb(var(--rgb-text));
+}
+.dark .gd-panel-chip {
+  background-color: #1b2848;
+  border-color: rgb(255 255 255 / 0.05);
+  color: #fff;
+}
+
+/* Hairline divider inside a panel. */
+.gd-panel-hair { border-color: rgb(var(--rgb-border)); }
+.dark .gd-panel-hair { border-color: rgb(255 255 255 / 0.1); }
+
 
 /* ─── Badge system ─── */
 .badge {
@@ -813,17 +1073,40 @@ h1, h2, h3 {
   100% { transform: scale(1.35); opacity: 0; }
 }
 
+@keyframes marker-bounce {
+  0%   { transform: scale(0.8); opacity: 0.6; }
+  50%  { transform: scale(1.14); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+/* ─── Button bounce / elastic ─── */
+/* elastic-press  : bouncy spring when a button is pressed/clicked (while still held down) */
+@keyframes elastic-press {
+  0%   { transform: translateY(0)       scale(1);     }
+  25%  { transform: translateY(1.5px)   scale(0.94);  }
+  50%  { transform: translateY(-1px)    scale(0.975); }
+  70%  { transform: translateY(1px)     scale(0.995); }
+  100% { transform: translateY(0)       scale(1);     }
+}
+/* button-pop     : springy entrance on mount — only ever runs once per element,
+   so React re-renders (same key) never re-trigger it. Disabled buttons opt out. */
+@keyframes button-pop {
+  0% { transform: translateY(14px) scale(0.92); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
 /* Button micro-interactions */
 .btn-lift, .btn {
   transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  animation: button-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 .btn-lift:hover, .btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 20px rgb(249 115 22 / 0.22), 0 2px 6px rgb(15 23 42 / 0.15);
 }
 .btn-lift:active, .btn:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: 0 2px 8px rgb(15 23 42 / 0.25);
+  animation: elastic-press 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.35);
 }
 
 /* Card lift */
@@ -1030,7 +1313,9 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
   background: color-mix(in srgb, var(--primary) 12%, var(--surface));
   transform: translateY(-1px);
 }
-.btn-soft:active { transform: translateY(0) scale(0.98); }
+.btn-soft:active {
+  animation: elastic-press 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
 .btn-soft:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--ring-focus);
@@ -1094,6 +1379,28 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
 }
 
 /* ─── Floating Animation ─── */
+/* ─── Particle drift (dark hero only) ───
+   Slow, small, opacity-only drift. Deliberately under 1px of movement so it
+   reads as atmosphere rather than confetti. */
+@keyframes particle-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.2; }
+  50%      { transform: translate3d(0, -10px, 0); opacity: 0.7; }
+}
+.animate-particle-drift { animation: particle-drift 14s ease-in-out infinite; }
+
+/* `motion-safe:` is a Tailwind variant, but it can only hang variants on
+   utilities Tailwind itself owns. `animate-particle-drift` is hand-written
+   above, so the variant silently compiled to nothing. Declared explicitly so
+   the class in ParticleField.tsx resolves. */
+@media (prefers-reduced-motion: no-preference) {
+  .motion-safe\:animate-particle-drift { animation: particle-drift 14s ease-in-out infinite; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-particle-drift,
+  .motion-safe\:animate-particle-drift { animation: none; }
+}
+
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-12px); }
@@ -1133,20 +1440,80 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
 @layer components {
   /* ─── Glass navigation bar ─── */
   .nav-glass {
-    background: color-mix(in srgb, var(--bg) 68%, transparent);
-    -webkit-backdrop-filter: blur(22px) saturate(180%);
-    backdrop-filter: blur(22px) saturate(180%);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7);
+    background: color-mix(in srgb, var(--bg) 62%, transparent);
+    -webkit-backdrop-filter: blur(28px) saturate(190%);
+    backdrop-filter: blur(28px) saturate(190%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8);
   }
   .dark .nav-glass {
-    background: color-mix(in srgb, #060B18 60%, transparent);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.09);
+    /* Was `color-mix(in srgb, #060B18 58%, transparent)` — a literal NAVY,
+       so the sticky bar stayed blue in dark mode even though the page behind
+       it had gone black, and the two never matched. `--bg` is the theme's own
+       canvas, so the bar is now black in dark and white in light. */
+    background: color-mix(in srgb, var(--bg) 58%, transparent);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1);
   }
   .nav-glass-raised {
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7), 0 12px 32px -26px rgb(15 23 42 / 0.45);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8), 0 12px 32px -26px rgb(15 23 42 / 0.45);
   }
   .dark .nav-glass-raised {
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.09), 0 18px 44px -30px rgb(0 0 0 / 0.95);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), 0 18px 44px -30px rgb(0 0 0 / 0.95);
+  }
+
+  /* Bottom navigation bar.
+     This used to be a hardcoded `bg-[#0B132B]/95`, i.e. a flat near-black
+     slab that looked identical in light and dark and read as "old UI".
+     It is now a themed glass so it sits on the page in both themes, with
+     a brand hairline to tie it to the teal identity. */
+  .nav-glass-bar {
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    -webkit-backdrop-filter: blur(30px) saturate(200%);
+    backdrop-filter: blur(30px) saturate(200%);
+    border-top: 1px solid color-mix(in srgb, var(--brand) 22%, var(--border));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8), 0 -12px 34px -28px rgb(15 23 42 / 0.5);
+  }
+  .dark .nav-glass-bar {
+    background: color-mix(in srgb, var(--navy-deep) 82%, transparent);
+    border-top-color: color-mix(in srgb, var(--brand) 26%, transparent);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 -18px 44px -30px rgb(0 0 0 / 0.95);
+  }
+
+  /* Floating bottom navigation — the "curved edges" bar.
+
+     The previous bar was a full-bleed strip: it ran edge to edge with a flat
+     top border, so it read as a heavy band bolted to the bottom of the screen
+     rather than a control. It is now inset and fully rounded, floating above
+     the content as one capsule — the shape Bolt, Glovo and iOS use — so the
+     blurred content reads through the gap on both sides.
+
+     The border is on ALL sides (not just the top) because a floating object
+     has an outline in every direction; a top-only border was correct for a
+     full-bleed strip and wrong here. */
+  .nav-float {
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    -webkit-backdrop-filter: blur(30px) saturate(200%);
+    backdrop-filter: blur(30px) saturate(200%);
+    border: 1px solid color-mix(in srgb, var(--brand) 20%, var(--border));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.85),
+      0 -8px 28px -16px rgb(15 23 42 / 0.28),
+      0 20px 46px -20px rgb(15 23 42 / 0.45);
+  }
+  .dark .nav-float {
+    background: color-mix(in srgb, var(--navy-deep) 80%, transparent);
+    border-color: color-mix(in srgb, var(--brand) 26%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.1),
+      0 -6px 22px -12px rgb(0 0 0 / 0.7),
+      0 24px 54px -22px rgb(0 0 0 / 0.95);
+  }
+
+  /* The selected tab inside the floating capsule. A single soft brand wash
+     plus a hairline, so "which tab am I on" is answered by the shape rather
+     than by a saturated block of colour. */
+  .nav-float-active {
+    background: color-mix(in srgb, var(--brand) 12%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent);
   }
 
   /* Navigation pill */
@@ -1175,8 +1542,12 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
   .nav-pill-active {
     color: #fff;
     font-weight: 600;
-    background: linear-gradient(180deg, var(--navy-hover) 0%, var(--navy) 100%);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 6px 16px -10px rgb(15 23 42 / 0.9);
+    background: linear-gradient(180deg, var(--brand-hover) 0%, var(--brand) 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 6px 16px -10px rgb(13 148 136 / 0.9);
+  }
+  .dark .nav-pill-active {
+    background: linear-gradient(180deg, var(--brand) 0%, var(--brand-hover) 100%);
+    color: #042F2E;
   }
   .nav-pill-cta {
     color: #fff;

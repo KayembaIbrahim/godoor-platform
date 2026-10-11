@@ -9,6 +9,9 @@ import { ensureClinicOrderSchema } from "@/lib/ensure-clinic";
 import { holdEscrow } from "@/lib/escrow";
 import { verifySpendGrant, walletSecurityEnrolled } from "@/lib/wallet-security";
 import { pushToUser } from "@/lib/web-push-server";
+import { recordPromoUse, resolvePromoServer } from "@/lib/promo-server";
+import { PROMO_REASON_TEXT } from "@/lib/promo";
+import { existingColumns } from "@/lib/schema-capabilities";
 
 const ENSURE_SCHEDULE_COLUMN = `ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ;`;
 
@@ -398,7 +401,28 @@ export async function POST(req: NextRequest) {
         return calcDeliveryFee(km, bulkyCount, (km / 25) * 60);
       })();
   const serviceFee = serviceFeeFor(subtotal, feeRow as Record<string, unknown> | null);
-  const totalUgx = subtotal + deliveryFee + serviceFee;
+  const grossUgx = subtotal + deliveryFee + serviceFee;
+
+  /* ── Promo resolution (server-authoritative) ─────────────────────────────────
+     The client sends a CODE, never an amount. It is looked up here against the
+     live admin table, so a tampered client can claim a different code but can
+     never invent its own discount.
+
+     This used to not exist at all: `total_ugx` was `subtotal + delivery +
+     service` and the checkout displayed a discounted figure beside it. The
+     customer saw "20% off" and was escrowed at full price. */
+  const promo = await resolvePromoServer(sb, {
+    code: body.promo_code,
+    subtotalUgx: subtotal,
+    grossUgx,
+  });
+
+  // An unusable code is never fatal. The customer keeps their order at the
+  // ordinary price rather than being blocked at the last step — and they are
+  // told why, so the banner's claim cannot fail silently.
+  const appliedPromo = promo.ok ? promo : null;
+  const discountUgx = promo.ok ? promo.discountUgx : 0;
+  const totalUgx = promo.ok ? promo.totalUgx : grossUgx;
 
   const paymentMethod = typeof body.payment_method === "string" ? body.payment_method : "momo";
 
@@ -423,7 +447,30 @@ export async function POST(req: NextRequest) {
   const idempotencyKeyRaw = typeof body.idempotency_key === "string" ? body.idempotency_key.slice(0, 128) : "";
   const idempotencyKey = idempotencyKeyRaw || "";
 
-  const { data, error } = await sb.from("orders").insert({
+  /* The audit columns (`discount_ugx`, `promo_code`, `promo_label`) were added
+     by a migration that has never been applied to production, and PostgREST
+     rejects an entire INSERT when it names one unknown key — which is how an
+     unfinished migration took every ride-accept down. So they are written only
+     when the database actually has them, and the promo is always recorded on
+     `notes` (which exists) so an admin can still audit the redemption today. */
+  const promoNotes = appliedPromo
+    ? `[promo ${appliedPromo.code} ${appliedPromo.promo.type === "percent" ? `${appliedPromo.promo.discount}%` : `UGX ${appliedPromo.promo.discount.toLocaleString()}`} -UGX ${discountUgx.toLocaleString()}]`
+    : "";
+  const customerNotes = [typeof body.notes === "string" ? body.notes : "", promoNotes]
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 1000);
+
+  let promoCols = new Set<string>();
+  try {
+    promoCols = await existingColumns(sb, "orders", ["discount_ugx", "promo_code", "promo_label"]);
+  } catch {
+    // Probe could not reach a verdict. Strip everything rather than risk
+    // rejecting the insert — the discount itself is already in `totalUgx`.
+    promoCols = new Set();
+  }
+
+  const insertPayload: Record<string, unknown> = {
     merchant_id: merchantId,
     merchant_name: body.merchant_name || merchant.name || "",
     customer_id: customerId,
@@ -442,10 +489,15 @@ export async function POST(req: NextRequest) {
     status,
     payment_method: paymentMethod,
     payment_confirmed: false,
-    notes: typeof body.notes === "string" ? body.notes : "",
+    notes: customerNotes,
     scheduled_for: scheduledFor,
     idempotency_key: idempotencyKey || null,
-  }).select().single();
+  };
+  if (promoCols.has("discount_ugx")) insertPayload.discount_ugx = discountUgx;
+  if (promoCols.has("promo_code")) insertPayload.promo_code = appliedPromo?.code ?? null;
+  if (promoCols.has("promo_label")) insertPayload.promo_label = appliedPromo?.promo.label ?? null;
+
+  const { data, error } = await sb.from("orders").insert(insertPayload).select().single();
 
   if (error) {
     // Unique idempotency_key collision → return the existing order (idempotent replay).
@@ -476,24 +528,36 @@ export async function POST(req: NextRequest) {
        never consulted, because a React bundle containing that boolean proves
        nothing about who is holding the phone.
 
-       Customers with no PIN or biometric enrolled are not blocked: the table
-       may not even exist on this database yet, and refusing checkout would
-       take ordering offline for every user. Enrolment is therefore
-       voluntary-and-then-enforced rather than mandatory from day one. Flip
-       `required` below to true to make it universal once the table is live. */
-    const required = false;
-    if (required || (await walletSecurityEnrolled(sb, customerId))) {
-      const grant = req.headers.get("x-wallet-grant");
-      const method = await verifySpendGrant(grant, customerId);
-      if (!method) {
-        return NextResponse.json(
-          {
-            error: "Unlock your wallet to confirm this payment",
-            code: "WALLET_LOCK_REQUIRED",
-          },
-          { status: 428 },
-        );
-      }
+       This used to be voluntary: `required` was hardcoded false, so anyone who
+       skipped enrolment paid with no authorisation at all while the app still
+       showed them a "wallet security" section. Wallet storage now falls back to
+       `app_settings`, which does exist in production, so enrolment actually
+       works on this database — which is what made mandating it safe.
+
+       The two cases are distinguished deliberately. Someone with nothing
+       enrolled is sent to enrolment — they cannot be asked to unlock a PIN they
+       never chose — while someone who HAS enrolled cannot skip the check by
+       simply not sending the header. */
+    if (!(await walletSecurityEnrolled(sb, customerId))) {
+      return NextResponse.json(
+        {
+          error: "Set up a wallet PIN to protect your money",
+          code: "WALLET_ENROLMENT_REQUIRED",
+        },
+        { status: 428 },
+      );
+    }
+
+    const grant = req.headers.get("x-wallet-grant");
+    const method = await verifySpendGrant(grant, customerId);
+    if (!method) {
+      return NextResponse.json(
+        {
+          error: "Unlock your wallet to confirm this payment",
+          code: "WALLET_LOCK_REQUIRED",
+        },
+        { status: 428 },
+      );
     }
 
     const escrowResult = await holdEscrow(sb, customerId, String(data.id), totalUgx);
@@ -529,5 +593,29 @@ export async function POST(req: NextRequest) {
       rider_payout_ugx: split.riderPayout,
     });
   }
-  return NextResponse.json({ order: data });
+  /* The redemption is only counted once the order exists. A code can be typed
+     on a basket that is abandoned, and an abandoned basket is not a use. */
+  if (appliedPromo) {
+    void recordPromoUse(sb, appliedPromo.code);
+  }
+
+  return NextResponse.json({
+    order: data,
+    /* Echoed so the confirmation screen can render the figure that was actually
+       charged rather than the one it hoped for. */
+    promo: appliedPromo
+      ? {
+          applied: true,
+          code: appliedPromo.code,
+          label: appliedPromo.promo.label,
+          discount_ugx: discountUgx,
+          total_ugx: totalUgx,
+        }
+      : {
+          applied: false,
+          /* A code was typed but not honoured — say why rather than silently
+             charging full price on an order the customer thought was reduced. */
+          reason: promo.ok ? null : PROMO_REASON_TEXT[promo.reason],
+        },
+  });
 }

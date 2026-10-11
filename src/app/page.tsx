@@ -2,19 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState, useRef, useCallback } from "react";
-import {
-  Smartphone, Wallet, Zap, ShieldCheck, ArrowRight, Truck,
-  ShoppingBag, MapPin, Star, ChevronRight, Check,
-  Clock, UtensilsCrossed, Pill, Package,
-  MapPinned, ChevronDown, Play, TrendingUp,
-  Download, Wifi, Globe, Users, BadgePercent, Flame,
-  Bike, Store, Search, CircleUser, Bell, Menu,
-  Navigation, PackageCheck, CreditCard,
-} from "lucide-react";
+import { Smartphone, Wallet, Zap, ShieldCheck, ArrowRight, Truck, ShoppingBag, MapPin, Star, ChevronRight, Check, Clock, UtensilsCrossed, Pill, Package, MapPinned, ChevronDown, Play, Download, Wifi, Globe, Users, BadgePercent, Flame, Bike, Store, Search, Menu, PackageCheck, CreditCard } from "lucide-react";
 import { categoryVisual } from "@/lib/visuals";
 import { Logo } from "@/components/Logo";
 import { MorseLogo } from "@/components/MorseLogo";
 import { useSession, roleHomePath } from "@/lib/session-store";
+import DarkHero from "@/components/home/DarkHero";
+import CategoryRail from "@/components/home/CategoryRail";
+import PopularPicks from "@/components/home/PopularPicks";
+import DeliveryPreference from "@/components/home/DeliveryPreference";
+import Favourites from "@/components/home/Favourites";
+import TableBooking from "@/components/home/TableBooking";
 
 function hasStoredSession(): boolean {
   if (typeof window === "undefined") return false;
@@ -87,113 +85,6 @@ const CORE_WORKFLOW_STEPS = [
 ];
 const HOW_IT_WORKS_STEPS = CORE_WORKFLOW_STEPS;
 
-/* Rotating content for the deep-navy hero banner. */
-const HERO_SLIDES = [
-  { icon: UtensilsCrossed, eyebrow: "Restaurants", title: "Hot meals, delivered", detail: "Local kitchens to your door in under 30 minutes." },
-  { icon: Pill, eyebrow: "Pharmacy", title: "Pharmacy on demand", detail: "Prescriptions and health essentials, same-day." },
-  { icon: ShoppingBag, eyebrow: "Groceries", title: "Fresh groceries", detail: "Market runs without the queue or the taxi fare." },
-  { icon: Package, eyebrow: "Packages", title: "Send anything", detail: "Documents and parcels across town, tracked live." },
-] as const;
-
-const HERO_SLIDE_MS = 4200;
-
-/**
- * The rectangular animated slide banner.
- *
- * Colours are literal (never theme tokens) on purpose: this panel is brand
- * surface, so it must render pixel-identically on the light and the dark
- * canvas. That is what keeps every line of copy legible in light mode, where
- * the old themed version washed out against the page.
- *
- * The component owns its rotation so the same banner can be mounted more than
- * once (hero mockup on desktop, full-width rail on mobile) without the copies
- * drifting out of sync through shared parent state.
- */
-function SlideBanner({ compact = false }: { compact?: boolean }) {
-  const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-
-  useEffect(() => {
-    if (paused) return;
-    const timer = setInterval(
-      () => setIndex((i) => (i + 1) % HERO_SLIDES.length),
-      HERO_SLIDE_MS,
-    );
-    return () => clearInterval(timer);
-  }, [paused]);
-
-  const slide = HERO_SLIDES[index];
-  const SlideIcon = slide.icon;
-
-  return (
-    <div
-      className={compact ? "navy-banner rounded-xl px-3 py-2.5" : "navy-banner rounded-2xl px-4 py-4 sm:px-5"}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      aria-roledescription="carousel"
-      aria-label="What GoDoor delivers"
-    >
-      <div className="flex items-center gap-3">
-        <div className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-go shadow-[0_6px_16px_-8px_rgba(249,115,22,0.9)]">
-          <span
-            className="absolute inset-0 rounded-xl bg-go"
-            style={{ animation: "navy-pulse-ring 2.6s ease-out infinite" }}
-            aria-hidden
-          />
-          <SlideIcon className="relative h-4 w-4 text-white" aria-hidden />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <p
-            key={`e-${index}`}
-            className="text-[9px] font-bold uppercase tracking-[0.14em] text-[#FB923C]"
-            style={{ animation: "navy-slide-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both" }}
-          >
-            {slide.eyebrow}
-          </p>
-          <p
-            key={`t-${index}`}
-            className={`truncate font-display font-bold leading-tight text-white ${compact ? "text-[11px]" : "text-sm sm:text-base"}`}
-            style={{ animation: "navy-slide-in 520ms cubic-bezier(0.16, 1, 0.3, 1) 40ms both" }}
-          >
-            {slide.title}
-          </p>
-          <p
-            key={`d-${index}`}
-            className={`truncate leading-snug text-slate-300 ${compact ? "text-[9px]" : "text-[11px] sm:text-xs"}`}
-            style={{ animation: "navy-slide-in 520ms cubic-bezier(0.16, 1, 0.3, 1) 90ms both" }}
-          >
-            {slide.detail}
-          </p>
-        </div>
-      </div>
-
-      {/* Progress ticks double as a position indicator. The bar is a 3px hairline,
-            but a 3px-tall control cannot be tapped reliably on a phone, so the
-            button carries the 44px hit area and the bar is a child. */}
-      <div className="mt-3 flex items-center gap-1.5">
-        {HERO_SLIDES.map((s, i) => (
-          <button
-            key={s.eyebrow}
-            type="button"
-            onClick={() => setIndex(i)}
-            aria-label={`Show ${s.eyebrow}`}
-            aria-current={i === index}
-            className="flex min-h-11 flex-1 items-center"
-          >
-            <span
-              className={`block h-[3px] w-full rounded-full transition-colors duration-300 ${
-                i === index ? "navy-tick-on" : "navy-tick-off"
-              }`}
-              style={i === index ? { animation: `navy-tick ${HERO_SLIDE_MS}ms ease-in-out infinite` } : undefined}
-            />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* ─── GoDoor 2.0 service catalog (brand-first) ───
    Each tile is the same geometry so the grid reads as one ecosystem,
    differentiated only by icon, name, short copy and a subtle accent plate.
@@ -241,7 +132,6 @@ export default function HomePage() {
   const [splash, setSplash] = useState<boolean>(() => hasStoredSession());
   const [liveOrders, setLiveOrders] = useState(0);
   const { ref: statsRef, visible: statsVisible } = useInView();
-  const { ref: heroRef, visible: heroVisible } = useInView(0.1);
 
   // Real data from DB
   const [merchants, setMerchants] = useState<any[]>([]);
@@ -293,141 +183,26 @@ export default function HomePage() {
 
   return (
     <div className="hero-wash">
-      {/* Hero is below global HeaderClient — no duplicate sticky header needed */}
+      {/* Hero — dark and premium, the one place the brand leads.
+          Everything below stays on the light surfaces so the page never
+          becomes an all-orange wall. */}
+      <DarkHero />
 
-      {/* Hero */}
-      <section ref={heroRef} className="relative mx-auto max-w-5xl px-4 pb-14 pt-24 md:pt-28">
-        <div className="deco-glow pointer-events-none absolute -left-24 top-6 -z-10 h-72 w-72 rounded-full bg-go/15 blur-3xl animate-float" />
-        <div className="deco-glow pointer-events-none absolute -right-16 top-40 -z-10 h-80 w-80 rounded-full bg-primary/10 blur-3xl animate-float" style={{ animationDelay: "1.2s" }} />
-        <div className="deco-glow pointer-events-none absolute left-1/2 top-10 -z-10 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-go/8 via-primary/8 to-success/8 blur-3xl" />
-        <div className="grid items-center gap-10 md:grid-cols-2">
-          <div className="animate-fade-in">
-            {/* Urgency badge */}
-            <div className="inline-flex items-center gap-2 rounded-full bg-go/10 px-3 py-1.5 text-xs font-semibold text-go shadow-glow">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
-              </span>
-              Delivering in 30 min or less
-            </div>
+      {/* 1. Location + Search live in the hero above.
+          2. Services */}
+      <CategoryRail />
 
-            <h1 className="mt-5 font-display text-[2.6rem] font-bold leading-[1.08] tracking-tight md:text-5xl lg:text-[3.6rem]">
-              Your City.<br />
-              <span className="gradient-text">Your Door.</span><br />
-              GoDoor.
-            </h1>
+      {/* 3. Nearby merchants */}
+      <PopularPicks />
 
-            <p className="mt-4 max-w-md text-sm leading-relaxed text-muted md:text-base">
-              Order food, groceries, pharmacy &amp; packages from local shops near you.
-              Delivered to your door in minutes. We recommend the Morse wallet for swift payments.
-            </p>
+      {/* 4. Delivery preference */}
+      <DeliveryPreference />
 
-            {/* Live ordering indicator */}
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-surface/60 px-3 py-1.5 text-xs text-muted shadow-xs">
-              <Users className="h-3 w-3 text-go" />
-              <span>
-                {totalMerchants > 0
-                  ? <><strong className="num text-go">{totalMerchants}</strong> local shops live</>
-                  : <span className="text-go">Local shops already live</span>
-                }
-              </span>
-            </div>
+      {/* 5. Recent / reorder */}
+      <Favourites />
 
-            {/* Below md the phone mockup is hidden, so the slide banner gets its
-                own full-width rail here — otherwise the feature simply did not
-                exist on phones. */}
-            <div className="mt-6 md:hidden">
-              <SlideBanner />
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Link href="/onboarding" className="sheen relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-go px-7 py-3.5 text-sm font-semibold text-white shadow-glow transition hover:scale-[1.02] active:scale-[0.98]">
-                Order now — it&apos;s free <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link href="/tutorial" className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface/60 px-5 py-3.5 text-sm font-medium text-muted transition hover:bg-elevated hover:text-fg">
-                <Play className="h-4 w-4 text-go" /> See how it works
-              </Link>
-            </div>
-            <p className="mt-3 text-[11px] text-dim">
-              Browse live shops · Pay with Morse · Track to your door
-            </p>
-
-            {/* Trust signals */}
-            <div className="mt-6 flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="flex -space-x-2">
-                  {["bg-go", "bg-primary", "bg-success", "bg-warning"].map((bg, i) => (
-                    <div key={i} className={`grid h-8 w-8 place-items-center rounded-full ${bg} ring-2 ring-bg text-[10px] font-bold text-white`}>
-                      {["S", "J", "G", "D"][i]}
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <div className="flex items-center gap-0.5">
-                    {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="h-3 w-3 fill-warning text-warning" />)}
-                  </div>
-                  <p className="text-[10px] text-dim">Loved by early users across Uganda</p>
-                </div>
-              </div>
-              <div className="h-6 w-px bg-border hidden sm:block" />
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 rounded-lg bg-go/10 px-2.5 py-1.5">
-                  <span className="text-[11px] font-bold text-go">GoDoor Wallet</span>
-                </div>
-                <div className="flex items-center gap-1.5 rounded-lg bg-go/10 px-2.5 py-1.5">
-                  <MorseLogo markOnly className="h-3.5 text-go" />
-                  <span className="text-[11px] font-bold text-go">Morse · recommended</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Phone mockup */}
-          <div className="relative hidden md:block">
-            <div className="deco-glow absolute inset-0 -z-10 mx-auto w-72 rounded-full bg-go/20 blur-3xl" />
-            <div className="animate-float mx-auto w-64 rounded-[2.6rem] bg-surface/90 p-3 shadow-pop">
-              <div className="space-y-2 rounded-3xl bg-gradient-to-b from-bg to-elevated p-3">
-                <div className="flex items-center justify-between">
-                  <div className="h-3 w-20 rounded-full bg-go/20" />
-                  <div className="flex gap-1">
-                    <div className="h-3 w-3 rounded-full bg-go/30" />
-                    <div className="h-3 w-3 rounded-full bg-border" />
-                  </div>
-                </div>
-                {/* Deep navy slide banner — brand surface, identical in both themes. */}
-                <SlideBanner compact />
-                <div className="h-10 rounded-xl bg-go/15 flex items-center px-3">
-                  <div className="h-2 w-24 rounded-full bg-go/30" />
-                </div>
-                <div className="flex gap-2">
-                  <div className="flex-1 rounded-xl bg-surface p-2 shadow-xs">
-                    <div className="h-2 w-12 rounded bg-border mb-1" />
-                    <div className="h-2 w-8 rounded bg-go/20" />
-                  </div>
-                  <div className="flex-1 rounded-xl bg-surface p-2 shadow-xs">
-                    <div className="h-2 w-12 rounded bg-border mb-1" />
-                    <div className="h-2 w-8 rounded bg-go/20" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* Floating badges */}
-            <div className="absolute -left-6 top-20 rounded-2xl bg-surface/90 backdrop-blur px-3 py-2 shadow-floating animate-slide-up">
-              <div className="flex items-center gap-1.5 text-xs font-semibold">
-                <Truck className="h-3.5 w-3.5 text-go" />
-                <span>On the way!</span>
-              </div>
-              <p className="mt-0.5 pl-5 text-[9px] text-dim">3 min to your door</p>
-            </div>
-            <div className="absolute -right-4 bottom-28 rounded-2xl bg-surface/90 backdrop-blur px-3 py-2 shadow-floating animate-slide-up" style={{ animationDelay: "400ms" }}>
-              <div className="flex items-center gap-1.5 text-xs font-semibold">
-                <BadgePercent className="h-3.5 w-3.5 text-success" />
-                <span>Free delivery!</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* 6. New — table reservations */}
+      <TableBooking />
 
       {/* Urgency Bar */}
       <section className="border-y border-border bg-go/5">

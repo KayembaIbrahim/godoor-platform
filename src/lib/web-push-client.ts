@@ -1,5 +1,7 @@
 "use client";
 
+import { apiAuthHeaders } from "@/lib/db";
+
 /**
  * Web Push (browser only).
  *
@@ -87,7 +89,7 @@ export async function subscribeToPush(): Promise<SubscribeResult> {
 
   const res = await fetch("/api/push/subscribe", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await apiAuthHeaders(true),
     credentials: "include",
     body: JSON.stringify({
       endpoint: json.endpoint,
@@ -112,7 +114,7 @@ export async function unsubscribeFromPush(): Promise<void> {
     if (!sub) return;
     await fetch("/api/push/subscribe", {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
+      headers: await apiAuthHeaders(true),
       credentials: "include",
       body: JSON.stringify({ endpoint: sub.endpoint }),
     });

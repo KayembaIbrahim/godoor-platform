@@ -183,25 +183,132 @@ export async function verifySpendGrant(token: string | null, userId: string): Pr
 
 const SECURITY_TABLE = "wallet_security";
 
-/** True when the table exists. Absent schema must degrade, never 500. */
+/**
+ * Wallet security has to work on THIS database, where the `wallet_security`
+ * table has never been created (the workspace Supabase token cannot reach the
+ * production project, so WALLET_SECURITY_SCHEMA.sql cannot be applied at deploy
+ * time).
+ *
+ * Without a store, `walletSecurityEnrolled` returns false, the order route
+ * skips the grant check, and a customer who sets a PIN still has that PIN
+ * ignored — worse than not offering the feature, because the app tells them
+ * their wallet is locked while every payment sails through unchecked.
+ *
+ * So the row falls back to `app_settings`, which does exist in production and is
+ * reachable only with the service role. What is stored is a PBKDF2-SHA256 hash
+ * at 210,000 iterations plus the WebAuthn public key — never the PIN itself and
+ * never a private key — the same material the table would hold. The primary key
+ * on `app_settings.key` gives one row per user, exactly as the table's unique
+ * user_id did. Once the table exists the table wins, so nothing has to change
+ * when WALLET_SECURITY_SCHEMA.sql is finally applied.
+ */
+const KV_PREFIX = "wallet_security:";
+
+/*
+ * The readiness probe runs on every request, so the answer is cached briefly.
+ * It is keyed per client rather than module-wide: a WeakMap means a different
+ * database (or a test double) never reads another one's answer, and a discarded
+ * client drops its entry automatically.
+ */
+const READY_CACHE = new WeakMap<object, { value: boolean; at: number }>();
+const READY_TTL_MS = 60_000;
+
+function kvRowToRow(value: unknown): WalletSecurityRow {
+  const r = (value && typeof value === "object" ? value : {}) as Partial<WalletSecurityRow>;
+  return {
+    user_id: String(r.user_id ?? ""),
+    pin_hash: r.pin_hash ?? null,
+    pin_salt: r.pin_salt ?? null,
+    pin_set_at: r.pin_set_at ?? null,
+    failed_attempts: Number(r.failed_attempts ?? 0),
+    locked_until: r.locked_until ?? null,
+    bio_credential_id: r.bio_credential_id ?? null,
+    bio_public_key: r.bio_public_key ?? null,
+    bio_sign_count: r.bio_sign_count ?? null,
+    bio_challenge: r.bio_challenge ?? null,
+    bio_challenge_exp: r.bio_challenge_exp ?? null,
+  };
+}
+
+async function kvRead(sb: ServiceClient, userId: string): Promise<WalletSecurityRow | null> {
+  const { data, error } = await sb
+    .from("app_settings")
+    .select("value")
+    .eq("key", KV_PREFIX + userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  try {
+    return kvRowToRow(JSON.parse((data as { value: string }).value));
+  } catch {
+    return null;
+  }
+}
+
+async function kvWrite(
+  sb: ServiceClient,
+  userId: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const base = (await kvRead(sb, userId)) ?? kvRowToRow({ user_id: userId });
+  const { error } = await sb
+    .from("app_settings")
+    .upsert(
+      {
+        key: KV_PREFIX + userId,
+        value: JSON.stringify({ ...base, ...patch, user_id: userId }),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * True when the security row can be stored *somewhere*.
+ *
+ * This deliberately does **not** report only on `wallet_security`. That table
+ * has never been applied in production, so testing it alone made this return
+ * false there and the route answered 503 — which is how setting up a PIN became
+ * unreachable even though the `app_settings` fallback sitting one function below
+ * worked perfectly. The gate must test the store actually being used: the
+ * dedicated table when it exists, otherwise the key/value fallback.
+ */
 export async function securityTableReady(sb: ServiceClient): Promise<boolean> {
+  const key = sb as unknown as object;
+  const hit = READY_CACHE.get(key);
+  if (hit && Date.now() - hit.at < READY_TTL_MS) return hit.value;
+
+  const remember = (v: boolean) => {
+    READY_CACHE.set(key, { value: v, at: Date.now() });
+    return v;
+  };
+
   try {
     const { error } = await sb.from(SECURITY_TABLE).select("user_id").limit(1);
-    return !error;
+    if (!error) return remember(true);
   } catch {
-    return false;
+    /* Fall through to the fallback store. */
+  }
+  try {
+    const { error } = await sb.from("app_settings").select("key").limit(1);
+    return remember(!error);
+  } catch {
+    return remember(false);
   }
 }
 
 export async function readSecurity(sb: ServiceClient, userId: string): Promise<WalletSecurityRow | null> {
   const { data, error } = await sb.from(SECURITY_TABLE).select("*").eq("user_id", userId).maybeSingle();
-  if (error || !data) return null;
-  return data as WalletSecurityRow;
+  if (!error && data) return data as WalletSecurityRow;
+  return kvRead(sb, userId);
 }
 
 async function upsertSecurity(sb: ServiceClient, userId: string, patch: Record<string, unknown>): Promise<void> {
   const { error } = await sb.from(SECURITY_TABLE).upsert({ user_id: userId, ...patch });
-  if (error) throw new Error(error.message);
+  if (!error) return;
+  // Table missing or the write refused — fall back to the key/value store so an
+  // enrolled user is never silently left unprotected.
+  await kvWrite(sb, userId, patch);
 }
 
 /* ── lockout ───────────────────────────────────────────────────────────────── */
@@ -440,14 +547,12 @@ export async function walletSecurityEnrolled(
   userId: string,
 ): Promise<boolean> {
   try {
-    const { data, error } = await sb
-      .from(SECURITY_TABLE)
-      .select("pin_hash, bio_credential_id")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error || !data) return false;
-    const row = data as { pin_hash?: string | null; bio_credential_id?: string | null };
-    return !!row.pin_hash || !!row.bio_credential_id;
+    // Goes through readSecurity so the key/value fallback is honoured — a PIN
+    // enrolled against the fallback store must still count as enrolled, or the
+    // order route would skip the grant check for exactly the people who set
+    // one up.
+    const row = await readSecurity(sb, userId);
+    return !!row?.pin_hash || !!row?.bio_credential_id;
   } catch {
     return false;
   }

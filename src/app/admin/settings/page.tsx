@@ -10,6 +10,7 @@ import { resolveFees, type ResolvedFees } from "@/lib/fees";
 import { formatUgx } from "@/lib/utils";
 import { evaluatePassword } from "@/lib/password-strength";
 import AdminTwoFactor from "@/components/AdminTwoFactor";
+import AdminRecoveryPanel from "@/components/AdminRecoveryPanel";
 
 const STRENGTH_COLORS = ["bg-danger", "bg-red-500", "bg-warning", "bg-success/70", "bg-success", "bg-go"];
 const STRENGTH_LABELS = ["", "Very weak", "Weak", "Fair", "Good", "Strong"];
@@ -348,6 +349,8 @@ export default function AdminSettings() {
           </button>
         </div>
       </div>
+
+      <AdminRecoveryPanel />
 
       <AdminTwoFactor />
     </div>

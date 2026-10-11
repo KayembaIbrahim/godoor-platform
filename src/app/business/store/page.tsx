@@ -8,6 +8,7 @@ import { useGeolocation, formatAccuracy, UGANDA_DISTRICTS, reverseGeocode, type 
 import { CATEGORIES } from "@/lib/categories";
 import { LocationPicker } from "@/components/LocationPicker";
 import { MorseLogo } from "@/components/MorseLogo";
+import { openHoursLabel, DAY_ORDER } from "@/lib/opening-hours";
 
 export default function BusinessStorePage() {
   const { profile, setProfile, supabaseUser } = useSession();
@@ -28,6 +29,7 @@ export default function BusinessStorePage() {
   const [accepted, setAccepted] = useState<string[]>(["wallet"]);
   const [opensAt, setOpensAt] = useState(profile.opensAt || "08:00");
   const [closesAt, setClosesAt] = useState(profile.closesAt || "22:00");
+  const [openDays, setOpenDays] = useState(profile.openDays || "Mon, Tue, Wed, Thu, Fri, Sat, Sun");
   const [category, setCategory] = useState(profile.category || CATEGORIES[0]?.id || "Food & Restaurants");
   const [businessType, setBusinessType] = useState<"goods" | "clinic">("goods");
   const [saved, setSaved] = useState(false);
@@ -79,6 +81,7 @@ export default function BusinessStorePage() {
         setAccepted(m.accepted_payments && m.accepted_payments.length ? m.accepted_payments : ["wallet"]);
         setOpensAt(m.opens_at || "08:00");
         setClosesAt(m.closes_at || "22:00");
+        setOpenDays(m.open_days || "Mon, Tue, Wed, Thu, Fri, Sat, Sun");
         setCategory(m.category || "");
         setBusinessType(m.business_type === "clinic" ? "clinic" : "goods");
         setLogoUrl(m.logo_url || "");
@@ -110,14 +113,14 @@ export default function BusinessStorePage() {
     // Always save to session store (reliable local persistence)
     setProfile({
       businessName: bName, tagline, area, district,
-      opensAt, closesAt, category, storeLogoUrl: logoUrl,
+      opensAt, closesAt, openDays, category, storeLogoUrl: logoUrl,
       businessType,
       businessLat: loc.lat,
       businessLng: loc.lng,
     });
     await saveToDb({
       tagline, area, district,
-      opens_at: opensAt, closes_at: closesAt, category, logo_url: logoUrl,
+      opens_at: opensAt, closes_at: closesAt, open_days: openDays, category, logo_url: logoUrl,
       accepted_payments: accepted,
       business_type: businessType,
       lat: loc.lat,
@@ -463,8 +466,48 @@ export default function BusinessStorePage() {
         </div>
 
         {/* Operating Hours */}
-        <div className="rounded-2xl border border-border bg-surface p-4 space-y-3">
+        <div className="rounded-2xl border border-border bg-surface p-4 space-y-4">
           <h3 className="text-xs font-semibold text-dim uppercase tracking-wider">Operating Hours</h3>
+          {/* Full hours label */}
+          <div className="flex items-center justify-between rounded-xl border border-border bg-bg px-3.5 py-2.5">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold text-fg">
+                {openHoursLabel({ opens_at: opensAt, closes_at: closesAt, open_days: openDays })}
+              </span>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted">Days of the week</label>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {DAY_ORDER.map((d) => {
+                const selected = openDays.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => {
+                      const days = selected
+                        ? openDays
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter((s) => s !== d)
+                            .join(",")
+                        : openDays
+                          ? `${openDays},${d}`
+                          : d;
+                      setOpenDays(days);
+                    }}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
+                      selected ? "bg-primary text-white" : "bg-elevated text-muted hover:bg-elevated"
+                    }`}
+                  >
+                    {d.slice(0, 3)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="text-xs text-muted">Opens</label><input type="time" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} className="mt-1 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm outline-none ring-primary focus:ring-2" /></div>
             <div><label className="text-xs text-muted">Closes</label><input type="time" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} className="mt-1 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm outline-none ring-primary focus:ring-2" /></div>

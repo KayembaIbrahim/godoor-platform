@@ -32,9 +32,32 @@ const RIDER_LINKS = [
   { label: "History", href: "/rider/history" },
 ];
 
+/**
+ * Routes that own their entire header row and must not be stacked under this
+ * one.
+ *
+ * The customer home renders its own single row — logo, location pill, search,
+ * bell, avatar — per the hybrid-theme brief. With this bar also present the
+ * page opened with two headers and a duplicated logo, which is what made the
+ * customer home read as "broken UI" while each piece was individually fine.
+ *
+ * A path PREFIX list, so `/app` also covers `/app/merchant/[id]` and friends —
+ * those are still inside the customer experience. Reversible by removing one
+ * string.
+ */
+const SELF_HEADED_ROUTES = ["/app"];
+
 export function HeaderClient() {
   const { onboarded, role } = useSession();
   const pathname = usePathname();
+
+  // `usePathname` returns null on the very first render during hydration on
+  // some navigations. Rendering nothing for that frame is correct — a second
+  // header appearing and vanishing is worse than a one-frame gap — and the
+  // next render paints it.
+  const ownsItsHeader = SELF_HEADED_ROUTES.some(
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -58,6 +81,8 @@ export function HeaderClient() {
       } catch {}
     }
   }, [role, onboarded]);
+
+  if (ownsItsHeader) return null;
 
   const dashboardHref = roleHomePath(role);
   const isBusiness = onboarded && role === "business";

@@ -6,10 +6,32 @@ import { fetchPlaceSuggestions, type LatLng } from "@/lib/location";
 
 type AddressResult = { place: string; lat: number; lng: number };
 
+/**
+ * Where a saved address came from.
+ *
+ * This distinction is the whole fix for "the welcome page finds my location but
+ * the app doesn't". Both surfaces persist into one localStorage key, and the
+ * home screen gave that stored value absolute priority over the live fix from
+ * `useGeolocation`. So whichever address landed in the key first — an IP-level
+ * city estimate from a previous session, or a place picked on last week's WiFi
+ * — was frozen there forever: `rememberDetectedAddress` refused to overwrite an
+ * existing entry, and nothing else ever wrote it. The header then showed that
+ * stale place while a perfectly good live GPS fix sat unused in the hook, and
+ * re-picking it by hand was the only way out. That is the reported symptom.
+ *
+ * `manual` = the customer deliberately chose this, so it must always win.
+ * `auto`   = the app worked it out; it is a cache hint, and a real fix may
+ *            replace it (which is also how an IP estimate gets upgraded to a
+ *            street address the moment GPS lands).
+ */
+export type AddressSource = "manual" | "auto";
+
+export type StoredAddress = AddressResult & { source?: AddressSource };
+
 const STORAGE_KEY = "godoor-delivery-address";
 
 /** Get last-used delivery address from localStorage */
-export function getLastAddress(): AddressResult | null {
+export function getLastAddress(): StoredAddress | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -18,9 +40,42 @@ export function getLastAddress(): AddressResult | null {
   return null;
 }
 
-/** Save delivery address to localStorage */
-function saveLastAddress(addr: AddressResult) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(addr)); } catch {}
+/** Save delivery address to localStorage. Customer-initiated picks are `manual`. */
+function saveLastAddress(addr: AddressResult, source: AddressSource = "manual") {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...addr, source })); } catch {}
+}
+
+/**
+ * Persist a location the app detected for itself, so it carries across surfaces.
+ *
+ * The welcome page auto-detects the visitor's area and displays it, but never
+ * saved it — `saveLastAddress` was module-private and reachable only from
+ * inside the address modal. So a customer who watched the hero resolve
+ * "Kampala" landed on the signed-in home showing "Set your delivery address"
+ * and had to re-pick what the app had just worked out for them. Detection now
+ * survives the sign-in, on both surfaces, in the same order.
+ *
+ * An address the customer picked deliberately always wins and is never
+ * overwritten. An address the app detected is only a hint, and is refreshed
+ * whenever a better reading lands — otherwise the first value ever written is
+ * the last value ever read, which is what pinned customers to a stale place.
+ */
+export function rememberDetectedAddress(
+  place: string | null | undefined,
+  coords: { lat: number; lng: number } | null | undefined,
+): void {
+  if (typeof window === "undefined") return;
+  if (!place || !coords) return;
+  try {
+    const existing = getLastAddress();
+    /* A deliberate choice is untouchable — always. An auto entry is not: it is
+       only a hint, and this is where a city-level IP estimate gets upgraded to
+       the real street once GPS lands. The old code returned early on ANY
+       existing entry, so the very first value ever written was the last value
+       ever read, on both surfaces, for the life of the install. */
+    if (existing?.source === "manual") return;
+    saveLastAddress({ place, lat: coords.lat, lng: coords.lng }, "auto");
+  } catch {}
 }
 
 export function AddressSearchModal({

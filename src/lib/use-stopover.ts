@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { tickStopover, type StopoverLiveView } from "@/lib/stopover-core";
+import { apiAuthHeaders } from "@/lib/db";
 
 /**
  * Live wait ("stopover") state for one ride, for the rider's button and the
@@ -49,7 +50,15 @@ export function useRideStopover(rideId: string | null | undefined, active: boole
   const refresh = useCallback(async () => {
     if (!rideId) return;
     try {
-      const res = await fetch(`/api/rides/stopover?rideId=${encodeURIComponent(rideId)}`);
+      // `/api/rides/stopover` authorises via `authorize(req)` and 401s without
+      // a Supabase Bearer token. This poll sent none, so a signed-in rider's
+      // read always failed and `!res.ok` returned early — indistinguishable
+      // from "not switched on", so the live view stayed null and the panel
+      // never learned the server's clock.
+      const auth = await apiAuthHeaders(false);
+      const res = await fetch(`/api/rides/stopover?rideId=${encodeURIComponent(rideId)}`, {
+        headers: auth,
+      });
       if (res.status === 503) {
         if (mountedRef.current) setReady(false);
         return;

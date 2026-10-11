@@ -1,11 +1,114 @@
 "use client";
 
-import { Geolocation, type Position } from "@capacitor/geolocation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchTimed, firstOf, withTimeout, GEO_TIMEOUT_MS } from "./net";
 
 export type LatLng = { lat: number; lng: number };
 export const KAMPALA: LatLng = { lat: 0.3163, lng: 32.5822 };
+
+/**
+ * Masaka — GoDoor's launch city, and the centre used when a position is needed
+ * for sorting but none is available (permission denied, offline, first paint).
+ *
+ * This used to fall back to KAMPALA. On a Masaka launch that centres every
+ * distance calculation roughly 130 km off, so a customer standing in Masaka was
+ * measured from Kampala: shops sorted as "far away", and the header could name
+ * a district they were never in. The fallback must be the city the platform
+ * actually serves.
+ */
+export const MASAKA: LatLng = { lat: -0.3384, lng: 32.6344 };
+
+/**
+ * Geolocation, native and web, behind one small interface.
+ *
+ * This used to `import { Geolocation } from "@capacitor/geolocation"` at the top
+ * of the file. That pulled @capacitor/core's native-bridge shim into the initial
+ * chunk of every page that touched location — measured live at 76,526 B
+ * inflated / 27,214 KB brotli, `androidBridge` and
+ * `webkit.messageHandlers` platform detection included — and it was
+ * `<link rel="preload">`ed on /app.
+ *
+ * Every customer on godoor.site is on the web; the APK is not shipped yet. So
+ * the plugin is now imported dynamically and ONLY when actually running inside
+ * a Capacitor container. On the web we talk to `navigator.geolocation`
+ * directly, which is exactly what the plugin's own web implementation does, so
+ * behaviour is unchanged and the 27 KB only loads inside the app.
+ */
+type GeoApi = {
+  requestPermissions(): Promise<void>;
+  getCurrentPosition(
+    opts: { enableHighAccuracy: boolean; timeout: number; maximumAge: number },
+  ): Promise<GeolocationPosition>;
+  watchPosition(
+    opts: { enableHighAccuracy: boolean; timeout: number; maximumAge: number },
+    cb: (pos: GeolocationPosition | null, err: GeolocationPositionError | null) => void,
+  ): Promise<string>;
+  clearWatch(args: { id: string }): Promise<void>;
+};
+
+/** True only inside a real native container. Cheap: one global check. */
+function isNativeShell(): boolean {
+  if (typeof window === "undefined") return false;
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  try {
+    return !!cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
+
+/** Wrap the browser's callback geolocation in the promise/watch shape above. */
+function webGeoApi(): GeoApi {
+  return {
+    async requestPermissions() {
+      // The browser prompts on first use; nothing to request up front.
+    },
+    getCurrentPosition(opts) {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error("Geolocation is not available"));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, opts);
+      });
+    },
+    async watchPosition(opts, cb) {
+      if (!navigator.geolocation) {
+        cb(null, null);
+        throw new Error("Geolocation is not available");
+      }
+      const id = navigator.geolocation.watchPosition(
+        (pos) => cb(pos, null),
+        (err) => cb(null, err),
+        opts,
+      );
+      return String(id);
+    },
+    async clearWatch({ id }) {
+      navigator.geolocation.clearWatch(Number(id));
+    },
+  };
+}
+
+let geoApiPromise: Promise<GeoApi> | null = null;
+
+/** Resolve once per page. The dynamic import is skipped entirely on the web. */
+function getGeoApi(): Promise<GeoApi> {
+  if (!geoApiPromise) {
+    geoApiPromise = (async () => {
+      if (!isNativeShell()) return webGeoApi();
+      try {
+        const mod = await import("@capacitor/geolocation");
+        const G = mod.Geolocation as unknown as GeoApi;
+        return G;
+      } catch {
+        return webGeoApi();
+      }
+    })();
+  }
+  return geoApiPromise;
+}
+
 
 /** Uganda's districts — businesses pick their fixed district, customers browse by district. */
 export const UGANDA_DISTRICTS = [
@@ -257,6 +360,7 @@ export function useGeolocation() {
       pos.coords.heading != null && Number.isFinite(pos.coords.heading) ? pos.coords.heading : null;
     // Update when the device physically moved (>=10m) or got a better fix,
     // or turned significantly (>25°) so the rider arrow stays truthful.
+    const isFirstFix = lastCoordsRef.current === null;
     const movedMeters = lastCoordsRef.current ? (distanceKm(lastCoordsRef.current, c) * 1000) : NaN;
     const moved = !lastCoordsRef.current || movedMeters >= 10;
     /* Shortest arc, not a raw difference: a 359° → 1° turn is 2°, not 358°. With
@@ -276,12 +380,15 @@ export function useGeolocation() {
       setHeading(newHeading);
       setSpeed(pos.coords.speed ?? null);
       setStatus("watching");
-      // Debounce reverse geocoding
+      // Debounce reverse geocoding. The FIRST fix is geocoded immediately —
+      // waiting 1.5s for the first place name meant the header sat on a bare
+      // coordinate for longer than it needed to, and on the cached fast path
+      // below that 1.5s is most of the time the customer actually waits.
       if (addrTimerRef.current) clearTimeout(addrTimerRef.current);
       addrTimerRef.current = setTimeout(async () => {
         const addr = await reverseGeocode(c);
         setAddress(addr);
-      }, 1500);
+      }, isFirstFix ? 0 : 1500);
     } else if (newHeading != null && newHeading !== lastHeadingRef.current) {
       /* Heading is a direction, not a position — it must not be gated behind
          the 10 m movement test. A rider stopped at a junction (Kampala Road at
@@ -332,6 +439,12 @@ export function useGeolocation() {
     );
     if (!found) return false;
 
+    /* A precise fix may have landed while this lookup was in flight. Never
+       replace a real reading with a city-level IP estimate — that would move
+       the customer off their actual street to save about a second. Returns
+       true either way: "we have a location" is still the answer. */
+    if (bestAccuracyRef.current !== Infinity) return true;
+
     // Uganda bounds check — if IP says outside Uganda, clamp to Kampala fallback
     const inUg = found.lat >= -1.5 && found.lat <= 4.5 && found.lng >= 28 && found.lng <= 36;
     const loc = inUg ? found : { lat: 0.3163, lng: 32.5822 };
@@ -347,14 +460,17 @@ export function useGeolocation() {
   }, []);
 
   const startWatching = useCallback(async () => {
-    /* The Capacitor plugin, not the browser API. In an Android WebView the two
-       are different code paths: navigator.geolocation only works if the WebView
-       has a geolocation handler, which Capacitor only installs when the plugin
-       is actually used. The app declared ACCESS_FINE_LOCATION in the manifest
-       but never imported the plugin, so nothing ever asked Android for the
-       permission and the app reported "no location permission". */
+    /* The Capacitor plugin inside the app, navigator.geolocation on the web —
+       resolved by getGeoApi(), which only imports the plugin in a native
+       shell. In an Android WebView the two are different code paths:
+       navigator.geolocation only works if the WebView has a geolocation
+       handler, which Capacitor only installs when the plugin is actually used.
+       The app declared ACCESS_FINE_LOCATION in the manifest but never
+       requested it at runtime, so nothing ever asked Android for the permission
+       and the app reported "no location permission". */
+    const Geo = await getGeoApi();
     try {
-      await Geolocation.requestPermissions();
+      await Geo.requestPermissions();
     } catch {
       // requestPermissions throws when the permission is already granted or the
       // platform has no such API; either way we can still try to read a fix.
@@ -364,13 +480,47 @@ export function useGeolocation() {
     setError(null);
     bestAccuracyRef.current = Infinity;
 
+    /* THE IP FALLBACK STARTS HERE, IN PARALLEL — not after the GPS deadline.
+       It used to run only once both GPS reads had failed, so the worst case
+       was 3s (cached attempt) + 10s (accurate attempt) + the IP round trip
+       before the header showed a place at all. Measured live from a real
+       browser: the header sat on "Choose your location — Tap to use GPS" for
+       4-19 seconds. That is precisely the reported symptom — "location hasn't
+       been auto filled, I have to search manually" — when in fact detection
+       was running the whole time, just with nothing to show for it.
+
+       The IP estimate normally lands in well under a second, so starting it
+       alongside GPS gives the customer a real place almost immediately and
+       lets the GPS fix silently refine it a moment later. `ipFallback` refuses
+       to overwrite a precise fix, and `processPosition` overwrites the
+       estimate the moment a real fix lands (`lastCoordsRef` is untouched by the
+       IP path), so accuracy still ends up GPS-driven. IP is now a fast first
+       answer rather than a last resort. */
+    const ipSettled = ipFallback().catch(() => false);
+
+    try {
+      const cached = await withTimeout(
+        Geo.getCurrentPosition({
+          enableHighAccuracy: false,
+          timeout: 3000,
+          maximumAge: 5 * 60 * 1000,
+        }),
+        3000,
+        "cached fix",
+      );
+      processPosition(cached as unknown as GeolocationPosition);
+    } catch {
+      // No cached fix (first ever visit, or permission not yet answered).
+      // Fall through to the accurate read below.
+    }
+
     try {
       // The plugin's `timeout` option is not honoured on every platform, and a
       // permission prompt the user simply never answers makes the promise hang
       // forever. Either way the home screen showed a permanent "Detecting
       // location…". Race it against our own deadline so the UI always moves on.
       const pos = await withTimeout(
-        Geolocation.getCurrentPosition({
+        Geo.getCurrentPosition({
           enableHighAccuracy: true,
           timeout: 10000,
           maximumAge: 0,
@@ -380,21 +530,23 @@ export function useGeolocation() {
       );
       processPosition(pos as unknown as GeolocationPosition);
     } catch {
-      if (bestAccuracyRef.current === Infinity) {
-        const ok = await ipFallback();
-        if (!ok) {
-          // This used to only set an error string and leave `status` on
-          // "locating" forever, so the home screen rendered a permanent
-          // "Detecting location…". Denied/failed is a definite answer —
-          // say so, and let the UI fall back to a usable default.
-          setStatus("denied");
-          setError("Location access denied. Tap to retry.");
-        }
-      }
+      /* Nothing to do here: the IP fallback is already in flight, and whether
+         it succeeded is decided below once it settles. */
+    }
+
+    /* Only if we ended up with NOTHING — no GPS fix and no usable IP estimate —
+       do we say so. This used to only set an error string and leave `status`
+       on "locating" forever, so the home screen rendered a permanent
+       "Detecting location…". Denied/failed is a definite answer — say so, and
+       let the UI fall back to a usable default. */
+    const ipOk = await ipSettled;
+    if (!ipOk && bestAccuracyRef.current === Infinity) {
+      setStatus("denied");
+      setError("Location access denied. Tap to retry.");
     }
 
     try {
-      watchIdRef.current = await Geolocation.watchPosition(
+      watchIdRef.current = await Geo.watchPosition(
         { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 },
         (pos, err) => {
           if (pos) {
@@ -418,8 +570,11 @@ export function useGeolocation() {
 
   useEffect(() => {
     return () => {
+      // Only clear a watch we actually started; the API resolves lazily, so a
+      // watch id can outlive an unmount that happened before getGeoApi() settled.
       if (watchIdRef.current != null) {
-        Geolocation.clearWatch({ id: watchIdRef.current }).catch(() => {});
+        void getGeoApi().then((Geo) => Geo.clearWatch({ id: watchIdRef.current! })).catch(() => {});
+        watchIdRef.current = null;
       }
       if (addrTimerRef.current) clearTimeout(addrTimerRef.current);
     };
@@ -433,7 +588,7 @@ export function useGeolocation() {
 
   const refresh = useCallback(async () => {
     if (watchIdRef.current != null) {
-      try { await Geolocation.clearWatch({ id: watchIdRef.current }); } catch {}
+      try { await (await getGeoApi()).clearWatch({ id: watchIdRef.current }); } catch {}
       watchIdRef.current = null;
     }
     geoDoneRef.current = false;

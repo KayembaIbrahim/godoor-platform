@@ -27,12 +27,13 @@ export function useMerchants() {
   // Re-fetch when returning to the page so stale data never sticks
   useEffect(() => {
     const onVis = () => { if (document.visibilityState === "visible") doFetch(); };
+    // `visibilitychange` only. `focus` was also bound to the same handler, and
+    // returning to a tab in any browser fires BOTH — so every trip back to the
+    // page re-downloaded the whole merchant catalogue twice over a metered
+    // connection. Tapping between the address bar and the page is enough to
+    // trigger it. Visibility is the correct signal for "the user came back".
     document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("focus", onVis);
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("focus", onVis);
-    };
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [doFetch]);
   return { merchants, loading, refetch: doFetch };
 }
@@ -47,12 +48,13 @@ export function useOrders(filters?: { merchant_id?: string; customer_id?: string
   useEffect(() => { doFetch(); }, [doFetch]);
   useEffect(() => {
     const onVis = () => { if (document.visibilityState === "visible") doFetch(); };
+    // `visibilitychange` only. `focus` was also bound to the same handler, and
+    // returning to a tab in any browser fires BOTH — so every trip back to the
+    // page re-downloaded the whole merchant catalogue twice over a metered
+    // connection. Tapping between the address bar and the page is enough to
+    // trigger it. Visibility is the correct signal for "the user came back".
     document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("focus", onVis);
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("focus", onVis);
-    };
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [doFetch]);
   return { orders, loading, refetch: doFetch };
 }
@@ -68,12 +70,13 @@ export function useOrder(orderId: string | null) {
   useEffect(() => { doFetch(); }, [doFetch]);
   useEffect(() => {
     const onVis = () => { if (document.visibilityState === "visible") doFetch(); };
+    // `visibilitychange` only. `focus` was also bound to the same handler, and
+    // returning to a tab in any browser fires BOTH — so every trip back to the
+    // page re-downloaded the whole merchant catalogue twice over a metered
+    // connection. Tapping between the address bar and the page is enough to
+    // trigger it. Visibility is the correct signal for "the user came back".
     document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("focus", onVis);
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("focus", onVis);
-    };
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, [doFetch]);
   return { order, loading };
 }

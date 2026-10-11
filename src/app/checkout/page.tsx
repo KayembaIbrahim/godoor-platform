@@ -16,7 +16,7 @@ import { useSession } from "@/lib/session-store";
 import { useGeolocation, distanceKm } from "@/lib/location";
 import { createOrder, fetchMerchantById, type DBMerchant } from "@/lib/db";
 import WalletLock from "@/components/WalletLock";
-import { usePromo } from "@/lib/customer-stores";
+import { usePromo, refreshPromoTable } from "@/lib/customer-stores";
 import { SignupModal, useSignupPrompt } from "@/components/SignupPrompt";
 import { AddressSearchModal, getLastAddress } from "@/components/AddressSearchModal";
 import { MorseLogo } from "@/components/MorseLogo";
@@ -127,6 +127,14 @@ export default function CheckoutPage() {
   }, []);
   const { appliedPromo, apply: applyPromo, clear: clearPromo } = usePromo();
 
+  /* Load the live promo table once, so a code an admin has just retuned or
+     switched off is honoured immediately instead of being judged against the
+     copy that shipped with the bundle. Failure is silent and harmless — the
+     server still resolves whatever code reaches it. */
+  useEffect(() => {
+    void refreshPromoTable();
+  }, []);
+
   useEffect(() => {
     if (merchantId) fetchMerchantById(merchantId).then((m) => setDbMerchant(m || null));
   }, [merchantId]);
@@ -169,6 +177,7 @@ export default function CheckoutPage() {
    * with a raw code the customer cannot act on.
    */
   const [lockOpen, setLockOpen] = useState(false);
+  const [lockMode, setLockMode] = useState<"unlock" | "setup_pin">("unlock");
   const [pendingGrant, setPendingGrant] = useState<string | null>(null);
   const placeOrder = async (grant?: string | null) => {
     setError(null);
@@ -221,7 +230,7 @@ export default function CheckoutPage() {
         rider_name: null,
         rider_phone: null,
         notes,
-      }, grant ?? undefined);
+      }, grant ?? undefined, appliedPromo?.code);
       setOrderCreated(order.id);
       clear();
       /* Do NOT redirect here. The success screen is the confirmation the
@@ -237,8 +246,19 @@ export default function CheckoutPage() {
          tapping Pay, the escrow hold is refused with a specific code — re-open
          the lock instead of showing the customer a bare error for something
          they can fix in one tap. */
-      if (e instanceof Error && (e as Error & { code?: string }).code === "WALLET_LOCK_REQUIRED") {
+      const code = (e as (Error & { code?: string }) | null)?.code;
+      if (code === "WALLET_LOCK_REQUIRED") {
+        // Already enrolled — they just need to unlock.
         setPendingGrant(null);
+        setLockMode("unlock");
+        setLockOpen(true);
+        return;
+      }
+      if (code === "WALLET_ENROLMENT_REQUIRED") {
+        // Never enrolled. Asking somebody to "unlock" a PIN they never chose
+        // is a dead end, so this walks them through setting one up instead.
+        setPendingGrant(null);
+        setLockMode("setup_pin");
         setLockOpen(true);
         return;
       }
@@ -551,14 +571,17 @@ export default function CheckoutPage() {
 
       <SignupModal open={signup.open} onClose={() => signup.setOpen(false)} returnTo={signup.returnTo} />
     <WalletLock
-      mode="unlock"
+      mode={lockMode}
       open={lockOpen}
       reason={`Pay ${formatUgx(totals.total)}`}
       onCancel={() => { setLockOpen(false); setPendingGrant(null); }}
       onAuthorized={(grant) => {
         setLockOpen(false);
-        setPendingGrant(grant);
-        void placeOrder(grant);
+        // setup_pin enrols and mints a grant in one step; if it ever returns an
+        // empty one, fall back to a normal attempt so the lock can be opened
+        // for real rather than retrying with nothing.
+        setPendingGrant(grant || null);
+        void placeOrder(grant || undefined);
       }}
     />
     <AddressSearchModal

@@ -5,13 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Package, ShoppingBag, Settings,
-  Map as MapIcon, BadgeCheck, User, DollarSign, TrendingUp
+  Map as MapIcon, BadgeCheck, User, DollarSign, TrendingUp, CalendarCheck
 } from "lucide-react";
 import { useSession, roleHomePath } from "@/lib/session-store";
 
 const MOBILE_NAV = [
   { href: "/business", label: "Home", icon: LayoutDashboard },
   { href: "/business/orders", label: "Orders", icon: Package },
+  { href: "/business/bookings", label: "Bookings", icon: CalendarCheck },
   { href: "/business/products", label: "Products", icon: ShoppingBag },
   { href: "/business/store", label: "Store", icon: Settings },
   { href: "/account", label: "Profile", icon: User },

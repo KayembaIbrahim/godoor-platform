@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { User, LogOut, Package, ShieldCheck, ChevronDown, ShoppingBag, ArrowRight, Mail, Lock, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
 import { useSession, roleHomePath } from "@/lib/session-store";
+import { useAuthModal, type AuthMode } from "@/lib/auth-modal-store";
 import { Logo } from "@/components/Logo";
 
 /**
@@ -16,7 +17,7 @@ import { Logo } from "@/components/Logo";
  * (see `roleHomePath`). Business and rider accounts are approved by GoDoor,
  * so sign-up creates a customer account and points applicants at /partner.
  */
-function AuthModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function AuthModal({ open, onClose, startMode }: { open: boolean; onClose: () => void; startMode: AuthMode }) {
   const { signIn, signUp } = useSession();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -32,8 +33,11 @@ function AuthModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   useEffect(() => { if (cooldown <= 0) return; const t = setTimeout(() => setCooldown(cooldown - 1), 1000); return () => clearTimeout(t); }, [cooldown]);
 
   useEffect(() => {
-    if (open) { setIsLogin(true); setEmail(""); setPassword(""); setName(""); setError(""); setSuccess(""); setLoading(false); setCooldown(0); }
-  }, [open]);
+    // The requested mode wins, so "Create account" from the hero opens the
+    // sign-up form directly instead of making the visitor press "Sign in" and
+    // then find the toggle. A tab switch inside the dialog is unaffected.
+    if (open) { setIsLogin(startMode !== "signup"); setEmail(""); setPassword(""); setName(""); setError(""); setSuccess(""); setLoading(false); setCooldown(0); }
+  }, [open, startMode]);
 
   if (!open || !mounted) return null;
 
@@ -159,10 +163,23 @@ function AuthModal({ open, onClose }: { open: boolean; onClose: () => void }) {
 }
 
 
-export function HeaderAuth() {
+/**
+ * @param compact  Render just the avatar disc.
+ *
+ * The customer home header is a single tight row — logo, location pill, then
+ * icons — and there is no room for a display name, a role chevron and a
+ * dropdown caret beside two other controls on a 360px phone. `compact` drops
+ * those and keeps the whole account menu, so it is the same control with less
+ * furniture rather than a second avatar with different behaviour.
+ */
+export function HeaderAuth({ compact = false }: { compact?: boolean }) {
   const { onboarded, role, profile, supabaseUser, signOut } = useSession();
-  const [open, setOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // The dialog is a page-wide singleton (see `auth-modal-store`), so the hero
+  // can ask for "Create account" and open THIS form rather than duplicating it.
+  const authMode = useAuthModal((s) => s.mode);
+  const openAuth = useAuthModal((s) => s.open);
+  const closeAuth = useAuthModal((s) => s.close);
   const dropRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -200,7 +217,7 @@ export function HeaderAuth() {
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setMenuOpen((p) => !p); }}
-          className="flex items-center gap-2 rounded-full border border-border bg-surface/60 pl-1 pr-2.5 py-1 transition hover:bg-elevated active:scale-95"
+          className={`flex items-center gap-2 rounded-full border border-border bg-surface/60 py-1 transition hover:bg-elevated active:scale-95 ${compact ? "pl-1 pr-1" : "pl-1 pr-2.5"}`}
           aria-label="Account menu"
           aria-expanded={menuOpen}
         >
@@ -211,8 +228,10 @@ export function HeaderAuth() {
               <span className="text-xs font-bold text-go">{initial}</span>
             )}
           </div>
-          <span className="hidden text-xs font-medium text-fg sm:inline">{displayName}</span>
-          <ChevronDown className={`h-3 w-3 text-muted transition-transform ${menuOpen ? "rotate-180" : ""}`} />
+          {!compact && <span className="hidden text-xs font-medium text-fg sm:inline">{displayName}</span>}
+          {!compact && (
+            <ChevronDown className={`h-3 w-3 text-muted transition-transform ${menuOpen ? "rotate-180" : ""}`} />
+          )}
         </button>
 
         {menuOpen && (
@@ -258,11 +277,15 @@ export function HeaderAuth() {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)}
+      <button type="button" onClick={() => openAuth("login")}
         className="flex min-h-11 items-center gap-1.5 rounded-full bg-go px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-go-2 active:scale-[0.97]">
         <User aria-hidden className="h-3.5 w-3.5" />Sign in
       </button>
-      <AuthModal open={open} onClose={() => setOpen(false)} />
+      <AuthModal
+        open={authMode !== null}
+        startMode={(authMode ?? "login") as AuthMode}
+        onClose={closeAuth}
+      />
     </>
   );
 }

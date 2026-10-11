@@ -10,6 +10,9 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import { useSheetHistory } from "@/lib/use-sheet-history";
+import { apiAuthHeaders } from "@/lib/db";
+import { resolveWalletStatus, lockoutActive } from "@/lib/wallet-lock-status";
 
 /**
  * Wallet unlock sheet — PIN pad plus fingerprint / face.
@@ -235,6 +238,8 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
 
   const panelRef = useRef<HTMLDivElement>(null);
   const inFlight = useRef(false);
+  /** Latches the exact PIN submission already sent, so it can never repeat. */
+  const submitted = useRef<string | null>(null);
 
   /* Derived */
   const locked = lockUntil !== null && lockUntil > now;
@@ -251,28 +256,28 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
   const loadStatus = useCallback(async () => {
     setStatusLoaded(false);
     try {
-      const res = await fetch(API, { cache: "no-store" });
-      const data = (await res.json().catch(() => ({}))) as ApiResult & {
-        hasPin?: boolean;
-        hasBiometric?: boolean;
-        locked?: boolean;
-        lockedUntil?: string | null;
-        error?: string;
-      };
-      if (!res.ok) {
-        setStatusError(typeof data.error === "string" && data.error ? data.error : "Could not check wallet security");
-        setStatusLoaded(true);
+      // `resolveWalletStatus` owns every outcome and always returns, so this
+      // caller has exactly one settle point and cannot forget it. It used to
+      // branch here and only the failure paths called `setStatusLoaded(true)` —
+      // which left the sheet spinning forever as soon as the request succeeded.
+      const status = await resolveWalletStatus({
+        authHeaders: () => apiAuthHeaders(false),
+        // This endpoint authorises via `authorize(req)` and 401s without a
+        // Supabase Bearer token. Sending none made *every* call look signed-out,
+        // so setting up a PIN answered "Sign in to continue" to users who were
+        // signed in. `apiAuthHeaders` also refreshes a stale token first.
+        request: (headers) => fetch(API, { cache: "no-store", headers }),
+      });
+
+      if (!status.ok) {
+        setStatusError(status.error);
         return;
       }
       setStatusError(null);
-      setHasPin(!!data.hasPin);
-      setHasBiometric(!!data.hasBiometric);
-      if (data.locked && data.lockedUntil) {
-        const until = Date.parse(data.lockedUntil);
-        if (Number.isFinite(until) && until > Date.now()) setLockUntil(until);
-      }
-    } catch {
-      setStatusError("Could not reach the server. Check your connection and try again.");
+      setHasPin(status.hasPin);
+      setHasBiometric(status.hasBiometric);
+      if (lockoutActive(status.lockedUntil)) setLockUntil(Date.parse(status.lockedUntil as string));
+    } finally {
       setStatusLoaded(true);
     }
   }, []);
@@ -281,7 +286,7 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
     async (body: Record<string, unknown>): Promise<ApiResult> => {
       const res = await fetch(API, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await apiAuthHeaders(true),
         body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => ({}))) as ApiResult & { error?: string };
@@ -311,7 +316,12 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
     setBusy(false);
     setBioBusy(false);
     setLockUntil(null);
+    // `statusError` has to be cleared with the rest of the per-open state.
+    // It was left behind, so one failed status check (a dropped request on a
+    // weak connection) pinned its message onto every later opening of the sheet.
+    setStatusError(null);
     inFlight.current = false;
+    submitted.current = null;
     void loadStatus();
     const focus = setTimeout(() => panelRef.current?.focus(), 40);
     return () => clearTimeout(focus);
@@ -359,17 +369,21 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
 
   /* ── escape cancels (captured while the sheet is open) ───────────────────── */
 
+  // The sheet owns a history entry so Back closes it instead of navigating out
+  // to the customer home screen. Every close path below goes through `dismiss`.
+  const dismiss = useSheetHistory(open, onCancel);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || busy || bioBusy) return;
       e.preventDefault();
       e.stopPropagation();
-      onCancel();
+      dismiss();
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [open, busy, bioBusy, onCancel]);
+  }, [open, busy, bioBusy, dismiss]);
 
   /* ── PIN submission ──────────────────────────────────────────────────────── */
 
@@ -389,6 +403,13 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
                 pin: value,
                 ...(currentPin ? { currentPin } : {}),
               });
+        // Clear the digits before handing over. The auto-submit effect below
+        // re-runs whenever `blocked` flips back to false, and `blocked` depends
+        // on `busy` — so with the PIN still in state it resubmitted the same
+        // value over and over. Setting up one PIN fired `set_pin` fourteen
+        // times, minting a spend grant each round. Clearing here breaks the loop;
+        // the sheet is closing anyway.
+        setPin("");
         if (out.grant) onAuthorized(out.grant);
         else setError("The server did not return an authorisation. Try again.");
       } catch (err) {
@@ -437,6 +458,15 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
       setPin("");
       return;
     }
+    /* Submitting is a network write that can mint an authorisation, so the same
+     * digits must never be sent twice for one stage. `runPin` guards overlap
+     * with `inFlight`, but that clears as soon as the request settles — and this
+     * effect re-fires on every `blocked` change, so a still-full PIN could be
+     * resubmitted after a success. Latching the exact submission makes that
+     * impossible regardless of what the surrounding state does. */
+    const signature = `${stage}:${mode}:${pin}`;
+    if (submitted.current === signature) return;
+    submitted.current = signature;
     void runPin(pin, stage);
   }, [pin, submitAt, stage, mode, blocked, runPin]);
 
@@ -542,7 +572,7 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
         type="button"
         aria-label="Dismiss"
         tabIndex={-1}
-        onClick={busy || bioBusy ? undefined : onCancel}
+        onClick={busy || bioBusy ? undefined : dismiss}
         className="absolute inset-0 h-full w-full cursor-default bg-black/60 backdrop-blur-sm"
       />
 
@@ -556,7 +586,7 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
           if (e.key === "Escape" && !busy && !bioBusy) {
             e.preventDefault();
             e.stopPropagation();
-            onCancel();
+            dismiss();
           }
         }}
         className="relative z-10 flex max-h-[100dvh] w-full flex-col overflow-y-auto rounded-t-3xl border border-border bg-bg pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl outline-none animate-scale-in sm:max-w-sm sm:rounded-3xl"
@@ -576,7 +606,7 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
           </div>
           <button
             type="button"
-            onClick={onCancel}
+            onClick={dismiss}
             disabled={busy || bioBusy}
             aria-label="Cancel"
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface text-muted transition hover:bg-elevated hover:text-fg disabled:opacity-40"
