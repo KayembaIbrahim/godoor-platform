@@ -183,3 +183,5 @@ async function notifyCustomer(
     // Push is a convenience, never a dependency.
   }
 }
+
+export const runtime = "edge";

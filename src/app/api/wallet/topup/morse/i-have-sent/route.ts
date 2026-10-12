@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDepositByReference } from "@/lib/escrow";
 import { authorize } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
+export const runtime = "edge";
 
 const SentSchema = z.object({
   referenceCode: z.string().min(4).max(40),

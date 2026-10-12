@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize } from "@/lib/api-auth";
+export const runtime = "edge";
 
 // NOTE: do NOT import from "@/lib/web-push-client" here. That module is
 // "use client", so importing it into a route handler produces a client

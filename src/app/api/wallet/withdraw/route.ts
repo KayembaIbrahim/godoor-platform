@@ -196,3 +196,5 @@ export async function POST(req: Request) {
     await releaseWithdrawalLock(sb, actor.id);
   }
 }
+
+export const runtime = "edge";

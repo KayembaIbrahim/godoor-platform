@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid } from "@/lib/api-auth";
+export const runtime = "edge";
 
 export async function GET(req: NextRequest) {
   const sb = getServiceClient();

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+export const runtime = "edge";
 
 /** Lets a user report exactly which build they are running, so a stale cache
  *  can be distinguished from a real bug instead of guessed at. */

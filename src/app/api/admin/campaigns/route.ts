@@ -5,6 +5,7 @@ import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { readCampaigns, writeCampaigns } from "@/lib/campaigns-server";
 import { sanitizeCampaign, type Campaign } from "@/lib/campaigns-core";
+export const runtime = "edge";
 
 /**
  * Admin management of flyer campaigns.

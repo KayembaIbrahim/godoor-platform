@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { readCampaigns } from "@/lib/campaigns-server";
+export const runtime = "edge";
 
 /**
  * Public read of the live flyer campaigns.

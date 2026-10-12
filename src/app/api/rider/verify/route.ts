@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { riderVerificationStatus } from "@/lib/rider-verification";
+export const runtime = "edge";
 
 /**
  * Verification status for the rider dashboard.

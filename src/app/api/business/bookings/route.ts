@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize } from "@/lib/api-auth";
 import { listMerchantBookings, type BookingRecord } from "@/lib/booking";
+export const runtime = "edge";
 
 /**
  * GET /api/business/bookings — a merchant's own reservations.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, resolveMerchantWriteAccess } from "@/lib/api-auth";
+export const runtime = "edge";
 
 const ENSURE_BULKY_COLUMN = `ALTER TABLE products ADD COLUMN IF NOT EXISTS bulky BOOLEAN NOT NULL DEFAULT false;`;
 

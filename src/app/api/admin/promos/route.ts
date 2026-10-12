@@ -5,6 +5,7 @@ import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { invalidatePromos, readPromoList, writePromoList } from "@/lib/promo-server";
 import { mergePromoTable, PROMOS, sanitizePromoTable } from "@/lib/promo";
 import { FIRST_ORDER_OFFER } from "@/lib/first-order-offer";
+export const runtime = "edge";
 
 /**
  * Admin management of promo codes.

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { confirmDeposit, getDepositById } from "@/lib/escrow";
+export const runtime = "edge";
 
 const ConfirmSchema = z.object({
   depositId: z.string().uuid(),

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { grantSignupBonus } from "@/lib/wallet-store";
+export const runtime = "edge";
 
 export async function POST(req: Request) {
   try {

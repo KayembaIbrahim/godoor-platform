@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { resolveFees, FALLBACK_FEE_CONFIG } from "@/lib/fees";
+export const runtime = "edge";
 
 /**
  * Admin fee configuration. This is the ONLY way the fee row changes — a narrow

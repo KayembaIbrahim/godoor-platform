@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { isUuid } from "@/lib/api-auth";
+export const runtime = "edge";
 
 /**
  * Admin ride management.

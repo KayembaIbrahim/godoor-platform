@@ -236,3 +236,4 @@ async function recordFailure(
     locked_until: lock ? new Date(Date.now() + lock).toISOString() : null,
   });
 }
+export const runtime = "edge";

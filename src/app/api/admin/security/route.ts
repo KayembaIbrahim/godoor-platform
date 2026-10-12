@@ -8,6 +8,7 @@ import {
   saveTotpSecret,
 } from "@/lib/admin-auth";
 import { generateRecoveryCodes, otpauthUri, randomSecret, sha256Hex, verifyTotp } from "@/lib/admin-totp";
+export const runtime = "edge";
 
 async function isAuthed(): Promise<boolean> {
   const jar = await cookies();

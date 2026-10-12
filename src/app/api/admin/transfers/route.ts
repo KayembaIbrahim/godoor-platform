@@ -138,3 +138,4 @@ export async function POST(req: Request) {
     await releaseTransferLocks(sb, parties);
   }
 }
+export const runtime = "edge";

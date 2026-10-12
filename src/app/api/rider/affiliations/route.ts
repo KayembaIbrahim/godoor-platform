@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize } from "@/lib/api-auth";
 import { ensureMerchantRiders } from "@/lib/ensure-rider-team";
+export const runtime = "edge";
 
 type MemberRow = { merchant_id: string; status: string; rate_ugx: number; created_at: string };
 

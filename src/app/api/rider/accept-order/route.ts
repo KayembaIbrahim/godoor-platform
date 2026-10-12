@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid } from "@/lib/api-auth";
+export const runtime = "edge";
 
 // Verify + accept: the server checks the caller is the verified rider and
 // then assigns the order atomically — the client cannot spoof the rider id.

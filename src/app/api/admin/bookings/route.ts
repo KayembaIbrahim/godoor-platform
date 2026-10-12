@@ -110,3 +110,4 @@ export async function POST(req: Request) {
   const saved = await saveBooking(sb, { rec: updated, skipSeatCheck: true });
   return NextResponse.json({ booking: saved.ok ? saved.record : updated });
 }
+export const runtime = "edge";

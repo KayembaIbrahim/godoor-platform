@@ -4,6 +4,7 @@ import { getApiUser, isAdminCookieValid } from "@/lib/api-auth";
 
 import { getServiceClient } from "@/lib/supabase-server";
 import { normalizeMorseTag, MORSE_TAG_RE } from "@/lib/morse";
+export const runtime = "edge";
 
 /**
  * Morse tag change requests.

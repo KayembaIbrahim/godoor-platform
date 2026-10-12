@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { snapshotWallet } from "@/lib/wallet-store";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize } from "@/lib/api-auth";
+export const runtime = "edge";
 
 export async function GET(req: Request) {
   const actor = await authorize(req);

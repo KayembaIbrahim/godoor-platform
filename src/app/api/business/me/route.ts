@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { requireApiUser } from "@/lib/api-auth";
+export const runtime = "edge";
 
 /**
  * Look up / auto-create the merchant record for the CURRENT business user.

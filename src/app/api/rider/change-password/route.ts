@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { getApiUser } from "@/lib/api-auth";
+export const runtime = "edge";
 
 /**
  * Clears the "must change password" flag after a rider has replaced their

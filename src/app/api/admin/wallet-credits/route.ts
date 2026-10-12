@@ -5,6 +5,7 @@ import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { listTopupRequests, type WalletCurrency } from "@/lib/wallet-store";
 import { collectionConfig, refreshRateUgx, usdtConfig } from "@/lib/momo";
 import { isUuid } from "@/lib/api-auth";
+export const runtime = "edge";
 
 /**
  * Admin wallet credits: the admin verifies that real mobile money arrived for

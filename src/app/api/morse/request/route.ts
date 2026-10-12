@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authorize, isUuid } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
 import { DEFAULT_RATE_UGX, refreshRateUgx, usdtConfig } from "@/lib/momo";
+export const runtime = "edge";
 
 /**
  * Morse payment requests — the business pushes a payment to the customer's

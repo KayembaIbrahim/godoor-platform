@@ -12,6 +12,7 @@ import { pushToUser } from "@/lib/web-push-server";
 import { recordPromoUse, resolvePromoServer } from "@/lib/promo-server";
 import { PROMO_REASON_TEXT } from "@/lib/promo";
 import { existingColumns } from "@/lib/schema-capabilities";
+export const runtime = "edge";
 
 const ENSURE_SCHEDULE_COLUMN = `ALTER TABLE orders ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ;`;
 

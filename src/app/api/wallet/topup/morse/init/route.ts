@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createDeposit, GODOR_MORSE_USERNAME } from "@/lib/escrow";
 import { authorize } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
+export const runtime = "edge";
 
 const InitSchema = z.object({
   amount: z.coerce.number().int().positive().max(10_000_000),

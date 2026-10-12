@@ -4,6 +4,7 @@ import { refreshRateUgx, requestCollection, usdtConfig } from "@/lib/momo";
 import { attachTopupScreenshot, createTopupRequest, findTopupRequest, snapshotWallet } from "@/lib/wallet-store";
 import { authorize } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
+export const runtime = "edge";
 
 const StartSchema = z.object({
   amountUsdt: z.coerce.number().positive().max(100_000),

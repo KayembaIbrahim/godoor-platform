@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { refreshRateUgx, usdtConfig } from "@/lib/momo";
+export const runtime = "edge";
 
 /**
  * Morse partner wallet helpers.
