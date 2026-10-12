@@ -1,0 +1,21 @@
+# Cloudflare Pages configuration for GoDoor platform
+# Generated for migration from Vercel to Cloudflare
+
+name = "godoor-platform"
+compatibility_date = "2024-10-11"
+main = "./node_modules/.bin/next"
+pages_build_output_dir = ".vercel/output/static"
+
+[vars]
+NEXT_PUBLIC_SUPABASE_URL = "https://ikbdhfjqiptsecunxzti.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "PLACEHOLDER_FOR_ANON_KEY"
+NEXT_PUBLIC_MAPBOX_TOKEN = "PLACEHOLDER_FOR_MAPBOX_TOKEN"
+
+# Secrets will be set via `wrangler secret put` or Cloudflare dashboard
+# SUPABASE_SERVICE_ROLE_KEY
+# SUPABASE_ACCESS_TOKEN
+# MAPBOX_TOKEN (if different from public)
+
+[upload]
+format = "files"
+dir = ".vercel/output/static"

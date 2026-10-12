@@ -34,6 +34,9 @@ const nextConfig: NextConfig = {
     ],
     formats: ["image/avif", "image/webp"],
   },
+
+  // Cloudflare Pages / Next-on-Pages compatibility
+  output: "standalone",
 };
 
 export default nextConfig;

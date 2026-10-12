@@ -13,6 +13,11 @@ SUPABASE_MIGRATION.sql
 .tmp
 __pycache__
 
+# Cloudflare migration files — not needed for Vercel deploy
+wrangler.toml
+cloudflare-deploy.sh
+cloudflare-migration-guide.md
+
 # One-off live-verification probes. The rest of scripts/ is real operational
 # tooling (sql.mjs, apply-sql.mjs, probe-db.mjs) and must stay in the upload.
 scripts/verify-app.mjs
