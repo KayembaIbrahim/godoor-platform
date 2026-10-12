@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Applies a checked-in schema file to the database.

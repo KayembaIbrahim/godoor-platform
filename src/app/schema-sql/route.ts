@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { isAdminCookieValid } from "@/lib/api-auth";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Serves the full database migration as plain text.
