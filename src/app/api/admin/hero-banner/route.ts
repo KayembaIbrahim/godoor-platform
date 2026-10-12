@@ -4,7 +4,7 @@ import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { readBanners, writeBanners } from "@/lib/hero-banner-server";
 import { normalizeBanner } from "@/lib/hero-banner-core";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Admin management of the sponsored homepage banner.

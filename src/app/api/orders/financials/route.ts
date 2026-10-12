@@ -3,7 +3,7 @@ import { getServiceClient } from "@/lib/supabase-server";
 import { authorize } from "@/lib/api-auth";
 import { computeOrderFinancials } from "@/lib/utils";
 import { refreshRateUgx } from "@/lib/momo";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * POST /api/orders/financials

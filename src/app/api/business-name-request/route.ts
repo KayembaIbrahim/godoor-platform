@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, resolveMerchantWriteAccess } from "@/lib/api-auth";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Business name changes: a shop's name is a protected identity field.

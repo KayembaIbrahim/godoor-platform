@@ -400,4 +400,4 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }
 
-export const runtime = "edge";
+export const runtime = "nodejs";

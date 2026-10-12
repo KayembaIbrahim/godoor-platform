@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { requireApiUser, isAdminCookieValid } from "@/lib/api-auth";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const CREATE_SQL = `CREATE TABLE IF NOT EXISTS phone_change_requests (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

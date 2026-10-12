@@ -7,7 +7,7 @@ import {
   setP2faCookie, setSessionCookie, verifyAdminPassword, verifySecondFactor, verifySession,
 } from "@/lib/admin-auth";
 import { signPending2fa, verifyPending2fa } from "@/lib/admin-session";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 // Lightweight brute-force guard (best-effort on serverless — resets per instance).
 const attempts = new Map<string, { count: number; windowStart: number; lockedUntil: number }>();

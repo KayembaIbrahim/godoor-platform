@@ -18,7 +18,7 @@ import {
   type BookingRecord,
 } from "@/lib/booking";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /** Seats a single slot can absorb. */
 const SLOT_CAPACITY = 20;

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { isKnownStatus } from "@/lib/api-auth";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET() {
   const jar = await cookies();

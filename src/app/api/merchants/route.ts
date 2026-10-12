@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicClient, getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid, resolveMerchantWriteAccess } from "@/lib/api-auth";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const ENSURE_BUSINESS_TYPE = `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT 'goods';`;
 

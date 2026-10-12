@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { verifyWebhookSignature } from "@/lib/momo";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * POST /api/momo/webhook — provider-confirmed top-up settlement.

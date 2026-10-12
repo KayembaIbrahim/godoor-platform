@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize } from "@/lib/api-auth";
 import { priceRide, parseTrip, fareKindOf } from "@/lib/pricing-server";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   const sb = getServiceClient();

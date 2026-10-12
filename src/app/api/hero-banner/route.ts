@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { resolveBanner } from "@/lib/hero-banner-server";
 import type { HeroAudience } from "@/lib/hero-banner-core";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * GET /api/hero-banner — the banner the signed-in audience should see, or null.

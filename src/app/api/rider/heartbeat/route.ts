@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize } from "@/lib/api-auth";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Rider liveness heartbeat.

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { isAdminCookieValid } from "@/lib/api-auth";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function POST() {
   if (!(await isAdminCookieValid())) {

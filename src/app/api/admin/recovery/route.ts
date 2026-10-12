@@ -10,7 +10,7 @@ import {
   setRecoveryAnswer, verifyRecoveryAnswer,
 } from "@/lib/admin-recovery";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Admin password recovery through a security question.

@@ -5,7 +5,7 @@ import { newId } from "@/lib/utils";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid } from "@/lib/api-auth";
 import { refreshRateUgx, usdtConfig } from "@/lib/momo";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const PaySchema = z.object({
   amountUgx: z.coerce.number().int().positive().max(10_000_000),

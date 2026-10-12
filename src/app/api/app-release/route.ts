@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Public read of the published APK release.

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { refundEscrow } from "@/lib/escrow";
 import { authorize } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const CancelSchema = z.object({
   orderId: z.string().uuid(),

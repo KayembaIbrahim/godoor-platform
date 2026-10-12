@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { resolveFees } from "@/lib/fees";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /** Public read of the active fee config so the cart and checkout can quote the
  *  same 15% service fee the server charges. Contains no secrets. */

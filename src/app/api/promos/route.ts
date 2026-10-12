@@ -3,7 +3,7 @@ import { getServiceClient } from "@/lib/supabase-server";
 import { readPromoList } from "@/lib/promo-server";
 import { featuredPromo, mergePromoTable, toPromoTable } from "@/lib/promo";
 import { FIRST_ORDER_OFFER } from "@/lib/first-order-offer";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * GET /api/promos — the live promo table, for display only.

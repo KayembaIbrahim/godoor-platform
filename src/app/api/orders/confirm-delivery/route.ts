@@ -3,7 +3,7 @@ import { z } from "zod";
 import { releaseEscrow } from "@/lib/escrow";
 import { authorize } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const ConfirmSchema = z.object({
   orderId: z.string().uuid(),

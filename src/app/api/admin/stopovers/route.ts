@@ -5,7 +5,7 @@ import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { pendingStopoverDisputes, resolveStopoverDispute } from "@/lib/stopover-server";
 import { readStopover } from "@/lib/stopover-store";
 import { invalidateFareRates, loadFareRates, saveFareRates } from "@/lib/fare-config-server";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Admin control over rider-declared waiting time.

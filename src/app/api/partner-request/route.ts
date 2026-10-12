@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Business & rider applications to join GoDoor.

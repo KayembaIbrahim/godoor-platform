@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid, resolveMerchantWriteAccess } from "@/lib/api-auth";
 import { autoCloseIfMoving } from "@/lib/stopover-server";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const TABLE_SCHEMA: Record<string, { allowed: string[] }> = {
   payments:      { allowed: ["order_id", "merchant_id", "amount_ugx", "method", "screenshot_url", "transaction_ref", "status", "submitted_by", "note"] },

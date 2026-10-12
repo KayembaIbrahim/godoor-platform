@@ -3,7 +3,7 @@ import { z } from "zod";
 import { authorize } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
 import { normalizeMorseTag, MORSE_TAG_RE } from "@/lib/morse";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * POST /api/morse/tag — signed-in users confirm their unique Morse username.

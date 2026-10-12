@@ -184,4 +184,4 @@ async function notifyCustomer(
   }
 }
 
-export const runtime = "edge";
+export const runtime = "nodejs";

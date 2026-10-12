@@ -4,7 +4,7 @@ import { authorize } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
 import { normalizeMorseTag, MORSE_TAG_RE } from "@/lib/morse";
 import { isUuid } from "@/lib/api-auth";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * POST /api/morse/merchant — the business confirms its fixed Morse handle.

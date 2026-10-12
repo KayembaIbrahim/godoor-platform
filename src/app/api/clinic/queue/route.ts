@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, getMerchantForUser, isUuid } from "@/lib/api-auth";
 import { CLINIC_QUEUE_STATUSES, ensureClinicSchema } from "@/lib/ensure-clinic";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /** GET ?merchant_id= — clinic queue lines with linked order summaries. */
 export async function GET(req: NextRequest) {

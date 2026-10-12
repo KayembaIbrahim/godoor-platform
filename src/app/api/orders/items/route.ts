@@ -3,7 +3,7 @@ import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, getMerchantForUser, isUuid } from "@/lib/api-auth";
 import { ensureClinicOrderSchema } from "@/lib/ensure-clinic";
 import { serviceFeeFor } from "@/lib/fees";
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * PATCH /api/orders/items — clinic "medicine delta".
