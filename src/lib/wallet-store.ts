@@ -174,6 +174,13 @@ function toTopupRequest(r: any): TopupRequest {
   };
 }
 
+// Configuration constants
+export const usdtConfig = {
+  refreshRateUgx: 3700,
+};
+
+export const refreshRateUgx = usdtConfig.refreshRateUgx;
+
 export async function snapshotWallet(sb: SupabaseClient, userId: string): Promise<WalletState> {
   const [balanceUgx, balanceUsdt, { data: pendRows }, { data: rows }] = await Promise.all([
     latestBalance(sb, userId, "UGX"),

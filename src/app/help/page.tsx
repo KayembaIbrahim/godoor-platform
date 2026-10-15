@@ -302,10 +302,12 @@ function MessageBubble({ message }: { message: Message }) {
 }
 
 // Message composer component with enhanced UX
-function MessageComposer({ 
-  onSend: (message: string, file?: File) => Promise<void>, 
-  conversationId: string 
-}) {
+interface MessageComposerProps {
+  onSend: (message: string, file?: File) => Promise<void>;
+  conversationId: string;
+}
+
+function MessageComposer({ onSend, conversationId }: MessageComposerProps) {
   const [message, setMessage] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -395,7 +397,7 @@ function MessageComposer({
               className="text-xs text-red-500 hover:text-red-700"
             >
               ✕
-            </div>
+            </button>
           </div>
         )}
         <div className="absolute bottom-3 right-3 flex items-center gap-2">
@@ -432,12 +434,14 @@ function MessageComposer({
 }
 
 // History overlay component with glassmorphism
-function HistoryOverlay({ 
-  isOpen: boolean, 
-  onClose: () => void, 
-  conversations: Conversation[],
-  onSelectConversation: (conversationId: string) => void
-}) {
+interface HistoryOverlayProps {
+  isOpen: boolean;
+  onClose: () => void;
+  conversations: Conversation[];
+  onSelectConversation: (conversationId: string) => void;
+}
+
+function HistoryOverlay({ isOpen, onClose, conversations, onSelectConversation }: HistoryOverlayProps) {
   if (!isOpen) return null;
   
   const formatDate = (dateString: string) => {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { refreshRateUgx, usdtConfig } from "@/lib/wallet-store";
+import { usdtConfig } from "@/lib/wallet-store";
 import { attachTopupScreenshot, createTopupRequest, findTopupRequest, snapshotWallet } from "@/lib/wallet-store";
 import { authorize } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
@@ -12,26 +12,18 @@ const StartSchema = z.object({
   screenshotUrl: z.string().url().optional(),
 });
 
-const MomoStartSchema = z.object({
-  method: z.literal("momo"),
-  amountUgx: z.coerce.number().int().positive().max(10_000_000),
-  phone: z.string().min(9).max(20),
-  network: z.enum(["mtn_momo", "airtel_money"]),
-});
-
 const ReferenceSchema = z.object({
   reference: z.string().min(4).max(40),
   screenshotUrl: z.string().url().optional(),
 });
 
 /**
- * Wallet top-up via the Morse partner wallet.
+ * Wallet top-up via the GoDoor/Morse wallet system.
  *
- * The customer tops up their own Morse wallet from mobile money (inside the
- * Morse app), then sends USDT to GoDoor's Morse username (@Godoor) with the
+ * The customer sends USDT to GoDoor's Morse username (@Godoor) with the
  * reference as the note. They can attach a send-confirmation screenshot.
- * Nothing is credited on the client's word — an admin verifies the transfer in
- * the Morse app and credits the wallet from /api/admin/wallet-credits.
+ * Nothing is credited on the client's word — an admin verifies the transfer
+ * in the Morse app and credits the wallet from /api/admin/wallet-credits.
  */
 export async function POST(req: Request) {
   const actor = await authorize(req);
@@ -46,64 +38,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: { message: "Invalid JSON" } }, { status: 400 });
   }
 
-  await refreshRateUgx();
-  const cfg = usdtConfig();
-
-  // Direct MTN/Airtel collection (live provider). Customer approves the STK
-  // prompt on their phone; credit happens ONLY via /api/momo/webhook.
-  if ((body as { method?: string }).method === "momo") {
-    const momo = MomoStartSchema.safeParse(body);
-    if (!momo.success) {
-      return NextResponse.json({ error: { message: "Enter amount, phone and network." } }, { status: 400 });
-    }
-    if (momo.data.amountUgx < 1000) {
-      return NextResponse.json({ error: { message: "Minimum top-up is UGX 1,000." } }, { status: 400 });
-    }
-    const digits = momo.data.phone.replace(/\D/g, "");
-    const phone256 = digits.startsWith("256") ? digits : `256${digits.replace(/^0+/, "")}`;
-    const reference = `GD${Date.now().toString(36).toUpperCase()}${phone256.slice(-3)}`;
-    let collection;
-    try {
-      collection = await requestCollection({
-        amountUgx: momo.data.amountUgx,
-        phone256,
-        network: momo.data.network,
-        reference,
-        description: `GoDoor wallet top-up ${reference}`,
-      });
-    } catch (e) {
-      return NextResponse.json(
-        { error: { message: e instanceof Error ? e.message : "Provider unavailable" } },
-        { status: 502 },
-      );
-    }
-    const reqRow = await createTopupRequest(sb, {
-      userId: actor.id,
-      userName: actor.email || "Customer",
-      userEmail: actor.email || "",
-      amountUgx: momo.data.amountUgx,
-      phone: phone256,
-      network: momo.data.network,
-      reference,
-      method: "momo",
-      currency: "UGX",
-    });
-    return NextResponse.json({
-      data: {
-        topupId: reqRow.id,
-        reference: reqRow.reference,
-        amountUgx: reqRow.amount_ugx,
-        phone: phone256,
-        method: "momo",
-        currency: "UGX",
-        provider: collection.provider,
-        providerRef: collection.providerRef,
-        status: "awaiting_provider_confirmation",
-        message: collection.customerHint,
-      },
-      meta: { wallet: await snapshotWallet(sb, actor.id) },
-    });
-  }
+  const cfg = usdtConfig;
 
   // "I've sent the money" — record nothing new, just return their pending request.
   if ("reference" in body) {

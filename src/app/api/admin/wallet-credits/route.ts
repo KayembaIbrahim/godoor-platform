@@ -20,11 +20,9 @@ export async function GET() {
   const sb = getServiceClient();
   if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
 
-  await refreshRateUgx();
   let config: { number: string; name: string } | null = null;
   try { config = collectionConfig(); } catch {}
-  let usdt: ReturnType<typeof usdtConfig> | null = null;
-  try { usdt = usdtConfig(); } catch {}
+  let usdt: ReturnType<typeof usdtConfig> | null = usdtConfig;
 
   const pending = await listTopupRequests(sb, "pending");
   const history = (await listTopupRequests(sb)).filter((r) => r.status !== "pending");

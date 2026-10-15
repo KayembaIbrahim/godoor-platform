@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { authorize, isUuid } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
-import { DEFAULT_RATE_UGX, refreshRateUgx, usdtConfig } from "@/lib/momo";
+import { usdtConfig } from "@/lib/wallet-store";
+
+// Fallback rate if config doesn't have one
+const DEFAULT_RATE_UGX = usdtConfig.refreshRateUgx || 3700;
 export const runtime = "nodejs";
 
 /**
@@ -90,8 +93,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: existing, meta: { note: "An active Morse request already exists for this order." } });
   }
 
-  await refreshRateUgx();
-  const cfg = usdtConfig();
+  const cfg = usdtConfig;
   const amountUsdt = Math.max(1, Math.ceil(Number(order.total_ugx || 0) / (cfg.rateUgx || DEFAULT_RATE_UGX)));
   const reference = `GD-${parsed.data.orderId.replace(/-/g, "").slice(0, 10)}`;
 

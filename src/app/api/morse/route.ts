@@ -13,8 +13,7 @@ export const runtime = "nodejs";
  */
 
 export async function GET() {
-  await refreshRateUgx();
-  const cfg = usdtConfig();
+  const cfg = usdtConfig;
   return NextResponse.json({
     ok: true,
     config: {

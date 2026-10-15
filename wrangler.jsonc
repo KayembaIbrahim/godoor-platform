@@ -1,10 +1,11 @@
 {
   "name": "godoor-platform",
-  "main": "./dist/server/index.js",
-  "compatibility_date": "2026-10-13",
+  "main": "vinext/server/fetch-handler",
+  "compatibility_date": "2024-10-11",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "./dist/client",
+    "directory": "dist/client",
+    "not_found_handling": "none",
     "binding": "ASSETS"
   },
   "kv_namespaces": [

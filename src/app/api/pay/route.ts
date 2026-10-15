@@ -51,8 +51,7 @@ export async function POST(req: Request) {
   const sb = getServiceClient();
   if (!sb) return NextResponse.json({ error: "Wallet unavailable" }, { status: 503 });
 
-  await refreshRateUgx();
-  const rateUgx = usdtConfig().rateUgx;
+  const rateUgx = usdtConfig.rateUgx;
   const before = await snapshotWallet(sb, actor.id);
   const gasUgx = before.availableUgx + before.availableUsdt * rateUgx;
   if (gasUgx < parsed.data.amountUgx) {
