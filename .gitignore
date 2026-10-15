@@ -19,3 +19,5 @@ attachments/
 scripts/.*.json
 
 
+.vinext/
+.wrangler/

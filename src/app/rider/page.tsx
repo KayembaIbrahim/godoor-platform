@@ -782,22 +782,17 @@ export default function RiderDashboard() {
   // Instead of silently going dark on failure, the rider page shows the state.
   const [broadcastState, setBroadcastState] = useState<"idle" | "on" | "error">("idle");
   const lastSentRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
+  
+  // Continuous location broadcast for customer tracking
   useEffect(() => {
-    /* Broadcast for ANY active work, not just a parcel delivery. This used to
-       require `activeDelivery`, so a rider running a Boda ride never wrote to
-       rider_locations at all — the customer watched a frozen pin for the whole
-       trip. A rider is "working" when they hold a delivery OR an accepted /
-       in-progress ride. */
-    const onActiveRide = Boolean(activeBodaRide);
-    if ((!activeDelivery && !onActiveRide) || !supabaseUser?.id) {
-      setBroadcastState("idle");
+    // Broadcast rider location when online, so customers can track them
+    // This works even when the rider is just "online" (assigned to orders)
+    if (!isOnline || !supabaseUser?.id || !coords) {
       return;
     }
-    if (!coords) return; // "Location is off" banner explains what to do
+    
     let stopped = false;
     const push = async (force = false) => {
-      // Accuracy gate: never broadcast a wild fix (>120m) unless we have
-      // nothing better yet; displacement gate: resend if moved ≥10m or 15s old.
       const last = lastSentRef.current;
       if (!force && last && accuracy != null && accuracy > 120) return;
       if (!force && last) {
@@ -812,7 +807,34 @@ export default function RiderDashboard() {
       }
     };
     push(true);
-    // Interval covers periods when the browser throttles watchPosition callbacks.
+    const t = setInterval(() => push(false), 5000);
+    return () => { stopped = true; clearInterval(t); };
+  }, [isOnline, supabaseUser?.id, coords, heading, speed, accuracy]);
+  
+  // Delivery/boda ride broadcast
+  useEffect(() => {
+    /* Broadcast for active delivery or in-progress boda ride. */
+    const onActiveRide = Boolean(activeBodaRide);
+    if ((!activeDelivery && !onActiveRide) || !supabaseUser?.id) {
+      return;
+    }
+    if (!coords) return;
+    let stopped = false;
+    const push = async (force = false) => {
+      const last = lastSentRef.current;
+      if (!force && last && accuracy != null && accuracy > 120) return;
+      if (!force && last) {
+        const movedM = distanceKm(last, coords) * 1000;
+        const ageMs = Date.now() - last.at;
+        if (movedM < 10 && ageMs < 15000) return;
+      }
+      const ok = await updateRiderLocation(supabaseUser.id, coords.lat, coords.lng, heading || undefined, speed || undefined, accuracy || undefined);
+      if (!stopped) {
+        setBroadcastState(ok ? "on" : "error");
+        if (ok) lastSentRef.current = { lat: coords.lat, lng: coords.lng, at: Date.now() };
+      }
+    };
+    push(true);
     const t = setInterval(() => push(false), 5000);
     return () => { stopped = true; clearInterval(t); };
   }, [activeDelivery?.id, activeBodaRide?.id, activeBodaRide?.status, coords, supabaseUser?.id, heading, speed, accuracy]);

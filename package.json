@@ -6,13 +6,18 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "dev:vinext": "vite dev --port 3001",
+    "build:vinext": "vite build",
+    "start:vinext": "wrangler dev --config dist/server/wrangler.json",
+    "deploy:vinext": "vinext deploy --config dist/server/wrangler.json"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
     "@capacitor/cli": "^8.5.1",
     "@capacitor/core": "^8.5.1",
     "@capacitor/geolocation": "^8.2.2",
+    "@cloudflare/vite-plugin": "^1.63.2",
     "@react-google-maps/api": "^2.20.8",
     "@supabase/supabase-js": "^2.115.0",
     "clsx": "^2.1.1",
@@ -21,27 +26,34 @@
     "next": "^16.4.0",
     "pg": "^8.23.0",
     "qrcode": "^1.5.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-server-dom-webpack": "latest",
     "tailwind-merge": "^2.6.0",
     "web-push": "^3.6.7",
     "zod": "^3.24.1",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
-    "@cloudflare/next-on-pages": "^1.13.16",
     "@types/node": "^22.10.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/web-push": "^3.6.4",
+    "@vinext/cloudflare": "^1.1.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "@vitejs/plugin-rsc": "^0.5.36",
     "autoprefixer": "^10.4.20",
     "playwright": "^1.56.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vinext": "^1.1.0",
+    "vite": "^8.3.4",
+    "wrangler": "^4.149.0"
   },
   "engines": {
     "node": ">=18.18.0"
-  }
+  },
+  "type": "module"
 }

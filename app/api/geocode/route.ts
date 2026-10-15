@@ -95,7 +95,7 @@ export async function GET(request: Request) {
       data: geocodeData,
       timestamp: new Date().toISOString(),
       source: 'google_maps',
-      confidence: geocodeData.confidence || 0.95
+      confidence: geocodeData?.confidence || 0.95
     }, { headers: corsHeaders })
 
   } catch (error) {

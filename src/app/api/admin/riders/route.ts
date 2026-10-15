@@ -1,8 +1,9 @@
 import { randomBytes } from "crypto";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
+import { authorize, isUuid } from "@/lib/api-auth";
 export const runtime = "nodejs";
 
 type RiderOut = {
@@ -18,6 +19,13 @@ type RiderOut = {
   total_deliveries: number;
   rating: number;
   created_at: number;
+  // Live location fields
+  current_lat?: number | null;
+  current_lng?: number | null;
+  current_heading?: number | null;
+  current_speed?: number | null;
+  current_accuracy?: number | null;
+  last_updated?: string | null;
 };
 
 function rowToRider(r: any, email = ""): RiderOut {
@@ -51,7 +59,7 @@ async function listRiderUsers(sb: NonNullable<ReturnType<typeof getServiceClient
   return (data?.users || []).filter((u) => (u.user_metadata?.role as string) === "rider");
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const jar = await cookies();
   if (!(await verifySession(jar.get(ADMIN_COOKIE)?.value || ""))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -59,41 +67,46 @@ export async function GET() {
   const sb = getServiceClient();
   if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
 
-  const users = await listRiderUsers(sb);
-  let rows: any[] = [];
-  try {
-    const { data } = await sb.from("riders").select("*");
-    rows = data || [];
-  } catch {}
+  const { searchParams } = new URL(req.url);
+  const includeLocations = searchParams.get("include_locations") === "true";
+  let q = sb.from("riders").select("id, name, email, phone, vehicle_type, plate, service_area, lat, lng, status, verified, created_at, last_online, rating");
+  
+  if (includeLocations) {
+    q = q.eq("status", "active");
+  } else {
+    q = q.eq("status", "active");
+  }
+  
+  const { data, error } = await q.order("created_at", { ascending: false });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const byId = new Map<string, any>();
-  const byEmail = new Map<string, any>();
-  for (const r of rows) {
-    byId.set(String(r.id), r);
-    if (r.email) byEmail.set(String(r.email).toLowerCase(), r);
+  // Get rider locations for active riders
+  if (includeLocations) {
+    const riderIds = (data || []).map((r) => r.id);
+    if (riderIds.length > 0) {
+      const { data: locations } = await sb
+        .from("rider_locations")
+        .select("rider_id, lat, lng, heading, speed, accuracy, updated_at")
+        .in("rider_id", riderIds);
+      
+      // Merge location data into rider response
+      const ridersWithLocations = (data || []).map((rider) => {
+        const location = locations?.find((l) => l.rider_id === rider.id);
+        return {
+          ...rider,
+          current_lat: location?.lat || null,
+          current_lng: location?.lng || null,
+          current_heading: location?.heading || null,
+          current_speed: location?.speed || null,
+          current_accuracy: location?.accuracy || null,
+          last_updated: location?.updated_at || null,
+        };
+      });
+      return NextResponse.json({ riders: ridersWithLocations });
+    }
   }
 
-  const riders: RiderOut[] = users.map((u) => {
-    const row = byId.get(u.id) || byEmail.get(String(u.email || "").toLowerCase());
-    if (row) return rowToRider(row, u.email || "");
-    return {
-      id: u.id,
-      email: u.email || "",
-      name: (u.user_metadata?.name as string) || u.email || "Rider",
-      phone: "",
-      vehicle_type: "motorbike",
-      plate: "",
-      service_area: "Uganda",
-      status: "offline",
-      verified: false,
-      total_deliveries: 0,
-      rating: 4.5,
-      created_at: new Date(u.created_at || Date.now()).getTime(),
-    };
-  });
-
-  riders.sort((a, b) => b.created_at - a.created_at);
-  return NextResponse.json({ riders });
+  return NextResponse.json({ riders: data || [] });
 }
 
 export async function POST(req: Request) {

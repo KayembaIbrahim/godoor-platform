@@ -117,8 +117,153 @@ function categoryMatches(m: any, label: string): boolean {
   return raw.includes(label.toLowerCase());
 }
 
+/* Login and Signup Forms for the modal */
+function LoginForm() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { signIn } = useSession();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const result = await signIn(email, password);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        // Success - redirect will happen via session change
+      }
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-fg mb-1">Email address</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="w-full px-4 py-3 rounded-xl border border-border/50 focus:border-go focus:ring-go/20 bg-surface/50"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-fg mb-1">Password</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          className="w-full px-4 py-3 rounded-xl border border-border/50 focus:border-go focus:ring-go/20 bg-surface/50"
+        />
+      </div>
+      
+      {error && (
+        <p className="text-xs text-warning">{error}</p>
+      )}
+      
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-go text-white font-medium py-3 px-4 rounded-xl transition-colors hover:bg-go/90 disabled:opacity-50"
+      >
+        {loading ? "Signing in..." : "Sign In"}
+      </button>
+    </form>
+  );
+}
+
+function SignupForm() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { signUp } = useSession();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const result = await signUp(email, password, name, "customer");
+      if (result.error) {
+        setError(result.error);
+      } else {
+        // Success - redirect will happen via session change
+      }
+    } catch (err: any) {
+      setError(err.message || "Sign up failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-fg mb-1">Full name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          className="w-full px-4 py-3 rounded-xl border border-border/50 focus:border-go focus:ring-go/20 bg-surface/50"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-fg mb-1">Email address</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="w-full px-4 py-3 rounded-xl border border-border/50 focus:border-go focus:ring-go/20 bg-surface/50"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-fg mb-1">Password</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={6}
+          className="w-full px-4 py-3 rounded-xl border border-border/50 focus:border-go focus:ring-go/20 bg-surface/50"
+        />
+      </div>
+      
+      {error && (
+        <p className="text-xs text-warning">{error}</p>
+      )}
+      
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-go text-white font-medium py-3 px-4 rounded-xl transition-colors hover:bg-go/90 disabled:opacity-50"
+      >
+        {loading ? "Creating account..." : "Create Account"}
+      </button>
+    </form>
+  );
+}
+
 export default function HomePage() {
   const [apk, setApk] = useState<{ version: string | null; url: string | null } | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [selectedService, setSelectedService] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/app-release", { cache: "no-store" })
@@ -142,14 +287,11 @@ export default function HomePage() {
   const [districts, setDistricts] = useState<string[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
-  const animatedMerchants = useAnimatedCounter(totalMerchants || 1, 2000, statsVisible);
-  const animatedDeliveries = useAnimatedCounter(totalOrders || 1, 2200, statsVisible);
-  const animatedCities = useAnimatedCounter(districtCount || 1, 1800, statsVisible);
-
   useEffect(() => {
-    if (onboarded) window.location.href = roleHomePath(role);
-    else if (splash) setSplash(false);
-  }, [onboarded, role, splash]);
+    // Don't auto-redirect - let users explore first, then login if needed
+    // The auth modal will be shown via the explore button
+    if (splash) setSplash(false);
+  }, [splash]);
 
   // Fetch real merchant data on mount
   useEffect(() => {
@@ -182,7 +324,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="hero-wash">
+    <div className="min-h-[100dvh] bg-background flex flex-col">
       {/* Hero — dark and premium, the one place the brand leads.
           Everything below stays on the light surfaces so the page never
           becomes an all-orange wall. */}
@@ -752,11 +894,34 @@ export default function HomePage() {
             Live in Masaka · Expanding across Uganda
           </div>
 
-          <Link href="/onboarding" className="sheen relative mt-8 inline-block overflow-hidden rounded-xl bg-go px-8 py-4 text-sm font-semibold text-white shadow-glow transition-all hover:scale-[1.02] active:scale-[0.98]">
-            {onboarded ? "Open app" : "Try GoDoor now — it's free"}
-          </Link>
-          <p className="mt-3 text-xs text-dim">No card needed. Just your phone — pay with Morse for the swiftest checkout.</p>
-          <Link href="/tutorial" className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-go hover:underline">Watch how it works <Play className="h-3 w-3" /></Link>
+          <button
+            onClick={() => {
+              if (!onboarded) {
+                setShowAuthModal(true);
+                setAuthMode('signup');
+              }
+            }}
+            className="sheen relative mt-8 inline-block overflow-hidden rounded-xl bg-go px-8 py-4 text-sm font-semibold text-white shadow-glow transition-all hover:scale-[1.02] active:scale-[0.98]">
+            Try GoDoor now — it's free
+          </button>
+          {!onboarded && (
+            <p className="mt-3 text-xs text-dim">
+              No card needed. Just your phone — pay with Morse for the swiftest checkout.
+            </p>
+          )}
+          {onboarded && (
+            <Link href="/tutorial" className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-go hover:underline">Watch how it works <Play className="h-3 w-3" /></Link>
+          )}
+          {!onboarded && (
+            <div className="mt-6">
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="text-xs font-medium text-muted hover:text-go transition-colors underline"
+              >
+                Have an account? Sign in
+              </button>
+            </div>
+          )}
         </div>
       </section>
     </div>

@@ -36,6 +36,7 @@ const NAV = [
   { href: "/admin/promos", label: "Promo Codes", icon: Tag },
   { href: "/admin/campaigns", label: "Flyer Popups", icon: Megaphone },
   { href: "/admin/hero-banner", label: "Sponsored Banner", icon: PanelTop },
+  { href: "/admin/support", label: "Support", icon: ShieldCheck },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
 ];
 

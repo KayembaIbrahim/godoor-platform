@@ -1,0 +1,22 @@
+{
+  "name": "godoor-platform",
+  "compatibility_date": "2024-10-11",
+  "account_id": "f98f2ada83a694712cb0487335b2ae76",
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://ikbdhfjqiptsecunxzti.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "REDACTED_JWT"
+  },
+  "secrets": {
+    "SUPABASE_SERVICE_ROLE_KEY": true,
+    "SUPABASE_ACCESS_TOKEN": true
+  },
+  "main": "vinext/server/fetch-handler",
+  "assets": {
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "images": {
+    "binding": "IMAGES"
+  }
+}

@@ -123,7 +123,7 @@ export async function GET(request: Request) {
       data: placesData,
       timestamp: new Date().toISOString(),
       source: 'google_maps',
-      count: placesData.length
+      count: placesData?.length || 0
     }, { headers: corsHeaders })
 
   } catch (error) {
