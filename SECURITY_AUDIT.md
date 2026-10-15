@@ -53,7 +53,8 @@ Verified live: anon → `401 permission denied for function exec_sql`; service r
 ## 6. Residual risk (accepted)
 
 1. **Wallet ledger is in-memory** (`globalThis`) — survives only within a serverless instance. Swapping in a Postgres ledger is a small, well-isolated change (`src/lib/wallet-store.ts`).
-2. **MoMo provider is `demo`** — real money movement needs `MOMO_PROVIDER=flutterwave|pesapal|...` in `src/lib/momo.ts` plus the confirming webhook.
+2. **Payment system** — All payment processing now unified in `src/lib/wallet-store.ts` with secure escrow-protected transactions between all parties. The GoDoor/Morse wallet serves as the single payment source.
+3. **MoMo provider** — **Deprecated** - Legacy mobile money provider abstraction removed. All payment now unified through GoDoor/Morse wallet system in `lib/wallet-store.ts`. The system now exclusively uses the unified GoDoor/Morse wallet for all payment processing.
 3. **Admin auth** is a single shared HMAC cookie, not per-admin identities.
 4. **Build-gating**: `next.config.ts` no longer ignores type errors; CI is recommended.
 

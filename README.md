@@ -1,6 +1,6 @@
 # GoDoor — Uganda’s nationwide super-app
 
-**GoDoor** is a nationwide platform for businesses and people across Uganda. It combines online shopping, door-to-door delivery, and safe personal transport in one app: order what you need, move around your city, and pay locally with MTN MoMo, Airtel Money, or the GoDoor/Morse wallet.
+**GoDoor** is a nationwide platform for businesses and people across Uganda. It combines online shopping, door-to-door delivery, and safe personal transport in one app: order what you need, move around your city, and pay locally with the GoDoor/Morse wallet.
 
 Our ambition is simple: **make GoDoor the Grab-style super-app of Uganda.**
 
@@ -22,9 +22,9 @@ Our ambition is simple: **make GoDoor the Grab-style super-app of Uganda.**
 
 ### Pay your way
 
-- Top up the GoDoor/Morse wallet with **MTN MoMo** or **Airtel Money**.
+- Top up the GoDoor/Morse wallet using bank transfers, card payments, or cryptocurrency integrations.
 - Pay for shopping, deliveries, and rides from one balance.
-- Use direct mobile money or cash where supported.
+- Secure, escrow-protected transactions between all parties.
 - Review transactions, trip history, delivery history, and wallet activity in the app.
 
 ## Main app areas
@@ -72,14 +72,22 @@ Production map features require `NEXT_PUBLIC_MAPBOX_TOKEN`. Without a valid toke
 - The admin portal is protected by a secret path and signed session cookie.
 - Currency is **UGX**.
 
-### Production mobile money
+### Wallet system
+
+The GoDoor platform now uses a unified **GoDoor/Morse wallet system** for all payment processing:
 
 ```bash
-MOMO_PROVIDER=flutterwave   # or another configured provider
-FLUTTERWAVE_SECRET_KEY=     # server-only; never NEXT_PUBLIC_
+# All payment processing is handled through the unified wallet system
+# Morse wallet integration is built into the core payment infrastructure
 ```
 
-The default provider is `demo`. Live payments must use a signed webhook integration configured in `src/lib/momo.ts` and the production environment.
+The unified wallet system supports:
+- Bank transfers
+- Card payments
+- Cryptocurrency integrations
+- Secure, escrow-protected transactions
+- Real-time balance updates
+- Unified transaction history
 
 ## Technology
 

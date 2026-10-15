@@ -15,7 +15,7 @@
 | `lib/supabase-server.ts` | Service-role client (server-only). |
 | `lib/api-auth.ts` | Actor resolution (`admin` cookie → Supabase JWT), ownership helpers, order transition machine. |
 | `lib/dispatch.ts` | Rider dispatch: 25 km/h movement model, ETA, fare. |
-| `lib/momo.ts` | Mobile-money provider abstraction (demo by default). |
+| `lib/momo.ts` | **Deprecated** - Legacy mobile money provider abstraction. Removed in favor of unified GoDoor/Morse wallet system in `lib/wallet-store.ts`. All payment now handled through unified wallet.
 | `lib/wallet-store.ts` | In-memory wallet ledger (demo; Postgres swap point). |
 | `lib/utils.ts` | Fees, distance, UGX formatting. |
 | `app/tracking` | Customer live tracking (Gojek-style status hero + adaptive polling). |
