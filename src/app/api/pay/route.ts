@@ -4,7 +4,7 @@ import { debitGasFee, snapshotWallet } from "@/lib/wallet-store";
 import { newId } from "@/lib/utils";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid } from "@/lib/api-auth";
-import { refreshRateUgx, usdtConfig } from "@/lib/momo";
+import { refreshRateUgx, usdtConfig } from "@/lib/wallet-store";
 export const runtime = "nodejs";
 
 const PaySchema = z.object({

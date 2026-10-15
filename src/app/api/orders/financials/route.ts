@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize } from "@/lib/api-auth";
 import { computeOrderFinancials } from "@/lib/utils";
-import { refreshRateUgx } from "@/lib/momo";
+import { refreshRateUgx } from "@/lib/wallet-store";
 export const runtime = "nodejs";
 
 /**

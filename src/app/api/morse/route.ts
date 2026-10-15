@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { refreshRateUgx, usdtConfig } from "@/lib/momo";
+import { refreshRateUgx, usdtConfig } from "@/lib/wallet-store";
 export const runtime = "nodejs";
 
 /**

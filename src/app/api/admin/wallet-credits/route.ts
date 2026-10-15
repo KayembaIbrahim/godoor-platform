@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { listTopupRequests, type WalletCurrency } from "@/lib/wallet-store";
-import { collectionConfig, refreshRateUgx, usdtConfig } from "@/lib/momo";
+import { refreshRateUgx, usdtConfig } from "@/lib/wallet-store";
 import { isUuid } from "@/lib/api-auth";
 export const runtime = "nodejs";
 
