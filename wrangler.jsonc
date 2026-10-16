@@ -11,10 +11,20 @@
   "kv_namespaces": [
     {
       "binding": "PREFERENCES",
-      "id": "eeffd51dd4c24c3c8da755dcf92e3639"
+      "id": "5a661d1cbc654e099426d4ce5185877c"
     }
   ],
   "observability": {
     "enabled": true
-  }
+  },
+  "routes": [
+    {
+      "pattern": "godoor.site/*",
+      "zone_id": "4a437a3d3bd702ed1e638b5da30bd2f0"
+    },
+    {
+      "pattern": "www.godoor.site/*",
+      "zone_id": "4a437a3d3bd702ed1e638b5da30bd2f0"
+    }
+  ]
 }
