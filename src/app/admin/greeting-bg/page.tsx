@@ -6,9 +6,9 @@ import {
   CheckCircle2,
   Clapperboard,
   Eye,
+  Gauge,
   ImageIcon,
   Loader2,
-  Magometer,
   Save,
   RotateCcw,
   Upload,
@@ -334,7 +334,7 @@ export default function AdminGreetingBackground() {
           <div className="space-y-2 rounded-2xl border border-border bg-elevated p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Magometer className="h-4 w-4 text-muted" />
+                <Gauge className="h-4 w-4 text-muted" />
                 <label htmlFor="intensity" className="text-xs font-medium text-fg">
                   Art strength
                 </label>

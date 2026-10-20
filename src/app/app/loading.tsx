@@ -1,4 +1,4 @@
-import { SkeletonList } from "@/components/Skeleton";
+import { SkeletonCardRow, SkeletonGrid, SkeletonList } from "@/components/Skeleton";
 
 /**
  * Customer home. Data is fetched client-side from multiple endpoints, so the
