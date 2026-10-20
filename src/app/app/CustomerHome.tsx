@@ -254,10 +254,10 @@ export default function CustomerHome() {
           underneath it. Without it the header — and with it the location
           control — sits behind the notch. */}
       <header className="safe-area-top sticky top-0 z-30 border-b border-hairline bg-canvas/90 backdrop-blur-xl">
-        <div className="flex items-center gap-2 px-3 py-2">
+        <div className="flex items-center gap-3 px-3 py-2">
           <Link
             href="/"
-            className="flex min-h-11 shrink-0 items-center transition-transform active:scale-95"
+            className="flex min-h-11 min-w-0 shrink items-center transition-transform active:scale-95"
             aria-label="GoDoor home"
           >
             {/* `surface` is left on `auto`, so the artwork follows the customer's
@@ -275,7 +275,11 @@ export default function CustomerHome() {
                 invisible) was caused by `.hybrid` hard-setting a light canvas.
                 Fixing the token remap fixed that at its source, so the pin is
                 now only able to cause harm. */}
-            <Logo size="sm" />
+            {/* Capped at 76px: the 4:1 lockup is 96px at the "sm" height,
+                which ate a third of a 360px header row and pushed the four
+                account controls up against the edge. With a cap the artwork
+                scales down proportionally instead of the controls shrinking. */}
+            <Logo size="sm" maxWidth={76} />
           </Link>
 
           {/* The location selector used to sit HERE — in the middle of the
@@ -308,7 +312,7 @@ export default function CustomerHome() {
 
               The row now needs 272px, so it fits a 320px handset with room to
               spare, and every control is a comfortable tap target. */}
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setProductSearchOpen(true)}

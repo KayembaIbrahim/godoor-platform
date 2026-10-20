@@ -190,24 +190,75 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
   const isPickup = m.isPickup;
   const isDest = m.isDestination;
 
-  /* The rider is a puck, not a pin. It is the one thing on this map a customer
-     acts on, so it gets the treatment an app like Uber's driver puck gets: a
-     solid disc that rotates to the bearing and carries a directional nose, so
-     "which way are they going" is answerable at a glance. A teardrop pin for
-     the rider made heading ambiguous. */
+  /* ── The one rule this file must never break ───────────────────────────
+     Mapbox GL positions a marker by writing the transform onto the marker
+     ELEMENT itself:
+
+         element.style.transform = "translate(Xpx,Ypx) translate(-50%,-50%) …"
+
+     So the element must never carry a transform of its own, and must never
+     override its own `position`. Two things used to break that rule, and
+     between them they made EVERY pin on EVERY map sit in the wrong place:
+
+       1. `animation: marker-bounce … both` on the element. A CSS animation
+          outranks an inline style in the cascade, and `fill-mode: both` keeps
+          the final keyframe applied for ever afterwards — so the animation's
+          `transform: scale(1)` permanently REPLACED Mapbox's positioning
+          transform. The pin was drawn at the map's top-left corner, with its
+          coordinates nowhere in sight.
+       2. `position: relative` on the element. That overrode
+          `.mapboxgl-marker{position:absolute}` from mapbox-gl.css, so the
+          pins dropped out of absolute positioning and stacked in normal
+          flow, each one shoved down by the height of the pin above it.
+
+     The hover handlers had the same defect: they replaced the element's
+     transform with `scale(1.12)`, so the pin teleported to the corner the
+     moment the pointer touched it.
+
+     The fix is structural rather than cosmetic. The element is now an inert,
+     correctly-sized box that Mapbox alone positions, and EVERY visual
+     transform — the entry bounce, the hover scale, the heading rotation —
+     lives on an INNER wrapper. Mapbox keeps sole ownership of the outer
+     transform, so the pin lands exactly on its coordinate and stays there. */
+
   if (isRider) {
     const size = 44;
+
+    /* The element is inert: no position, no transform, no animation. */
     el.style.cssText = `
       width: ${size}px;
       height: ${size}px;
       display: block;
       background: transparent;
       cursor: pointer;
-      position: relative;
-      transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
-      animation: marker-bounce 0.6s cubic-bezier(0.34,1.56,0.64,1) both;
     `;
 
+    /* Hover wrapper — the only element allowed to carry a transform of its
+       own. Scaling happens about the puck's centre, which is the GPS point. */
+    const hover = document.createElement("div");
+    hover.style.cssText = `
+      position: absolute;
+      inset: 0;
+      transform-origin: 50% 50%;
+      transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
+    `;
+
+    /* Entry bounce, one level deeper so it cannot fight the hover scale.
+       Its last keyframe is `scale(1)` — an identity transform — so the
+       permanent fill left by `both` is inert. */
+    const bounce = document.createElement("div");
+    bounce.style.cssText = `
+      position: absolute;
+      inset: 0;
+      animation: marker-bounce 0.6s cubic-bezier(0.34,1.56,0.64,1) both;
+    `;
+    hover.appendChild(bounce);
+
+    /* The rider is a puck, not a pin. It is the one thing on this map a
+       customer acts on, so it gets the treatment an app like Uber's driver
+       puck gets: a solid disc that rotates to the bearing and carries a
+       directional nose, so "which way are they going" is answerable at a
+       glance. A teardrop pin for the rider made heading ambiguous. */
     const pulse = document.createElement("div");
     pulse.style.cssText = `
       position: absolute;
@@ -218,7 +269,7 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
       animation: marker-ring-pulse 1.8s ease-in-out infinite;
       pointer-events: none;
     `;
-    el.appendChild(pulse);
+    bounce.appendChild(pulse);
 
     /* Rotating body: holds the nose so the arrow always points down-road. */
     const rot = document.createElement("div");
@@ -232,12 +283,13 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
       <circle cx="22" cy="22" r="13" fill="#EA580C" stroke="#ffffff" stroke-width="3"/>
       <path d="M22 12.5 L26.4 20.2 L22 18.4 L17.6 20.2 Z" fill="#ffffff"/>
     </svg>`;
-    el.appendChild(rot);
+    bounce.appendChild(rot);
     (el as any).__gdrArrow = rot;
     (el as any).__gdrIsPuck = true;
 
     /* Name/ETA chip below the puck. Placed under the disc rather than over it
-       so it never covers the rider's own position. */
+       so it never covers the rider's own position. It is a direct child of the
+       element, so it stays put while the puck scales on hover. */
     if (m.label) {
       const chip = document.createElement("div");
       chip.textContent = m.label;
@@ -264,8 +316,10 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
       el.appendChild(chip);
     }
 
-    el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.12)"; });
-    el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
+    el.appendChild(hover);
+
+    el.addEventListener("mouseenter", () => { hover.style.transform = "scale(1.12)"; });
+    el.addEventListener("mouseleave", () => { hover.style.transform = "scale(1)"; });
     return el;
   }
 
@@ -294,18 +348,37 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
   const pinId = nextPinId();
   const svg = pinSvg({ size, light, dark, icon, id: pinId, shape });
 
+  /* The element is inert: no position, no transform, no animation. */
   el.style.cssText = `
     width: ${size}px;
     height: ${height}px;
     display: block;
     background: transparent;
     cursor: pointer;
-    position: relative;
+  `;
+
+  /* Hover wrapper. The transform-origin is the BOTTOM CENTRE, which is the
+     sharp tip of the teardrop — so the pin grows out of the point it marks
+     instead of sliding away from it. */
+  const hover = document.createElement("div");
+  hover.style.cssText = `
+    position: absolute;
+    inset: 0;
     transform-origin: 50% 100%;
     transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
+  `;
+
+  /* Entry bounce, nested inside the hover wrapper so the two transforms
+     never contend for the same property. */
+  const bounce = document.createElement("div");
+  bounce.style.cssText = `
+    position: absolute;
+    inset: 0;
     animation: marker-bounce 0.6s cubic-bezier(0.34,1.56,0.64,1) both;
   `;
-  el.innerHTML = svg;
+  hover.appendChild(bounce);
+  bounce.innerHTML = svg;
+  el.appendChild(hover);
 
   /* Soft ground shadow centred exactly on the tip (= the coordinate) */
   const shadow = document.createElement("div");
@@ -350,25 +423,6 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
     el.appendChild(wrap);
   }
 
-  /* Heading chevron — rotates to the rider's bearing around the pin */
-  if (isRider && m.heading != null && Number.isFinite(m.heading)) {
-    const arrow = document.createElement("div");
-    arrow.style.cssText = `
-      position: absolute;
-      left: 50%;
-      top: -8px;
-      width: 22px;
-      height: 22px;
-      transform: translateX(-50%) rotate(${m.heading}deg);
-      filter: drop-shadow(0 2px 2px rgba(0,0,0,0.4));
-      pointer-events: none;
-      z-index: 1;
-    `;
-    arrow.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2l7 10h-4v8h-6v-8H5z" fill="#EA580C" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
-    el.appendChild(arrow);
-    (el as any).__gdrArrow = arrow;
-  }
-
   /* Always-visible label chip under the pin */
   if (m.label && (isPickup || isDest || isRider)) {
     const chip = document.createElement("div");
@@ -397,8 +451,8 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
     el.appendChild(chip);
   }
 
-  el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.18)"; });
-  el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
+  el.addEventListener("mouseenter", () => { hover.style.transform = "scale(1.18)"; });
+  el.addEventListener("mouseleave", () => { hover.style.transform = "scale(1)"; });
 
   return el;
 }
@@ -1009,13 +1063,27 @@ function MapboxMapInner({
         userMarkerRef.current.setLngLat([userLocation.lng, userLocation.lat]);
       } else {
         const el = document.createElement("div");
+        /* Inert element — Mapbox owns its position and transform. The old
+           version put `animation: marker-ring-pulse …` and `position: relative`
+           on THIS element, which (a) let the animation override Mapbox's
+           positioning transform and parked the dot in the corner of the map,
+           and (b) faded the solid dot to zero opacity for most of the cycle.
+           The pulse is now a separate ring child. */
         el.style.cssText = `
           width: 26px; height: 26px; border-radius: 50%;
           background: var(--primary); border: 3px solid #fff;
           box-shadow: 0 0 0 6px rgba(241,90,34,0.3), 0 4px 12px rgba(0,0,0,0.35);
-          animation: marker-ring-pulse 2.5s ease-in-out infinite;
-          position: relative;
         `;
+        const ring = document.createElement("div");
+        ring.style.cssText = `
+          position: absolute;
+          inset: -7px;
+          border-radius: 50%;
+          border: 2.5px solid var(--primary);
+          animation: marker-ring-pulse 2.5s ease-in-out infinite;
+          pointer-events: none;
+        `;
+        el.appendChild(ring);
         const dot = document.createElement("div");
         dot.style.cssText = "width:9px;height:9px;border-radius:50%;background:#fff;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)";
         el.appendChild(dot);

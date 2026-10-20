@@ -902,6 +902,14 @@ function RoleOverview() {
   const [orders, setOrders] = useState<DBOrder[]>([]);
   const [shop, setShop] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  /* Live position of the rider on each active delivery, keyed by rider id.
+
+     The overview map used to pass `riderLoc={null}`, so the rider was simply
+     ABSENT from the map: the customer saw the shop pin and the drop-off pin
+     and nothing in between, which is exactly what "the markers are in the
+     wrong place" looks like from the outside. One realtime subscription per
+     active rider keeps the puck on the road. */
+  const [riderPos, setRiderPos] = useState<Record<string, { lat: number; lng: number; heading?: number | null; accuracy?: number | null }>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -928,6 +936,51 @@ function RoleOverview() {
 
   const active = orders.filter((o) => ["rider_assigned", "delivering"].includes(o.status));
   const upcoming = orders.filter((o) => ["payment_confirmed", "preparing"].includes(o.status));
+
+  /* Live rider positions for every active delivery on this screen.
+     Realtime first (the rider's phone pushes GPS every few seconds), with a
+     slow poll as the safety net so a dropped websocket event cannot leave the
+     puck frozen mid-street. */
+  useEffect(() => {
+    const riderIds = Array.from(
+      new Set(active.map((o) => o.rider_id).filter((id): id is string => !!id)),
+    );
+    if (riderIds.length === 0) { setRiderPos({}); return; }
+
+    let cancelled = false;
+    const unsubs: Array<() => void> = [];
+
+    for (const riderId of riderIds) {
+      /* Seed with the last known fix so the puck is on the map immediately
+         instead of appearing a few seconds later. */
+      fetchRiderLocation(riderId).then((loc) => {
+        if (cancelled || !loc) return;
+        setRiderPos((prev) => ({ ...prev, [riderId]: loc }));
+      }).catch(() => {});
+
+      const unsub = subscribeToRiderLocation(riderId, (loc) => {
+        if (cancelled) return;
+        setRiderPos((prev) => ({ ...prev, [riderId]: loc }));
+      });
+      unsubs.push(unsub);
+    }
+
+    const poll = window.setInterval(() => {
+      if (document.hidden) return;
+      for (const riderId of riderIds) {
+        fetchRiderLocation(riderId).then((loc) => {
+          if (cancelled || !loc) return;
+          setRiderPos((prev) => ({ ...prev, [riderId]: loc }));
+        }).catch(() => {});
+      }
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+      unsubs.forEach((u) => { try { u(); } catch {} });
+    };
+  }, [active.map((o) => o.rider_id).filter(Boolean).join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resolve the shop coordinates for the first in-transit order so the map
   // always has a pickup pin even when the order or the viewer lacks GPS.
@@ -967,6 +1020,19 @@ function RoleOverview() {
   const overviewRoadCoords = overviewRoadRoute && overviewRoadRoute.coordinates.length >= 2
     ? overviewRoadRoute.coordinates : null;
 
+  /* The rider whose puck the overview map shows: the one assigned to the order
+     whose drop-off pin is on screen. Falls back to any active rider so the
+     map is never missing the one marker the customer is watching for. */
+  const overviewRider = useMemo(() => {
+    const forOrder = orderWithLoc?.rider_id ? riderPos[orderWithLoc.rider_id] : undefined;
+    if (forOrder) return { loc: forOrder };
+    for (const o of active) {
+      const p = o.rider_id ? riderPos[o.rider_id] : undefined;
+      if (p) return { loc: p };
+    }
+    return null;
+  }, [orderWithLoc?.rider_id, active, riderPos]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -991,7 +1057,9 @@ function RoleOverview() {
         <div className="h-[78vh] min-h-[540px] w-full sm:h-[620px]">
           <LiveTrackingMap
             fill
-            riderLoc={null}
+            riderLoc={overviewRider?.loc ?? null}
+            riderHeading={overviewRider?.loc.heading ?? null}
+            riderAccuracy={overviewRider?.loc.accuracy ?? null}
             dropoffLoc={dropLoc}
             pickupLoc={shop}
             showPickup={!!shop}

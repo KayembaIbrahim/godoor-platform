@@ -33,11 +33,23 @@ export function Logo({
   markOnly = false,
   showWordmark = true,
   surface = "auto",
+  maxWidth,
 }: {
   className?: string;
   size?: "sm" | "md" | "lg";
   markOnly?: boolean;
   showWordmark?: boolean;
+  /**
+   * Cap the rendered width, letting the artwork scale down PROPORTIONALLY.
+   *
+   * The lockup is 4:1, so at the "sm" height it is 96px wide — a third of a
+   * 360px phone's header row, and the reason the account controls had nowhere
+   * to breathe. Passing a cap here shrinks the artwork to fit instead of
+   * letting it push the controls off the edge. `width:auto` with `height:auto`
+   * and a `max-width` keeps the aspect ratio intact (a fixed height plus a
+   * capped width would squash the wordmark).
+   */
+  maxWidth?: number;
   /**
    * The background this logo actually sits on.
    *
@@ -66,6 +78,12 @@ export function Logo({
   const navyClass = forceDark ? "hidden" : forceLight ? "" : "dark:hidden";
   const whiteClass = forceLight ? "hidden" : forceDark ? "" : "hidden dark:block";
 
+  /* A capped logo scales PROPORTIONALLY: with `height:auto` the browser keeps
+     the intrinsic ratio and derives the other axis from the cap. */
+  const imgStyle: React.CSSProperties = maxWidth
+    ? { maxWidth, width: "auto", height: "auto" }
+    : { height, width: "auto" };
+
   return (
     <span className={cn("inline-flex items-center", className)}>
       <Image
@@ -74,7 +92,7 @@ export function Logo({
         width={intrinsic.width}
         height={intrinsic.height}
         sizes={`${width}px`}
-        style={{ height, width: "auto" }}
+        style={imgStyle}
         className={navyClass || undefined}
       />
       {/* Same artwork with the navy lifted to near-white; hidden from
@@ -86,7 +104,7 @@ export function Logo({
         width={intrinsic.width}
         height={intrinsic.height}
         sizes={`${width}px`}
-        style={{ height, width: "auto" }}
+        style={imgStyle}
         className={whiteClass || undefined}
       />
     </span>
