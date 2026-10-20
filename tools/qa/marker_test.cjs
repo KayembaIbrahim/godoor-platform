@@ -3,7 +3,7 @@ const path = require('path');
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 500, height: 400 } });
-  await p.goto('file://' + path.resolve('marker_test.html'));
+  await p.goto('file://' + path.resolve(__dirname, 'marker_test.html'));
   await p.waitForTimeout(1500);
   const r = await p.evaluate(() => {
     const out = {};

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Compass, ShieldCheck, Wallet, Clock } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuthModal } from "@/lib/auth-modal-store";
+import { useHydrated } from "@/lib/use-hydrated";
 import { useSession, roleHomePath } from "@/lib/session-store";
 
 /**
@@ -48,6 +49,14 @@ export function WelcomeScreen({
   initialBackground?: WelcomeBackground | null;
 }) {
   const { onboarded, role } = useSession();
+  /* The session lives in localStorage, so the server renders the "Sign in"
+     pair while the client knows on its very first render whether anyone is
+     signed in. The two trees would disagree, React would throw #418, and it
+     would throw away the whole server-rendered page — artwork included. Only
+     swap to the dashboard link once React has hydrated; the layout effect
+     behind `useHydrated` flips this before the browser paints. */
+  const hydrated = useHydrated();
+  const showDashboard = hydrated && onboarded;
   const openAuth = useAuthModal((s) => s.open);
 
   // The published welcome background. Seeded from the server so the first
@@ -215,7 +224,13 @@ export function WelcomeScreen({
         </div>
 
         {/* ── Auth entry points ────────────────────────────────────────── */}
-        {onboarded ? (
+        {/* The session is in localStorage, so the server always renders the
+            "Sign in / Create account" pair while the client knows from the very
+            first render whether someone is signed in. The two trees would
+            disagree and React would throw #418 and throw away the whole page.
+            Keep rendering what the server rendered until React has hydrated;
+            the layout effect flips this before the browser paints. */}
+        {showDashboard ? (
           <Link
             href={roleHomePath(role)}
             className="mt-7 inline-flex items-center gap-2 rounded-full bg-go px-7 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-go-2 active:scale-[0.98]"
