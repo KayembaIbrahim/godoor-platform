@@ -6,6 +6,7 @@ import Link from "next/link";
 import { User, LogOut, Package, ShieldCheck, ChevronDown, ShoppingBag, ArrowRight, Mail, Lock, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
 import { useSession, roleHomePath } from "@/lib/session-store";
 import { useAuthModal, type AuthMode } from "@/lib/auth-modal-store";
+import { useHydrated } from "@/lib/use-hydrated";
 import { Logo } from "@/components/Logo";
 
 /**
@@ -175,6 +176,18 @@ function AuthModal({ open, onClose, startMode }: { open: boolean; onClose: () =>
 export function HeaderAuth({ compact = false }: { compact?: boolean }) {
   const { onboarded, role, profile, supabaseUser, signOut } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  /* The session lives in localStorage, so the server cannot know whether
+     anyone is signed in — it always renders the signed-out control. Zustand
+     rehydrates synchronously, so the client would render the avatar on its
+     FIRST render and the two trees would disagree, throwing hydration error
+     #418 and making React discard the whole server-rendered page.
+
+     Until React has hydrated we therefore render exactly what the server
+     rendered; the layout effect in `useHydrated` flips this before the
+     browser paints, so a signed-in user sees their avatar immediately and
+     never sees a flash of the "Sign in" button. */
+  const hydrated = useHydrated();
+  const showAccount = hydrated && onboarded;
   // The dialog is a page-wide singleton (see `auth-modal-store`), so the hero
   // can ask for "Create account" and open THIS form rather than duplicating it.
   const authMode = useAuthModal((s) => s.mode);
@@ -200,7 +213,7 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
     window.location.href = "/";
   };
 
-  if (onboarded) {
+  if (showAccount) {
     const initial = (profile.name || profile.email || "U").charAt(0).toUpperCase();
     const displayName = profile.name || profile.email || "User";
     const displayEmail = supabaseUser?.email || profile.email || "";

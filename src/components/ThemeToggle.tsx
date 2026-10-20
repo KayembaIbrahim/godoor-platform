@@ -1,12 +1,20 @@
 "use client";
 
 import { useThemeStore } from "@/lib/theme-store";
+import { useHydrated } from "@/lib/use-hydrated";
 import { Sun, Moon, Monitor } from "lucide-react";
 
 /** Cycles light → dark → system, so every preference stays reachable. */
 export function ThemeToggle() {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  /* The theme is persisted to localStorage and rehydrated synchronously, so
+     the client knows the user's theme on its first render while the server
+     only ever knows "light". Rendering the persisted theme's icon immediately
+     would make the two trees disagree. The icon waits for hydration — the
+     page itself is already themed by the pre-paint script in the layout, so
+     nothing flickers. */
+  const hydrated = useHydrated();
 
   const nextTheme = () => {
     if (theme === "light") setTheme("dark");
@@ -15,7 +23,9 @@ export function ThemeToggle() {
   };
 
   const themeIcon = () => {
-    switch (theme) {
+    // Before hydration, show the same icon the server rendered.
+    const shown = hydrated ? theme : "light";
+    switch (shown) {
       case "light":
         return <Sun className="h-4 w-4" />;
       case "dark":

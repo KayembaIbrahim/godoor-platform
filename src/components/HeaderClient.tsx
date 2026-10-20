@@ -8,6 +8,7 @@ import { Logo } from "@/components/Logo";
 import { HeaderAuth } from "@/components/HeaderAuth";
 import { NotificationBell } from "@/components/NotificationBell";
 import { BuildBadge } from "@/components/BuildBadge";
+import { useHydrated } from "@/lib/use-hydrated";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useSession, roleHomePath } from "@/lib/session-store";
 import { useCart } from "@/lib/cart-store";
@@ -60,6 +61,17 @@ export function HeaderClient() {
   );
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  /* The session lives in localStorage, so the server has no idea whether
+     anyone is signed in — it always renders the signed-out header. Zustand
+     rehydrates synchronously, so the client would render the signed-in nav
+     (and a different logo link) on its very first render, and React would
+     throw hydration error #418 and throw the whole server-rendered page away.
+
+     `signedIn` stays false until React has hydrated, which makes the first
+     client render identical to the server's. The layout effect behind
+     `useHydrated` flips it before the browser paints, so the real nav appears
+     without a flash. */
+  const hydrated = useHydrated();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -85,9 +97,10 @@ export function HeaderClient() {
   if (ownsItsHeader) return null;
 
   const dashboardHref = roleHomePath(role);
-  const isBusiness = onboarded && role === "business";
-  const isRider = onboarded && role === "rider";
-  const isCustomer = !onboarded || role === "customer";
+  const signedIn = hydrated && onboarded;
+  const isBusiness = signedIn && role === "business";
+  const isRider = signedIn && role === "rider";
+  const isCustomer = !signedIn || role === "customer";
 
   return (
     <header
@@ -98,9 +111,9 @@ export function HeaderClient() {
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
         <div className="flex items-center gap-6">
           <Link
-            href={onboarded ? dashboardHref : "/"}
+            href={signedIn ? dashboardHref : "/"}
             className="group flex min-h-11 items-center gap-2 pr-2 transition-transform active:scale-95"
-            title={onboarded ? "Go to my dashboard" : "GoDoor home"}
+            title={signedIn ? "Go to my dashboard" : "GoDoor home"}
           >
             <Logo size="sm" />
           </Link>
@@ -120,7 +133,7 @@ export function HeaderClient() {
                     </Link>
                   );
                 })}
-                {!onboarded && (
+                {!signedIn && (
                   <>
                     <Link href="/partner?role=business" className="nav-pill nav-pill-idle">
                       For Business
@@ -207,7 +220,7 @@ export function HeaderClient() {
                 {/* The dashboard CTA used to point at /app, which is the same
                     page as "Browse". These are the destinations a signed-in
                     customer actually opens from here. */}
-                {onboarded && (
+                {signedIn && (
                   <>
                     <Link href="/orders" onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-fg hover:bg-elevated transition">My orders</Link>
                     <Link href="/cart" onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-fg hover:bg-elevated transition">Cart</Link>
@@ -223,7 +236,7 @@ export function HeaderClient() {
             {isRider && RIDER_LINKS.map((link) => (
               <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/10 transition">{link.label}</Link>
             ))}
-            {!onboarded ? (
+            {!signedIn ? (
               <>
                 <Link href="/partner?role=business" onClick={() => setMenuOpen(false)} className="rounded-xl bg-primary/10 px-3 py-2.5 text-sm font-semibold text-primary hover:bg-primary/15 transition">Register your shop</Link>
                 <Link href="/partner?role=rider" onClick={() => setMenuOpen(false)} className="rounded-xl bg-success/10 px-3 py-2.5 text-sm font-semibold text-success hover:bg-success/15 transition">Become a rider</Link>

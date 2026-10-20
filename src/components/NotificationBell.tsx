@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Bell, Package, CheckCircle2, Truck, Clock, X } from "lucide-react";
 import { useNotifications } from "@/lib/notifications-store";
 import { useSession } from "@/lib/session-store";
+import { useHydrated } from "@/lib/use-hydrated";
 import PushToggle from "@/components/PushToggle";
 import { labelForStatus } from "@/lib/notification-core";
 
@@ -37,6 +38,11 @@ export function NotificationBell() {
   const myItems = items.filter((n) => !n.role || !role || n.role === role);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  /* The unread count comes from a store persisted to localStorage, so the
+     server renders the bell with no badge while the client would render one
+     on its very first render — a hydration mismatch. The badge waits for
+     hydration; the bell itself is identical either way. */
+  const hydrated = useHydrated();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -62,7 +68,7 @@ export function NotificationBell() {
             floating ~12px away from the bell it belongs to. */}
         <span className="relative inline-flex">
           <Bell className="h-4 w-4" />
-          {unread > 0 && (
+          {hydrated && unread > 0 && (
             <span className="absolute -top-1.5 -right-1.5 grid h-4 w-4 place-items-center rounded-full bg-go text-[8px] font-bold text-white">
               {unread > 9 ? "9+" : unread}
             </span>
