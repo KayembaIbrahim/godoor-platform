@@ -1,0 +1,17 @@
+{
+  "name": "godoor-platform-assets",
+  "compatibility_date": "2026-10-13",
+  "assets": {
+    "directory": "dist/client"
+  },
+  "routes": [
+    {
+      "pattern": "godoor.site/*",
+      "zone_id": "4a437a3d3bd702ed1e638b5da30bd2f0"
+    },
+    {
+      "pattern": "www.godoor.site/*",
+      "zone_id": "4a437a3d3bd702ed1e638b5da30bd2f0"
+    }
+  ]
+}
