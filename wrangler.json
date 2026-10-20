@@ -1,14 +1,16 @@
 {
   "name": "godoor-platform",
-  "compatibility_date": "2026-10-13",
+  "main": "worker.js",
+  "compatibility_date": "2024-10-11",
   "compatibility_flags": ["nodejs_compat"],
-  "kv_namespaces": [
+  "routes": [
     {
-      "binding": "PREFERENCES",
-      "id": "eeffd51dd4c24c3c8da755dcf92e3639"
+      "pattern": "godoor.site/*",
+      "zone_id": "4a437a3d3bd702ed1e638b5da30bd2f0"
+    },
+    {
+      "pattern": "www.godoor.site/*",
+      "zone_id": "4a437a3d3bd702ed1e638b5da30bd2f0"
     }
-  ],
-  "observability": {
-    "enabled": true
-  }
+  ]
 }
