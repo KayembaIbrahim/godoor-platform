@@ -287,7 +287,13 @@ export default function CustomerHome() {
               only the brand, the page context and the account controls, and
               the address always has the whole width to itself. */}
 
-          <div className="flex shrink-0 items-center gap-0.5">
+          {/* The icon cluster. This used to be `gap-0.5` (2px), which packed
+              the search, bell, theme toggle and avatar so tightly that they
+              read as one smudge on a 360px phone and were easy to mis-tap.
+              `gap-1.5` (6px) plus a touch-friendly hit area on each control
+              gives them room to be read as separate buttons without making
+              the row any wider. */}
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={() => setProductSearchOpen(true)}

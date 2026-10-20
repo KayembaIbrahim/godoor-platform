@@ -8,6 +8,7 @@ import {
   Eye,
   ImageIcon,
   Layers,
+  Link2,
   Loader2,
   Play,
   Plus,
@@ -17,6 +18,7 @@ import {
   Upload,
   Video,
 } from "lucide-react";
+import { explainMediaLink, isUsableMediaLink, isVideoLink } from "@/lib/media-url";
 
 /**
  * Admin control of the welcome page background (version 10.5.1).
@@ -80,6 +82,12 @@ export default function AdminWelcomeBackground() {
   // new slide appended to the show.
   const uploadTarget = useRef<"image" | "slide">("slide");
   const videoTarget = useRef<"image" | "slide">("slide");
+
+  // A directly-pasted link, distinct from any upload. Apply changes to the
+  // live background state by hand rather than through `uploadFile`.
+  const [urlDraft, setUrlDraft] = useState("");
+  const [urlMode, setUrlMode] = useState<"show" | "background">("show");
+  const urlInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void (async () => {
@@ -147,6 +155,52 @@ export default function AdminWelcomeBackground() {
 
   function removeSlide(id: string) {
     setBg((b) => ({ ...b, slides: b.slides.filter((s) => s.id !== id), published: false }));
+  }
+
+  /**
+   * Apply a directly-pasted media link.
+   *
+   * The admin may either upload a file OR point at media that already lives
+   * elsewhere (a CDN, a public R2 bucket, a Terabox direct-download link).
+   * Both paths end up in the same place — a URL the welcome page can paint —
+   * so the admin is not forced into one way of working.
+   *
+   * The check here is for the admin's benefit only; the server re-validates
+   * the URL authoritatively before anything is stored.
+   */
+  function applyUrl() {
+    const raw = urlDraft.trim();
+    const problem = explainMediaLink(raw);
+    if (problem) {
+      flash(false, problem);
+      return;
+    }
+    if (!isUsableMediaLink(raw)) {
+      flash(false, "That link cannot be used. Use a direct https:// link to an image or video file.");
+      return;
+    }
+
+    const video = isVideoLink(raw);
+
+    if (urlMode === "background") {
+      if (video) {
+        flash(false, "A video cannot be the single background — add it to the show instead.");
+        return;
+      }
+      setBg((b) => ({ ...b, imageUrl: raw, published: false }));
+      flash(true, "Background set from the link. Press Publish to make it live.");
+      return;
+    }
+
+    const slide: Slide = {
+      id: `slide-${Date.now()}`,
+      type: video ? "video" : "image",
+      url: raw,
+      durationMs: video ? 5000 : bg.slideDurationMs,
+    };
+    setBg((b) => ({ ...b, slides: [...b.slides, slide], published: false }));
+    setUrlDraft("");
+    flash(true, `${video ? "Video" : "Image"} added to the show from the link.`);
   }
 
   function moveSlide(id: string, dir: -1 | 1) {
@@ -503,6 +557,89 @@ export default function AdminWelcomeBackground() {
                 Add video slide
               </button>
             </div>
+
+            {/* ── Or paste a direct link ───────────────────────────────────
+                The admin is not forced to upload. Media that already lives
+                somewhere else — a CDN, a public bucket, a Terabox direct
+                download — can be pasted in and used exactly like an upload.
+                The server re-validates the link before storing it. */}
+            <div className="mt-3 rounded-xl border border-border bg-elevated p-3">
+              <div className="mb-2 flex items-center gap-1.5">
+                <Link2 className="h-3.5 w-3.5 text-go" />
+                <span className="text-[11px] font-semibold text-fg">
+                  Or paste a direct link
+                </span>
+              </div>
+
+              <input
+                ref={urlInputRef}
+                type="url"
+                inputMode="url"
+                value={urlDraft}
+                onChange={(e) => setUrlDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyUrl();
+                  }
+                }}
+                placeholder="https://example.com/your-image.jpg"
+                className="w-full rounded-lg border border-border bg-canvas px-2.5 py-2 font-mono text-[11px] text-fg outline-none transition focus:border-go/50 focus:ring-1 focus:ring-go/30"
+                aria-label="Direct media link"
+              />
+
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {/* Where the pasted link should go. */}
+                <div className="flex rounded-lg border border-border bg-bg p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setUrlMode("show")}
+                    className={`rounded-md px-2.5 py-1 text-[10px] font-semibold transition ${
+                      urlMode === "show" ? "bg-go text-white" : "text-muted hover:text-fg"
+                    }`}
+                  >
+                    Add to show
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUrlMode("background")}
+                    className={`rounded-md px-2.5 py-1 text-[10px] font-semibold transition ${
+                      urlMode === "background" ? "bg-go text-white" : "text-muted hover:text-fg"
+                    }`}
+                  >
+                    Set as background
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={applyUrl}
+                  disabled={busy !== null || !urlDraft.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-go px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-go-2 disabled:opacity-40"
+                >
+                  <Link2 className="h-3 w-3" />
+                  Apply link
+                </button>
+
+                {urlDraft && (
+                  <button
+                    type="button"
+                    onClick={() => setUrlDraft("")}
+                    className="text-[10px] font-medium text-muted underline underline-offset-2 hover:text-fg"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <p className="mt-2 text-[10px] leading-relaxed text-dim">
+                Use the <b>direct file link</b>, not a share page. A Terabox
+                share page (<code>terabox.com/s/…</code>) is a web page, not an
+                image, so it will never appear — use Terabox&apos;s
+                &quot;Direct download&quot; link instead. Videos (<code>.mp4</code>,
+                <code>.webm</code>) work in the show.
+              </p>
+            </div>
           </div>
 
           {/* ── Single image ──────────────────────────────────────────── */}
@@ -576,7 +713,7 @@ export default function AdminWelcomeBackground() {
             </button>
           </div>
 
-          <div className="rounded-xl border border-border bg-surface-2 p-3 text-[11px] leading-relaxed text-muted">
+          <div className="rounded-xl border border-border bg-elevated p-3 text-[11px] leading-relaxed text-muted">
             <p className="mb-1 font-semibold text-fg">How it works</p>
             <p>
               Uploading fills in the image and shows a preview — the live page is

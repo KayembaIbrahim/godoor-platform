@@ -21,3 +21,6 @@ scripts/.*.json
 
 .vinext/
 .wrangler/
+
+# Local production backups (contain user PII — never commit)
+db-backup-*.json

@@ -135,18 +135,33 @@ export const useSession = create<SessionState>()(
               : { ...get().profile };
             const meta = user.user_metadata || {};
             clearAdminSessionIfSwitched(prevUserId, user.id);
-            // Sync morse_tag from the profiles table — the DB is the source
-            // of truth and may differ from stale auth metadata (e.g. a
-            // successful upsert where the metadata mirror failed silently).
+            // Sync both sources of truth for each field: the DB `profiles` table
+            // (which admins/staff touch directly) and Supabase auth `user_metadata`
+            // (which the client-side onboarding and avatar upload set). The DB
+            // wins: it is the row the RLS-protected profile model mirrors, and it
+            // survives a stale localStorage snapshot that would otherwise shadow
+            // the auth metadata and make an avatar stop showing after the first
+            // visit. morse_tag here is the proof-pattern the rest of the store
+            // now mirrors as well — extending it to avatar_url keeps the two
+            // fields consistent for any avatar written outside the app.
             let profileMorseTag = get().profile.morseTag || (meta.morse_tag as string) || "";
+            let profileAvatarUrl = get().profile.avatarUrl || (meta.avatar as string) || "";
             try {
               const { data: profRow } = await sb
                 .from("profiles")
-                .select("morse_tag")
+                .select(["morse_tag", "avatar_url"])
                 .eq("id", user.id)
                 .maybeSingle();
-              const dbTag = String((profRow as { morse_tag?: string | null } | null)?.morse_tag || "").trim();
+              const dbTag = String((profRow as { morse_tag?: string | null; avatar_url?: string | null } | null)?.morse_tag ?? "").trim();
+              const dbAvatar = (profRow as { avatar_url?: string | null } | null)?.avatar_url || "";
               if (dbTag) profileMorseTag = dbTag;
+              // DB avatar beats the auth-metadata avatar: admins store directly
+              // into the profiles row and bypass the auth metadata, so ignoring
+              // that column silently hides their avatar forever. Only fall back
+              // to meta.avatar when the DB has nothing — i.e. nothing was ever
+              // written there — otherwise a legacy meta.avatar set before the
+              // column existed would be dismissed.
+              if (dbAvatar) profileAvatarUrl = dbAvatar;
             } catch {}
 
             set({
@@ -157,7 +172,7 @@ export const useSession = create<SessionState>()(
                 name: (meta.name as string) || get().profile.name,
                 displayName: get().profile.displayName || (meta.display_name as string) || (meta.name as string) || get().profile.name,
                 phone: (meta.phone as string) || get().profile.phone || "",
-                avatarUrl: get().profile.avatarUrl || (meta.avatar as string) || "",
+                avatarUrl: profileAvatarUrl,
                 morseTag: profileMorseTag,
                 mustChangePassword: meta.must_change_password === true,
               },

@@ -27,6 +27,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseStoredValue } from "./welcome-bg-server";
+import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, extensionHint } from "./media-url";
 
 type Sb = SupabaseClient;
 
@@ -49,6 +50,15 @@ export type GreetingBackground = {
   published: boolean;
   /** True when the uploaded file was a GIF. */
   isGif: boolean;
+  /**
+   * How the artwork should be played.
+   *
+   * `image` covers stills AND animated GIFs — the browser animates a GIF on
+   * its own, so it needs no special handling. `video` means a real video
+   * file, which the card plays in a `<video>` element instead of painting it
+   * as a background (a background-image cannot play video at all).
+   */
+  mediaType: "image" | "video";
   /** When the record was last written (ISO 8601). */
   updatedAt: string;
 };
@@ -58,11 +68,9 @@ export const DEFAULT_GREETING_BACKGROUND: GreetingBackground = {
   intensity: 100,
   published: false,
   isGif: false,
+  mediaType: "image",
   updatedAt: "",
 };
-
-/** Artwork extensions we accept. The GIF is called out so the UI can react. */
-const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"];
 
 /**
  * Accept only a real remote image or a path on this site.
@@ -101,16 +109,37 @@ export function sanitizeArtworkUrl(raw: unknown): string {
  */
 export function looksLikeGif(raw: unknown): boolean {
   if (typeof raw !== "string") return false;
-  const withoutQuery = raw.split("?")[0].toLowerCase();
-  return withoutQuery.endsWith(".gif");
+  return extensionHint(raw) === "gif";
 }
 
-/** Is this URL an artwork type we know how to render? */
+/**
+ * Is this URL an artwork type we know how to render?
+ *
+ * Two cases are rejected outright:
+ *   • a URL whose path clearly points at a document or a web page
+ *     (`.html`, `.pdf`, `.php` …) — those would silently fail to paint, and a
+ *     share page is the single most common mistake when pasting a link;
+ *   • anything that is not `https:` — that is the real security control.
+ *
+ * A URL with NO extension at all is ACCEPTED. Plenty of real hosts serve
+ * images from opaque paths (`https://cdn.example.com/i/8f3a91`), and refusing
+ * them would break a link that works perfectly well in the browser. The
+ * admin's own preview is the honest test of whether the link is good, and the
+ * UI says so.
+ */
 export function isSupportedArtwork(raw: unknown): boolean {
   const url = sanitizeArtworkUrl(raw);
   if (!url) return false;
-  const withoutQuery = url.split("?")[0].toLowerCase();
-  return IMAGE_EXTENSIONS.some((ext) => withoutQuery.endsWith(ext));
+  const ext = extensionHint(url);
+  if (!ext) return true; // Unknown but plausible — let the browser decide.
+  return IMAGE_EXTENSIONS.includes(ext);
+}
+
+/** Is this URL a video file the card can play in a `<video>` element? */
+export function isVideoArtwork(raw: unknown): boolean {
+  const url = sanitizeArtworkUrl(raw);
+  if (!url) return false;
+  return VIDEO_EXTENSIONS.includes(extensionHint(url));
 }
 
 function clampIntensity(raw: unknown): number {
@@ -119,18 +148,30 @@ function clampIntensity(raw: unknown): number {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
-/** Normalise whatever is stored into a safe, complete record. */
+/**
+ * Normalise whatever is stored into a safe, complete record.
+ *
+ * `mediaType` is derived from the URL's content kind rather than being
+ * purely client-side: the card renders an animated GIF as a still (the browser
+ * does it), so GIFs and video both need to be distinguished, but everything
+ * else — a static JPEG with no extension, or an opaque-path CDN link — falls
+ * through to the "image" case.
+ */
 export function normalizeGreetingBackground(raw: unknown): GreetingBackground {
   const obj = (raw ?? {}) as Record<string, unknown>;
   const imageUrl = sanitizeArtworkUrl(obj.imageUrl);
+  const ext = extensionHint(imageUrl);
   const hasMedia = imageUrl !== "";
   return {
     imageUrl,
     intensity: clampIntensity(obj.intensity),
-    // An empty artwork is never "published" — that would leave the card
-    // pointing at nothing while the admin believes it is live.
     published: Boolean(obj.published) && hasMedia,
-    isGif: typeof obj.isGif === "boolean" ? obj.isGif : looksLikeGif(imageUrl),
+    isGif: ext === "gif",
+    // A real GIF counts as an IMAGE (the browser animates it on its own through
+    // `background-image`), so only genuine video files route to the `<video>`
+    // element. Everything else — a static JPEG with no extension, or an
+    // opaque-path CDN link — falls through to the image case.
+    mediaType: hasMedia && !ext ? "image" : ext === "gif" ? "image" : isVideoArtwork(imageUrl) ? "video" : "image",
     updatedAt: typeof obj.updatedAt === "string" ? obj.updatedAt : "",
   };
 }

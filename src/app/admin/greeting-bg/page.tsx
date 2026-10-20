@@ -8,11 +8,13 @@ import {
   Eye,
   Gauge,
   ImageIcon,
+  Link2,
   Loader2,
   Save,
   RotateCcw,
   Upload,
 } from "lucide-react";
+import { explainMediaLink, isUsableMediaLink, isVideoLink } from "@/lib/media-url";
 
 /**
  * Admin control of the greeting card's background artwork (version 10.5.1).
@@ -50,6 +52,7 @@ type Background = {
   intensity: number;
   published: boolean;
   isGif?: boolean;
+  mediaType?: "image" | "video";
 };
 
 const EMPTY: Background = {
@@ -57,6 +60,7 @@ const EMPTY: Background = {
   intensity: 100,
   published: false,
   isGif: false,
+  mediaType: "image",
 };
 
 export default function AdminGreetingBackground() {
@@ -65,6 +69,10 @@ export default function AdminGreetingBackground() {
   const [busy, setBusy] = useState<"save" | "upload" | "reset" | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // A directly-pasted link, kept separate from the upload flow so the two
+  // never fight over the same state.
+  const [urlDraft, setUrlDraft] = useState("");
 
   useEffect(() => {
     void (async () => {
@@ -118,13 +126,54 @@ export default function AdminGreetingBackground() {
       const data = (await res.json()) as { url?: string };
       if (!data.url) throw new Error("Upload returned no URL");
 
-      setBg((b) => ({ ...b, imageUrl: data.url!, published: false }));
+      const uploaded = data.url;
+      const video = isVideoLink(uploaded);
+      setBg((b) => ({
+        ...b,
+        imageUrl: uploaded,
+        isGif: !video && /\.gif(\?|#|$)/i.test(uploaded),
+        mediaType: video ? "video" : "image",
+        published: false,
+      }));
       flash(true, "Artwork uploaded. Review the preview, then publish.");
     } catch (e) {
       flash(false, e instanceof Error ? e.message : "Upload failed");
     } finally {
       setBusy(null);
     }
+  }
+
+  /**
+   * Apply a directly-pasted artwork link.
+   *
+   * The admin may either UPLOAD a file (we publish it to our own bucket and
+   * link it) or point at media that already lives somewhere else — a CDN, a
+   * public R2 bucket, a Terabox direct-download link. Both paths end up in the
+   * same place, so the admin is never forced into one way of working.
+   *
+   * The check here is only for the admin's benefit (an immediate, specific
+   * message instead of a generic "Save failed"). The server re-validates the
+   * URL authoritatively before storing anything.
+   */
+  function applyUrl() {
+    const raw = urlDraft.trim();
+    const problem = explainMediaLink(raw);
+    if (problem) {
+      flash(false, problem);
+      return;
+    }
+    if (!isUsableMediaLink(raw)) {
+      flash(false, "That link cannot be used. Use a direct https:// link to an image or GIF.");
+      return;
+    }
+    setBg((b) => ({
+      ...b,
+      imageUrl: raw,
+      isGif: !isVideoLink(raw) && /\.gif(\?|#|$)/i.test(raw),
+      mediaType: isVideoLink(raw) ? "video" : "image",
+      published: false,
+    }));
+    flash(true, "Artwork set from the link. Press Publish to make it live.");
   }
 
   function handleSave(publish: boolean) {
@@ -141,6 +190,7 @@ export default function AdminGreetingBackground() {
         intensity: bg.intensity,
         published: publish,
         isGif: Boolean(bg.isGif),
+        mediaType: bg.mediaType === "video" ? "video" : "image",
       }),
     })
       .then((r) => r.json())
@@ -219,14 +269,31 @@ export default function AdminGreetingBackground() {
           >
             {hasArt ? (
               <>
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    backgroundImage: `url(${bg.imageUrl})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
-                />
+                {/* A video cannot be painted as a background-image — it has to
+                    be a real <video> element, exactly as the card renders it
+                    live. Previewing it any other way would show the admin a
+                    blank box and send them looking for a bug that is not
+                    there. */}
+                {bg.mediaType === "video" ? (
+                  <video
+                    src={bg.imageUrl}
+                    muted
+                    loop
+                    playsInline
+                    autoPlay
+                    preload="metadata"
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: `url(${bg.imageUrl})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }}
+                  />
+                )}
                 <div
                   aria-hidden
                   className="absolute inset-0 bg-bg"
@@ -295,39 +362,83 @@ export default function AdminGreetingBackground() {
             }}
           />
 
-          {/* Live sample URL for those who just want to paste one */}
-          <div className="rounded-2xl border border-border bg-elevated p-3 text-xs">
-            <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted">
-              Or paste a URL directly
-            </label>
-            <input
-              readOnly
-              value={bg.imageUrl || ""}
-              placeholder="https://…"
-              className="w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 font-mono text-[11px] text-muted"
-            />
-            <div className="mt-1 flex justify-between text-[10px]">
-              <span className="font-medium text-muted">
-                {bg.isGif ? "animated GIF" : "static image"}
+          {/* ── Or paste a direct link ───────────────────────────────────
+              Upload and link are EQUAL options here: the admin can host the
+              artwork anywhere (their own CDN, a public bucket, a Terabox
+              direct-download link) and paste the link, or upload the file and
+              let GoDoor host it. */}
+          <div className="rounded-2xl border border-border bg-elevated p-3">
+            <div className="mb-2 flex items-center gap-1.5">
+              <Link2 className="h-3.5 w-3.5 text-go" />
+              <span className="text-[11px] font-semibold text-fg">
+                Or paste a direct link
               </span>
-              <span>{hasArt ? "Live" : "Not yet"}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                // Local editor — rewrites the input only for the session. In
-                // production the full round trip goes through PUT; here the
-                // developer is pasting into the live edit box.
-                const url = window.prompt("Update the artwork URL");
-                if (url && /^https?:\/\//.test(url)) {
-                  setBg((b) => ({ ...b, imageUrl: url }));
+
+            <input
+              type="url"
+              inputMode="url"
+              value={urlDraft}
+              onChange={(e) => setUrlDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyUrl();
                 }
               }}
-              className="mt-1 text-[10px] font-medium text-go underline underline-offset-2"
-            >
-              Update
-            </button>
+              placeholder="https://example.com/artwork.gif"
+              className="w-full rounded-lg border border-border bg-canvas px-2.5 py-2 font-mono text-[11px] text-fg outline-none transition focus:border-go/50 focus:ring-1 focus:ring-go/30"
+              aria-label="Direct artwork link"
+            />
+
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={applyUrl}
+                disabled={busy !== null || !urlDraft.trim()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-go px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-go-2 disabled:opacity-40"
+              >
+                <Link2 className="h-3 w-3" />
+                Apply link
+              </button>
+              {urlDraft && (
+                <button
+                  type="button"
+                  onClick={() => setUrlDraft("")}
+                  className="text-[10px] font-medium text-muted underline underline-offset-2 hover:text-fg"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <p className="mt-2 text-[10px] leading-relaxed text-dim">
+              Use the <b>direct file link</b>, not a share page. A Terabox
+              share page (<code>terabox.com/s/…</code>) is a web page, not an
+              image, so it will never appear — use Terabox&apos;s
+              &quot;Direct download&quot; link instead.
+            </p>
           </div>
+
+          {/* What is currently live. */}
+          {bg.imageUrl && (
+            <div className="rounded-xl border border-border bg-surface p-3">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                Current artwork
+              </p>
+              <p className="break-all text-[10px] text-dim">{bg.imageUrl}</p>
+              <div className="mt-1 flex justify-between text-[10px]">
+                <span className="font-medium text-muted">
+                  {bg.mediaType === "video"
+                    ? "video"
+                    : bg.isGif
+                      ? "animated GIF"
+                      : "static image"}
+                </span>
+                <span>{bg.published ? "Live" : "Draft"}</span>
+              </div>
+            </div>
+          )}
 
           {/* Intensity slider — admin tunes how much the art shows through the
               scrim. Lower = more scrim, warmer greeting. */}

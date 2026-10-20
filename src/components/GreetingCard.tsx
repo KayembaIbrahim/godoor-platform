@@ -63,7 +63,11 @@ const GREETING_ICON: Record<GreetingKey, typeof Sunrise> = {
 
 export default function GreetingCard({ nameCandidates = [], className = "", compact = false }: Props) {
   const [greeting, setGreeting] = useState<GreetingKey>("morning");
-  const [artwork, setArtwork] = useState<{ url: string; isGif: boolean } | null>(null);
+  const [artwork, setArtwork] = useState<{
+    url: string;
+    isGif: boolean;
+    mediaType: "image" | "video";
+  } | null>(null);
 
   // ── Time of day ───────────────────────────────────────────────────────────
   // Read on the client, in the viewer's own timezone: "good evening" has to
@@ -90,7 +94,13 @@ export default function GreetingCard({ nameCandidates = [], className = "", comp
       .then((data) => {
         if (cancelled) return;
         const bg = data?.background;
-        if (bg?.imageUrl) setArtwork({ url: bg.imageUrl, isGif: Boolean(bg.isGif) });
+        if (bg?.imageUrl) {
+          setArtwork({
+            url: bg.imageUrl,
+            isGif: Boolean(bg.isGif),
+            mediaType: bg.mediaType === "video" ? "video" : "image",
+          });
+        }
       })
       .catch(() => {
         /* No artwork published, or the network is down — the built-in
@@ -135,17 +145,34 @@ export default function GreetingCard({ nameCandidates = [], className = "", comp
           difference between a smooth card and a stuttering one on a
           low-end Android phone. */}
       {artwork ? (
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `url("${artwork.url}")`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-            willChange: "transform",
-          }}
-        />
+        artwork.mediaType === "video" ? (
+          /* A real video file cannot be painted as a background image — it has
+             to be a `<video>` element. Muted, looping and inline so it plays
+             without a tap on mobile, and it is isolated on its own compositor
+             layer so the text on top does not repaint on every frame. */
+          <video
+            src={artwork.url}
+            muted
+            loop
+            playsInline
+            autoPlay
+            preload="metadata"
+            aria-hidden
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div
+            aria-hidden
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `url("${artwork.url}")`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+              willChange: "transform",
+            }}
+          />
+        )
       ) : null}
 
       {/* ── Scrim ─────────────────────────────────────────────────────────

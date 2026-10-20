@@ -162,7 +162,12 @@ export function HeaderClient() {
             ) : null}
           </nav>
         </div>
-        <div className="flex items-center gap-2">
+        {/* The icon cluster. `gap-2` (8px) left the wallet, build badge, bell,
+            theme toggle and avatar looking like one packed block on a narrow
+            phone. `gap-2.5` gives each control its own space, and the profile
+            button drops its name/chevron on small screens so the row keeps
+            its breathing room. */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <Link
             href="/wallet"
             className="tap-44 relative grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95"
@@ -174,7 +179,7 @@ export function HeaderClient() {
           <BuildBadge />
       <NotificationBell />
           <ThemeToggle />
-          <HeaderAuth />
+          <HeaderAuth compact />
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}

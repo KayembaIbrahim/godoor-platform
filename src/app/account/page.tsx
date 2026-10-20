@@ -194,9 +194,31 @@ export default function AccountPage() {
     try {
       const url = await uploadFile(file, "avatars", `avatars/${supabaseUser.id}/${Date.now()}.${file.name.split(".").pop()}`);
       if (url) {
+        // Update local state first so the top-bar avatar appears immediately.
         setProfile({ avatarUrl: url });
         const sb = await import("@/lib/supabase").then((m) => m.getSupabase());
+        /* Two writes, deliberately.
+           1. Supabase auth `user_metadata.avatar` — the client-side mirror the
+              session store has always read.
+           2. The `profiles.avatar_url` COLUMN — the row admins and staff
+              actually edit. The column existed the whole time but nothing in
+              the app ever wrote to it or read it, so an avatar stored there
+              (by an admin, by a data fix, or by any other client) could never
+              reach the top bar, and an avatar set only in auth metadata was
+              lost the moment the metadata was rebuilt. Writing both keeps the
+              two mirrors in step whichever one a later reader happens to use.
+              The column write goes through the API route because RLS on
+              `profiles` does not grant a user UPDATE on their own row. */
         await sb?.auth.updateUser({ data: { avatar: url } });
+        try {
+          await fetch("/api/profile/avatar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(await apiAuthHeaders(false)) },
+            body: JSON.stringify({ url }),
+          });
+        } catch (e) {
+          console.error("Could not persist avatar_url to profiles:", e);
+        }
       }
     } catch (e) { console.error("Avatar upload failed:", e); }
     setUploadingAvatar(false);

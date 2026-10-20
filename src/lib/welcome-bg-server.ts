@@ -23,6 +23,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { VIDEO_EXTENSIONS, extensionHint } from "./media-url";
 
 type Sb = SupabaseClient;
 
@@ -104,17 +105,20 @@ export function sanitizeImageUrl(raw: unknown): string {
 
 /**
  * Accept only a real remote video or a path on this site.
+ *
  * Same rules as `sanitizeImageUrl`, plus a small allow-list of video
  * extensions so a script cannot be served as a "video".
+ *
+ * The extension may appear at the end of the path OR in the query string
+ * (`?file=clip.mp4` is common on signed CDN URLs and Terabox links). The
+ * path is checked first — an HTML page with a stray `.mp4` parameter in its
+ * query is still rejected as HTML, never as video.
  */
 export function sanitizeVideoUrl(raw: unknown): string {
   const url = sanitizeImageUrl(raw);
   if (!url) return "";
-  const withoutQuery = url.split("?")[0].toLowerCase();
-  const ok = [".mp4", ".webm", ".ogv", ".ogg", ".mov"].some((ext) =>
-    withoutQuery.endsWith(ext),
-  );
-  return ok ? url : "";
+  const ext = extensionHint(url);
+  return VIDEO_EXTENSIONS.includes(ext) ? url : "";
 }
 
 function clampDuration(raw: unknown, fallback: number): number {

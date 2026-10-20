@@ -5,6 +5,7 @@ import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import {
   clearGreetingBackground,
   isSupportedArtwork,
+  isVideoArtwork,
   looksLikeGif,
   normalizeGreetingBackground,
   readGreetingBackground,
@@ -59,9 +60,17 @@ export async function PUT(req: Request) {
   if (!imageUrl) {
     return NextResponse.json({ error: "A valid https image URL is required" }, { status: 400 });
   }
-  if (!isSupportedArtwork(imageUrl)) {
+  // A video is legitimate artwork (the card plays it in a <video> element), so
+  // it is accepted alongside stills and GIFs. What is NOT accepted is a link
+  // that clearly points at a document or a web page — a share page would
+  // silently fail to paint, which is the most common paste mistake.
+  const isVideo = isVideoArtwork(imageUrl);
+  if (!isVideo && !isSupportedArtwork(imageUrl)) {
     return NextResponse.json(
-      { error: "Unsupported file type. Use JPG, PNG, WebP, AVIF or GIF." },
+      {
+        error:
+          "That link points at a document or web page, not an image. Use the direct image file link.",
+      },
       { status: 400 },
     );
   }
@@ -76,6 +85,7 @@ export async function PUT(req: Request) {
     intensity,
     published: Boolean(body.published),
     isGif: typeof body.isGif === "boolean" ? body.isGif : looksLikeGif(imageUrl),
+    mediaType: isVideo ? "video" : "image",
     updatedAt: new Date().toISOString(),
   });
 
