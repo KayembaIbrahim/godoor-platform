@@ -20,6 +20,7 @@ import { StoriesStrip, StoryViewer, type Story } from "@/components/StoriesViewe
 import { SignupModal, useSignupPrompt } from "@/components/SignupPrompt";
 import { AddressSearchModal, getLastAddress, rememberDetectedAddress } from "@/components/AddressSearchModal";
 import { CustomerNav } from "@/components/CustomerNav";
+import GreetingCard from "@/components/GreetingCard";
 import Favourites from "@/components/home/Favourites";
 import DeliveryPreference from "@/components/home/DeliveryPreference";
 import TableBooking from "@/components/home/TableBooking";
@@ -67,7 +68,7 @@ import {
  */
 
 export default function CustomerHome() {
-  const { role, onboarded } = useSession();
+  const { role, onboarded, profile } = useSession();
 
   // Role guard: business/rider should never see the customer marketplace.
   useEffect(() => {
@@ -277,37 +278,14 @@ export default function CustomerHome() {
             <Logo size="sm" />
           </Link>
 
-          {/* Location selector — the centre of the row, and the one control
-              that has to stay reachable while scrolling.
-
-              It opts into the DARK card explicitly and names its text colour
-              with it. It used to paint `bg-surface` and inherit `text-fg`;
-              when `surface` was remapped to ink that pairing collapsed to
-              1.12:1 — the address was invisible. Stating the surface and the
-              text together makes that pairing impossible to get wrong. */}
-          <button
-            type="button"
-            onClick={() => setAddressSearchOpen(true)}
-            aria-label={`Delivery location: ${displayAddress}. Tap to change.`}
-            className="tap-44 hybrid-card group flex min-w-0 flex-1 items-center gap-1.5 rounded-full px-3 py-1.5 text-left transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-go/40 active:scale-[0.99]"
-          >
-            {/* The pin breathes while detection is in flight. Without a moving
-                part the control looked inert for the second or two the fix
-                takes, which is what made a customer tap through to the search
-                modal instead of waiting. */}
-            <MapPin
-              className={`h-3.5 w-3.5 shrink-0 text-go ${isLocating ? "animate-pulse" : ""}`}
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[10px] leading-none text-on-ink-muted">
-                {isLocating ? "Locating you" : "Deliver to"}
-              </span>
-              <span className="block truncate text-xs font-semibold leading-tight text-on-ink">
-                {displayAddress}
-              </span>
-            </span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-on-ink-muted transition-transform group-hover:translate-y-px" />
-          </button>
+          {/* The location selector used to sit HERE — in the middle of the
+              header row, between the logo and the search button. On a 360px
+              phone that left the logo, a truncated address and three icon
+              buttons sharing one row, and the address was the thing that got
+              squeezed. It now has its own full-width row BELOW the header
+              (see the "Deliver to" row further down), so the header carries
+              only the brand, the page context and the account controls, and
+              the address always has the whole width to itself. */}
 
           <div className="flex shrink-0 items-center gap-0.5">
             <button
@@ -330,6 +308,81 @@ export default function CustomerHome() {
           </div>
         </div>
       </header>
+
+      {/* ── Location row ──────────────────────────────────────────────────
+          Its OWN full-width row, directly BELOW the header. Version 10.5.1
+          moved it out of the header row because three things shared one line:
+          the logo, a truncated address and three icon buttons. The address
+          lost the contest every time, which is the one piece of information a
+          customer checks before ordering.
+
+          This row carries the location icon, the current address and the
+          change-location action, and it has the whole width to itself, so a
+          long address truncates only when it genuinely runs out of room.
+
+          It opts into the DARK card explicitly and names its text colour with
+          it. It used to paint `bg-surface` and inherit `text-fg`; when
+          `surface` was remapped to ink that pairing collapsed to 1.12:1 — the
+          address was invisible. Stating the surface and the text together
+          makes that pairing impossible to get wrong. */}
+      <div className="sticky top-[3.25rem] z-20 border-b border-hairline bg-canvas/90 px-4 py-2 backdrop-blur-xl">
+        <button
+          type="button"
+          onClick={() => setAddressSearchOpen(true)}
+          aria-label={`Delivery location: ${displayAddress}. Tap to change.`}
+          className="tap-44 hybrid-card group flex w-full items-center gap-2.5 rounded-2xl px-3.5 py-2 text-left transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-go/40 active:scale-[0.995]"
+        >
+          {/* The pin breathes while detection is in flight. Without a moving
+              part the control looked inert for the second or two the fix
+              takes, which is what made a customer tap through to the search
+              modal instead of waiting. */}
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-go/12">
+            <MapPin
+              className={`h-4 w-4 text-go ${isLocating ? "animate-pulse" : ""}`}
+            />
+          </span>
+
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] font-medium uppercase leading-none tracking-wide text-on-ink-muted">
+              {isLocating ? "Locating you" : "Deliver to"}
+            </span>
+            <span className="mt-0.5 block truncate text-[13px] font-semibold leading-tight text-on-ink">
+              {displayAddress}
+            </span>
+          </span>
+
+          {/* The change-location action, named rather than implied by a
+              chevron alone — the chevron used to be the only cue and it read
+              as "expand", not "change". */}
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-go/12 px-2.5 py-1 text-[11px] font-semibold text-go">
+            Change
+            <ChevronDown className="h-3 w-3 transition-transform group-hover:translate-y-px" />
+          </span>
+        </button>
+      </div>
+
+      {/* ── A. Greeting card ─────────────────────────────────────────────
+          The first thing a signed-in customer sees on this screen: their own
+          name, and a greeting that matches the time of day it actually is on
+          their device — not the time of day on the build server.
+
+          It sits directly under the location row because that is where the
+          eye lands first, and the art behind it is admin-published (image or
+          animated GIF) so the platform can be re-skinned without a deploy.
+
+          The name candidates are in priority order: the public display name
+          first (that is what other people see, and what the customer
+          recognises themselves by), then the legal name, then the email local
+          part as a last resort so the card is never blank. */}
+      <div className="px-4 pt-4">
+        <GreetingCard
+          nameCandidates={[
+            profile.displayName,
+            profile.name,
+            profile.email?.split("@")[0],
+          ]}
+        />
+      </div>
 
       {/* ── B. Sponsored banner ──────────────────────────────────────────
           Admin-controlled: image, headline, subtitle and CTA all come from the

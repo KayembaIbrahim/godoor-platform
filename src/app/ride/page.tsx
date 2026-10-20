@@ -71,9 +71,22 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
 
   useEffect(() => {
     if (!ride.rider_id) return;
-    fetchRiderLocation(ride.rider_id).then((l) => { if (l) setRiderLoc({ lat: l.lat, lng: l.lng }); });
-    const unsub = subscribeToRiderLocation(ride.rider_id, (l) => setRiderLoc({ lat: l.lat, lng: l.lng }));
-    return () => { unsub(); };
+    const riderId = ride.rider_id;
+    fetchRiderLocation(riderId).then((l) => { if (l) setRiderLoc({ lat: l.lat, lng: l.lng }); });
+    const unsub = subscribeToRiderLocation(riderId, (l) => setRiderLoc({ lat: l.lat, lng: l.lng }));
+    /* Realtime is the fast path, but a `postgres_changes` subscription can
+       stop delivering (the table missing from the realtime publication, a
+       dropped socket, a suspended phone) with NO client-side error — the
+       rider pin then froze forever. Poll as the safety net, exactly like the
+       order-tracking screen already does. */
+    const poll = () => {
+      if (document.hidden) return;
+      fetchRiderLocation(riderId).then((l) => {
+        if (l) setRiderLoc({ lat: l.lat, lng: l.lng });
+      });
+    };
+    const id = setInterval(poll, 5000);
+    return () => { unsub(); clearInterval(id); };
   }, [ride.rider_id]);
 
   const pickup = { lat: ride.pickup_lat, lng: ride.pickup_lng };

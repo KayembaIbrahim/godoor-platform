@@ -61,3 +61,31 @@ export function getServiceClient(): SupabaseClient | null {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
+
+/**
+ * A ready-to-use browser client, for the call sites written against the old
+ * module-level singleton (`import { supabase } from "@/lib/supabase"`).
+ *
+ * It is a thin forwarding proxy rather than a second real client, so there is
+ * still exactly ONE Supabase session in the browser — a second
+ * `createClient()` would keep its own token storage and a sign-out would only
+ * clear half of the session.
+ *
+ * When Supabase is not configured the proxy throws on first use with a clear
+ * message, instead of failing later with "cannot read property 'auth' of
+ * null" — which is what a bare `null` client used to produce.
+ */
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabase();
+    if (!client) {
+      throw new Error(
+        "Supabase is not configured: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      );
+    }
+    const value = (client as unknown as Record<string | symbol, unknown>)[prop];
+    // Methods must keep their `this` bound to the real client, otherwise
+    // `supabase.from(...)` loses its internal state.
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});

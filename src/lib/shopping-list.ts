@@ -1,141 +1,264 @@
-import { useEffect, useState } from "react";
+/**
+ * Shopping List — shared types + pricing rules.
+ *
+ * NOTE: this module is intentionally free of JSX so it can be imported from
+ * both server routes (`src/app/api/shopping-list/route.ts`) and client
+ * components without pulling React into the server bundle.
+ *
+ * Business rules (product requirement):
+ *   • A shopping list must contain AT LEAST 5 valid items.
+ *   • Each valid item is charged a shopping service fee of UGX 500.
+ *   • 5 items  => 2,500 UGX shopping fee
+ *   • 10 items => 5,000 UGX shopping fee
+ *   • Merchandise cost and delivery fee are calculated SEPARATELY and are
+ *     never folded into the shopping fee.
+ *   • All totals are recomputed on the server. Client-supplied totals are
+ *     never trusted.
+ */
 
-// Types for shopping list items
-interface ShoppingItem {
-  productId: string;
-  merchantId: string;
+export const SHOPPING_FEE_PER_ITEM_UGX = 500;
+export const SHOPPING_LIST_MIN_ITEMS = 5;
+export const SHOPPING_LIST_MAX_ITEMS = 100;
+export const SHOPPING_ITEM_MAX_QUANTITY = 99;
+export const SHOPPING_ITEM_NAME_MAX = 120;
+export const SHOPPING_ITEM_NOTE_MAX = 240;
+
+/** A single line on a customer's shopping list. */
+export interface ShoppingItem {
+  /** Stable client-generated id (used for optimistic UI + dedupe). */
+  id?: string;
+  /** Product id when the customer picked a catalogue product. */
+  productId?: string | null;
+  /** Merchant the item should be sourced from (optional). */
+  merchantId?: string | null;
+  /** Human readable item name — required. */
   name: string;
-  unitPriceUgx: number; // Must be 500 UGX per item as per requirement
+  /** Quantity of the item — required, >= 1. */
   quantity: number;
+  /** Optional preference, e.g. "ripe", "brand: Airtel". */
+  preference?: string | null;
+  /** Optional shopper instruction, e.g. "buy any brand". */
+  instructions?: string | null;
+  /** Optional price per unit the customer saw in the catalogue (UGX). */
+  unitPriceUgx?: number | null;
 }
 
-interface ShoppingList {
+/** A persisted shopping list. */
+export interface ShoppingList {
   id: string;
   name: string;
   items: ShoppingItem[];
+  /** Shopping service fee (UGX) = valid item count * 500. */
+  shoppingFeeUgx: number;
+  /** Sum of confirmed merchandise prices (UGX), 0 until confirmed by staff. */
+  merchandiseUgx: number;
+  /** Delivery fee (UGX), 0 until a quote is issued. */
+  deliveryFeeUgx: number;
+  /** Grand total (UGX) = shopping fee + merchandise + delivery. */
+  totalUgx: number;
+  status: ShoppingListStatus;
   createdAt: string;
   updatedAt: string;
 }
 
+export type ShoppingListStatus =
+  | "draft"
+  | "submitted"
+  | "shopping"
+  | "awaiting_approval"
+  | "confirmed"
+  | "assigned"
+  | "delivering"
+  | "delivered"
+  | "cancelled";
+
+/** Per-item validation result. */
+export interface ItemValidation {
+  index: number;
+  valid: boolean;
+  reason?: string;
+  item?: ShoppingItem;
+}
+
+/** Result of validating a whole list on the server. */
+export interface ShoppingListValidation {
+  valid: boolean;
+  items: ItemValidation[];
+  validItemCount: number;
+  shoppingFeeUgx: number;
+  merchandiseUgx: number;
+  deliveryFeeUgx: number;
+  totalUgx: number;
+  errors: string[];
+}
+
+function cleanString(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function toInt(value: unknown, fallback: number): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.trunc(n);
+}
+
 /**
- * Shopping List component - displays and manages a shopping list
+ * Validate a single raw item coming from an untrusted client.
+ * Returns a normalised item when valid.
  */
-export function ShoppingListPage() {
-  const [list, setList] = useState<ShoppingList | null>(null);
-  const [newItems, setNewItems] = useState<ShoppingItem[]>([]);
-  const [name, setName] = useState("");
-  const [count, setCount] = useState(0);
+export function validateShoppingItem(
+  raw: unknown,
+  index: number,
+): ItemValidation {
+  if (!raw || typeof raw !== "object") {
+    return { index, valid: false, reason: `Item ${index + 1} is not valid.` };
+  }
 
-  // Load shopping list from API
-  useEffect(() => {
-    fetch("/api/shopping-list")
-      .then(res => res.json())
-      .then(data => {
-        if (data.shoppingLists && data.shoppingLists.length > 0) {
-          setList(data.shoppingLists[0]);
-        }
-      });
-  }, []);
-
-  // Handle adding a new item to the shopping list
-  const handleAddItem = () => {
-    if (!name.trim()) return;
-    
-    const item: ShoppingItem = {
-      productId: "product-001", // placeholder product ID
-      merchantId: "merchant-001",
-      name: name.trim(),
-      unitPriceUgx: 500, // Required: 500 UGX per item
-      quantity: 1
+  const r = raw as Record<string, unknown>;
+  const name = cleanString(r.name);
+  if (!name) {
+    return { index, valid: false, reason: `Item ${index + 1} is missing a name.` };
+  }
+  if (name.length > SHOPPING_ITEM_NAME_MAX) {
+    return {
+      index,
+      valid: false,
+      reason: `Item ${index + 1} name must be ${SHOPPING_ITEM_NAME_MAX} characters or fewer.`,
     };
-    
-    setNewItems([...newItems, item]);
-    setName("");
-    setCount(newItems.length + 1);
+  }
+
+  const quantity = toInt(r.quantity, 0);
+  if (quantity < 1) {
+    return {
+      index,
+      valid: false,
+      reason: `Item "${name}" must have a quantity of at least 1.`,
+    };
+  }
+  if (quantity > SHOPPING_ITEM_MAX_QUANTITY) {
+    return {
+      index,
+      valid: false,
+      reason: `Item "${name}" quantity must be ${SHOPPING_ITEM_MAX_QUANTITY} or fewer.`,
+    };
+  }
+
+  const preference = cleanString(r.preference) || null;
+  const instructions = cleanString(r.instructions) || null;
+
+  if (preference && preference.length > SHOPPING_ITEM_NAME_MAX) {
+    return {
+      index,
+      valid: false,
+      reason: `Item "${name}" preference is too long.`,
+    };
+  }
+  if (instructions && instructions.length > SHOPPING_ITEM_NOTE_MAX) {
+    return {
+      index,
+      valid: false,
+      reason: `Item "${name}" instructions are too long.`,
+    };
+  }
+
+  const unitPriceRaw = r.unitPriceUgx;
+  const unitPriceUgx =
+    unitPriceRaw === null || unitPriceRaw === undefined
+      ? null
+      : Math.max(0, toInt(unitPriceRaw, 0));
+
+  const productId = cleanString(r.productId) || null;
+  const merchantId = cleanString(r.merchantId) || null;
+  const id = cleanString(r.id) || null;
+
+  return {
+    index,
+    valid: true,
+    item: {
+      id: id ?? undefined,
+      productId,
+      merchantId,
+      name,
+      quantity,
+      preference,
+      instructions,
+      unitPriceUgx,
+    },
   };
+}
 
-  // Handle removing an item
-  const removeItem = (index: number) => {
-    const updated = [...newItems];
-    updated.splice(index, 1);
-    setNewItems(updated);
-  };
+/**
+ * Validate an entire submitted list and compute authoritative totals.
+ * The shopping fee is derived from the number of VALID items only.
+ */
+export function validateShoppingList(
+  rawItems: unknown,
+  opts?: { deliveryFeeUgx?: number },
+): ShoppingListValidation {
+  const errors: string[] = [];
 
-  // Calculate total price
-  const totalPrice = list ? list.items.reduce((sum, item) => sum + (item.unitPriceUgx * item.quantity), 0) : 0;
+  if (!Array.isArray(rawItems)) {
+    return {
+      valid: false,
+      items: [],
+      validItemCount: 0,
+      shoppingFeeUgx: 0,
+      merchandiseUgx: 0,
+      deliveryFeeUgx: 0,
+      totalUgx: 0,
+      errors: ["Shopping list must be an array of items."],
+    };
+  }
 
-  if (!list) {
-    return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">Shopping List</h1>
-        <p>No shopping list found. Use the "Create New List" button to get started.</p>
-      </div>
+  if (rawItems.length > SHOPPING_LIST_MAX_ITEMS) {
+    errors.push(
+      `A shopping list can contain at most ${SHOPPING_LIST_MAX_ITEMS} items.`,
     );
   }
 
-  return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-center mb-8">Shopping List</h1>
-      
-      {/* Add new list form */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-8">
-        <h2 className="font-semibold mb-4">Create New Shopping List</h2>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="Enter list name..."
-            className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            onClick={handleAddItem}
-            disabled={!name.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Add Item
-          </button>
-        </div>
-        <p className="mt-2 text-sm text-gray-600">
-          Each item costs 500 UGX. You need at least 5 items.
-        </p>
-      </div>
+  const results = rawItems.map((raw, i) => validateShoppingItem(raw, i));
+  const validItems = results.filter((r) => r.valid && r.item).map((r) => r.item!);
 
-      {/* Shopping list display */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <h2 className="font-semibold mb-4">Your Shopping List</h2>
-        
-        {list?.items.length === 0 ? (
-          <p className="text-gray-500 text-center py-4">No items in your list yet.</p>
-        ) : (
-          <div className="space-y-4">
-            {list.items.map((item, index) => (
-              <div key={index} className="flex justify-between items-center p-3 border rounded-lg">
-                <div className="flex items-center">
-                  <span className="text-lg font-medium">{item.name}</span>
-                  <span className="text-xs text-blue-500">{item.unitPriceUgx} UGX × {item.quantity} = {item.unitPriceUgx * item.quantity} UGX</span>
-                </div>
-                <button
-                  onClick={() => removeItem(index)}
-                  className="text-red-500 hover:text-red-700 font-medium"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-            
-            <div className="flex justify-between mt-4 pt-4 border-t">
-              <span className="text-lg font-bold">Total: {totalPrice} UGX</span>
-              <button
-                onClick={() => alert(`Order placed: ${totalPrice} UGX`)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                Place Order
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+  for (const r of results) {
+    if (!r.valid && r.reason) errors.push(r.reason);
+  }
+
+  const validItemCount = validItems.length;
+
+  if (validItemCount < SHOPPING_LIST_MIN_ITEMS) {
+    errors.push(
+      `Shopping list must contain at least ${SHOPPING_LIST_MIN_ITEMS} valid items. You added ${validItemCount}.`,
+    );
+  }
+
+  const shoppingFeeUgx = validItemCount * SHOPPING_FEE_PER_ITEM_UGX;
+
+  // Merchandise is only counted from client-supplied unit prices as an
+  // ESTIMATE. The authoritative merchandise cost is set by staff when the
+  // list is shopped (see /api/shopping-list PATCH -> confirm).
+  const merchandiseUgx = validItems.reduce(
+    (sum, item) => sum + (item.unitPriceUgx ?? 0) * item.quantity,
+    0,
   );
+
+  const deliveryFeeUgx = Math.max(0, toInt(opts?.deliveryFeeUgx ?? 0, 0));
+  const totalUgx = shoppingFeeUgx + merchandiseUgx + deliveryFeeUgx;
+
+  return {
+    valid: errors.length === 0,
+    items: results,
+    validItemCount,
+    shoppingFeeUgx,
+    merchandiseUgx,
+    deliveryFeeUgx,
+    totalUgx,
+    errors,
+  };
+}
+
+/** Format a UGX amount for display (no decimals — UGX has no minor unit). */
+export function formatUgx(amount: number): string {
+  const n = Math.max(0, Math.round(Number(amount) || 0));
+  return n.toLocaleString("en-UG", { maximumFractionDigits: 0 });
 }

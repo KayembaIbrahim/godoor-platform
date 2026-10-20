@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
-import { listPendingDeposits, expireOldDeposits } from "@/lib/escrow";
+import { listPendingDeposits, listSettledDeposits, expireOldDeposits } from "@/lib/escrow";
 export const runtime = "nodejs";
 
 export async function GET() {
@@ -15,5 +15,9 @@ export async function GET() {
 
   await expireOldDeposits(sb);
   const pending = await listPendingDeposits(sb);
-  return NextResponse.json({ pending });
+  // Settled deposits are returned alongside the pending ones so an approved
+  // credit does not vanish from the portal the moment it is approved — the
+  // history of what was credited has to stay on screen.
+  const settled = await listSettledDeposits(sb);
+  return NextResponse.json({ pending, settled });
 }

@@ -807,7 +807,23 @@ function MapboxMapInner({
   /* ── Follow the delivery only while the user hasn't moved the map ── */
   useEffect(() => {
     if (!mapRef.current || !ready || isUserMoved()) return;
-    const c = validCenter(center);
+    /* Follow the RIDER, not the centre of the trip.
+       `center` is the centroid of rider + pickup + drop-off, so easing to it
+       pushed the camera away from the rider the moment he moved — on the
+       rider's own navigation screen the camera flew onto him and then
+       immediately drifted off to the middle of the trip, which is why the
+       rider appeared to be "not where the map says he is".
+       Read the live rider position from the ref (never from `markers`, whose
+       changes would rebuild this effect on every GPS fix). */
+    const rider = liveMarkersRef.current.find((m) => m.isRider)?.position;
+    const fallbackUser = userLocationRef.current;
+    const self =
+      rider ||
+      (fallbackUser &&
+      (Math.abs(fallbackUser.lat) > 1e-9 || Math.abs(fallbackUser.lng) > 1e-9)
+        ? fallbackUser
+        : null);
+    const c = self ? { lat: Number(self.lat), lng: Number(self.lng) } : validCenter(center);
     const last = lastCenterRef.current;
     const movedKm = last
       ? Math.hypot((c.lat - last.lat) * 111, (c.lng - last.lng) * 111 * Math.cos((c.lat * Math.PI) / 180))
@@ -958,7 +974,16 @@ function MapboxMapInner({
           // Shop pins are decoration; the rider and the drop-off point are the
           // answer the user is looking for, so they always paint on top.
           el.style.zIndex = m.isRider || m.isDestination ? "30" : "10";
-          const marker = new mapboxgl.default.Marker({ element: el, anchor: "bottom" })
+          /* The rider is a circular "puck" drawn around its coordinate, so it
+             must be anchored at its CENTRE. Anchoring it at "bottom" (which
+             is right for the teardrop pins) floated the puck ~22 px above
+             the true GPS point — about 200 m at street zoom — which is what
+             made the rider look pinned in the wrong spot on all three role
+             maps. Teardrop pins keep the bottom anchor. */
+          const marker = new mapboxgl.default.Marker({
+            element: el,
+            anchor: m.isRider ? "center" : "bottom",
+          })
             .setLngLat([m.position.lng, m.position.lat])
             .addTo(map);
           if (m.label) {

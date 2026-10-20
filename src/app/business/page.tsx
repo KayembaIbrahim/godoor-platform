@@ -12,13 +12,14 @@ import { fetchOrders, updateOrder, updateMerchant, fetchFeeConfig, getUserVerifi
 import { useNotifications, orderSummary } from "@/lib/notifications-store";
 import { formatUgx } from "@/lib/utils";
 import { Price } from "@/components/Price";
+import GreetingCard from "@/components/GreetingCard";
 import dynamic from "next/dynamic";
 const MapboxMap = dynamic(() => import("@/components/MapboxMap"), { ssr: false, loading: () => null });
 const StoryComposer = dynamic(
   () => import("@/components/StoriesViewer").then((m) => ({ default: m.StoryComposer })),
   { ssr: false, loading: () => <div className="h-10 rounded-2xl bg-surface animate-pulse" /> }
 );
-import { subscribeToRiderLocation } from "@/lib/db";
+import { fetchRiderLocation, subscribeToRiderLocation } from "@/lib/db";
 import { useGeolocation, type LatLng } from "@/lib/location";
 
 
@@ -233,7 +234,28 @@ function BusinessDashboardInner() {
           setLiveRiderLocs((prev) => ({ ...prev, [o.rider_id!]: loc }));
         }));
     } catch (e) { console.error("[GoDoor] rider loc sub error:", e); }
-    return () => subs.forEach((unsub) => unsub());
+
+    /* Realtime is the fast path, but a `postgres_changes` subscription can
+       stop delivering with NO client-side error — the merchant then watches a
+       frozen rider pin on a live order. Poll as the safety net so the rider
+       marker keeps moving even when the socket does not. */
+    const activeRiderIds = orders
+      .filter((o) => ["rider_assigned", "delivering"].includes(o.status) && o.rider_id)
+      .map((o) => o.rider_id!);
+    const poll = () => {
+      if (document.hidden) return;
+      for (const riderId of activeRiderIds) {
+        fetchRiderLocation(riderId).then((loc) => {
+          if (loc) setLiveRiderLocs((prev) => ({ ...prev, [riderId]: loc }));
+        });
+      }
+    };
+    const pollId = activeRiderIds.length > 0 ? setInterval(poll, 6000) : null;
+
+    return () => {
+      subs.forEach((unsub) => unsub());
+      if (pollId) clearInterval(pollId);
+    };
   }, [orders]);
 
   if (!mounted) {
@@ -450,6 +472,29 @@ function BusinessDashboardInner() {
             <Check className="h-3 w-3" /> {deliveredOrders.length} delivered
           </div>
         </div>
+      </div>
+
+      {/* ── Greeting card ────────────────────────────────────────────────
+          A business owner opens this screen dozens of times a day. Greeting
+          them by name over artwork the admin controls makes the console feel
+          like a product rather than a table of numbers.
+
+          The name candidates are in priority order — the trading name of the
+          merchant record first (that is what customers see), then the owner's
+          own name, because "Good morning, Nakato Hardware" reads as a
+          business greeting while "Good morning, John" reads as a person
+          greeting. Both are available; the trading name wins because it is
+          the identity this account operates under. */}
+      <div className="px-4 pt-4">
+        <GreetingCard
+          nameCandidates={[
+            profile.businessName,
+            merchantRecord?.name,
+            profile.displayName,
+            profile.name,
+            profile.email?.split("@")[0],
+          ]}
+        />
       </div>
 
       <div className="space-y-4 px-4 pt-4">

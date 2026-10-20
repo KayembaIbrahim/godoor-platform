@@ -21,6 +21,7 @@ import { Price } from "@/components/Price";
 import { StopoverControl } from "@/components/StopoverControl";
 import dynamic from "next/dynamic";
 import { SetPasswordGate } from "@/components/SetPasswordGate";
+import GreetingCard from "@/components/GreetingCard";
 
 const LiveTrackingMap = dynamic(() => import("@/components/LiveTrackingMap").then(m => m.LiveTrackingMap), {
   ssr: false,
@@ -1031,6 +1032,26 @@ export default function RiderDashboard() {
             <Bike className="h-3.5 w-3.5" /> Boda
           </button>
         </div>
+        </div>
+
+        {/* ── Greeting card ──────────────────────────────────────────────
+            The rider's own name and a greeting that matches the time of day
+            on their phone. It sits below the header block (which carries the
+            name, the online toggle and the earnings card) so it does not
+            crowd the controls a rider needs two taps deep.
+
+            The name candidates are in priority order — the rider's verified
+            record name first (that is the name dispatch and the customer
+            see), then the session profile name, then the display name. */}
+        <div className="px-4 pt-3">
+          <GreetingCard
+            nameCandidates={[
+              riderRecord?.name,
+              profile.name,
+              profile.displayName,
+              profile.email?.split("@")[0],
+            ]}
+          />
         </div>
 
         {mode === "boda" ? (

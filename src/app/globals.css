@@ -1567,3 +1567,10 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 6px 16px -10px rgb(124 58 237 / 0.9);
   }
 }
+
+/* Skeleton loaders — a soft sweep across placeholder blocks while real
+   content loads. Without it, a slow page reads as a blank screen, which is
+   exactly the "the platform is very slow" complaint. */
+@keyframes skeleton-sweep {
+  100% { transform: translateX(100%); }
+}

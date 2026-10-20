@@ -35,6 +35,21 @@ interface EscrowDeposit {
   status: string;
   reference_code: string;
   created_at: string;
+  confirmed_at: string | null;
+}
+
+/** One row of the platform-wide escrow audit trail (`ledger_entries`). */
+interface LedgerRow {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  type: string;
+  amount: number;
+  currency: string;
+  ref_type: string | null;
+  ref_id: string | null;
+  created_at: string;
 }
 
 export default function AdminWalletCreditsPage() {
@@ -47,6 +62,9 @@ export default function AdminWalletCreditsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [escrowDeposits, setEscrowDeposits] = useState<EscrowDeposit[]>([]);
+  const [settledDeposits, setSettledDeposits] = useState<EscrowDeposit[]>([]);
+  const [ledger, setLedger] = useState<LedgerRow[]>([]);
+  const [ledgerBusy, setLedgerBusy] = useState(false);
   const [escrowBusy, setEscrowBusy] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -61,12 +79,25 @@ export default function AdminWalletCreditsPage() {
     fetch("/api/admin/deposits", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d) setEscrowDeposits(d.pending || []);
+        // `settled` holds the deposits that have already been credited — an
+        // approved credit must stay on screen, not vanish.
+        if (d) { setEscrowDeposits(d.pending || []); setSettledDeposits(d.settled || []); }
       })
       .catch(() => {});
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const loadLedger = useCallback(() => {
+    setLedgerBusy(true);
+    fetch("/api/admin/ledger", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setLedger(d.entries || []);
+        setLedgerBusy(false);
+      })
+      .catch(() => setLedgerBusy(false));
+  }, []);
+
+  useEffect(() => { load(); loadLedger(); }, [load, loadLedger]);
 
   const confirmEscrowDeposit = async (depositId: string) => {
     setEscrowBusy(depositId);
@@ -242,7 +273,7 @@ export default function AdminWalletCreditsPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium truncate">{r.user_name || "Customer"} · {r.reference}</p>
-                  <p className="text-[10px] text-dim">{new Date(r.created_at).toLocaleString()}{r.reviewed_by ? ` · by ${r.reviewed_by}` : ""}</p>
+                  <p className="text-[10px] text-dim">{new Date(r.reviewed_at || r.created_at).toLocaleString()}{r.reviewed_by ? ` · by ${r.reviewed_by}` : ""}</p>
                 </div>
                 <p className="text-xs font-bold tabular-nums">{amountLabel(r)}</p>
               </div>
@@ -307,6 +338,144 @@ export default function AdminWalletCreditsPage() {
             </p>
           </div>
         )}
+      </div>
+
+      {/* ── Settled Morse deposits ──────────────────────────────────────
+          An approved credit used to disappear from this portal the moment it
+          was approved: the list fetched PENDING deposits only. The escrow
+          trail has to keep the approval visible, with the time it happened. */}
+      {settledDeposits.length > 0 && (
+        <div className="mt-5 rounded-2xl border border-border bg-surface p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-success" />
+            <h3 className="text-sm font-semibold">Settled wallet top-ups</h3>
+            <span className="ml-auto rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-bold text-success">
+              {settledDeposits.length} recorded
+            </span>
+          </div>
+          <div className="space-y-2">
+            {settledDeposits.slice(0, 50).map((d) => (
+              <div
+                key={d.id}
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-bg px-3 py-2.5"
+              >
+                <span
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                    d.status === "confirmed"
+                      ? "bg-success/15 text-success"
+                      : "bg-elevated text-muted"
+                  }`}
+                >
+                  {d.status === "confirmed" ? (
+                    <CheckCircle2 className="h-2.5 w-2.5" />
+                  ) : (
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                  )}
+                  {d.status}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold tabular-nums">
+                    {Number(d.amount).toLocaleString("en-UG")} {d.currency}
+                  </p>
+                  <p className="truncate text-[11px] text-muted">
+                    <span className="font-mono">{d.reference_code}</span> · {d.provider} ·{" "}
+                    {new Date(d.confirmed_at || d.created_at).toLocaleString("en-UG")}
+                    {d.confirmed_at ? " · settled" : ""}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Escrow ledger (audit trail) ───────────────────────────────────
+          `ledger_entries` is the append-only money table every money path
+          already writes: credit approvals, order holds, releases, refunds,
+          payouts and transfers. Until now only the customer could see their
+          own slice of it, so an admin had no way to audit the escrow. */}
+      <div className="mt-5 rounded-2xl border border-border bg-surface p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Wallet className="h-4 w-4 text-go" />
+          <h3 className="text-sm font-semibold">Escrow ledger</h3>
+          <span className="rounded-full bg-go/15 px-2 py-0.5 text-[10px] font-bold text-go">
+            audit trail
+          </span>
+          <button
+            type="button"
+            onClick={loadLedger}
+            disabled={ledgerBusy}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold text-muted transition hover:bg-elevated hover:text-fg disabled:opacity-50"
+          >
+            {ledgerBusy ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Clock className="h-3 w-3" />
+            )}
+            Refresh
+          </button>
+        </div>
+
+        {ledger.length === 0 ? (
+          <p className="text-xs text-muted">
+            {ledgerBusy ? "Reading the ledger…" : "No ledger entries recorded yet."}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left">
+              <thead>
+                <tr className="border-b border-border text-[10px] uppercase tracking-wider text-dim">
+                  <th className="pb-2 pr-3 font-semibold">Account</th>
+                  <th className="pb-2 pr-3 font-semibold">Type</th>
+                  <th className="pb-2 pr-3 font-semibold">Reference</th>
+                  <th className="pb-2 pr-3 text-right font-semibold">Amount</th>
+                  <th className="pb-2 text-right font-semibold">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledger.slice(0, 100).map((e) => (
+                  <tr key={e.id} className="border-b border-border/50 last:border-0">
+                    <td className="py-2 pr-3">
+                      <p className="truncate text-xs font-medium text-fg">
+                        {e.user_name || e.user_email || "Account"}
+                      </p>
+                      {e.user_email && e.user_name && (
+                        <p className="truncate text-[10px] text-dim">{e.user_email}</p>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-elevated px-2 py-0.5 text-[9px] font-bold uppercase text-muted">
+                        {e.type}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <p className="truncate font-mono text-[10px] text-dim">
+                        {e.ref_type || "—"}
+                        {e.ref_id ? ` · ${String(e.ref_id).slice(0, 8)}` : ""}
+                      </p>
+                    </td>
+                    <td
+                      className={`py-2 pr-3 text-right text-xs font-bold tabular-nums ${
+                        Number(e.amount) < 0 ? "text-danger" : "text-success"
+                      }`}
+                    >
+                      {Number(e.amount) < 0 ? "−" : "+"}
+                      {Math.abs(Number(e.amount)).toLocaleString("en-UG")} {e.currency}
+                    </td>
+                    <td className="py-2 text-right text-[10px] text-dim">
+                      {new Date(e.created_at).toLocaleString("en-UG")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="mt-2 flex items-start gap-1.5 text-[11px] text-dim">
+          <Info className="mt-px h-3.5 w-3.5 shrink-0" />
+          Every money movement the platform records. Rows are written by the
+          server only — a client can never add or edit one.
+        </p>
       </div>
     </div>
   );

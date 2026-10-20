@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { withVercelIdeTooling } from "@vercel/next-rsc/plugin";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -41,11 +40,6 @@ const nextConfig: NextConfig = {
 
   // Cloudflare Pages / Next-on-Pages compatibility
   output: "standalone",
-  experimental: {
-    serverComponents: true,
-    dynamicIO: true,
-  },
-  transpilePackages: ["@vercel/examples-ui"],
 };
 
-export default withVercelIdeTooling(nextConfig);
+export default nextConfig;

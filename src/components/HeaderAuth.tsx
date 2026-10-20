@@ -214,7 +214,36 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
     return (
       <div className="relative" ref={dropRef}>
         {/* Profile button — use pointerup for reliable mobile tap */}
-        
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen((p) => !p);
+          }}
+          className={`flex items-center gap-2 rounded-full border border-border bg-surface/60 py-1 transition hover:bg-elevated active:scale-95 ${compact ? "pl-1 pr-1" : "pl-1 pr-2.5"}`}
+          aria-label="Account menu"
+          aria-expanded={menuOpen}
+        >
+          <div className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-go/20 ring-1 ring-go/30">
+            {(profile as any).avatarUrl ? (
+              <img
+                src={(profile as any).avatarUrl}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="text-xs font-bold text-go">{initial}</span>
+            )}
+          </div>
+          {!compact && (
+            <span className="hidden text-xs font-medium text-fg sm:inline">{displayName}</span>
+          )}
+          {!compact && (
+            <ChevronDown
+              className={`h-3 w-3 text-muted transition-transform ${menuOpen ? "rotate-180" : ""}`}
+            />
+          )}
+        </button>
 
         {menuOpen && (
           <div className="absolute right-0 top-full z-[60] mt-2 w-56 rounded-2xl border border-border bg-surface/95 backdrop-blur-md p-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">

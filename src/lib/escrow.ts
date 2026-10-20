@@ -125,6 +125,54 @@ export async function listPendingDeposits(sb: SupabaseClient): Promise<Deposit[]
   return (data || []) as Deposit[];
 }
 
+/**
+ * Settled deposits — the ones an admin has already approved.
+ *
+ * The admin wallet portal used to list ONLY pending deposits, so the moment
+ * a credit was approved the row disappeared with no trace of it. That is the
+ * opposite of what an escrow ledger should do: an approved credit has to
+ * stay visible, with the time it was approved.
+ *
+ * Returns deposits whose status is no longer `pending` (confirmed, failed,
+ * expired or cancelled), newest first.
+ */
+export async function listSettledDeposits(
+  sb: SupabaseClient,
+  limit = 100,
+): Promise<Deposit[]> {
+  const { data } = await sb
+    .from("deposits")
+    .select("*")
+    .neq("status", "pending")
+    .order("confirmed_at", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  return (data || []) as Deposit[];
+}
+
+/**
+ * The whole escrow ledger, newest first — every money movement the platform
+ * has recorded, across every user.
+ *
+ * The customer-facing ledger (`getLedger`) filters to one account; an admin
+ * auditing the escrow needs the platform-wide view, where a credit approval
+ * can be read next to the refunds, payouts and transfers it funded.
+ */
+export async function listLedger(
+  sb: SupabaseClient,
+  options: { limit?: number; userId?: string; type?: string } = {},
+): Promise<LedgerEntry[]> {
+  const limit = Math.max(1, Math.min(500, options.limit ?? 200));
+  let query = sb
+    .from("ledger_entries")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (options.userId) query = query.eq("user_id", options.userId);
+  if (options.type) query = query.eq("type", options.type);
+  const { data } = await query;
+  return (data || []) as LedgerEntry[];
+}
+
 export async function confirmDeposit(
   sb: SupabaseClient,
   depositId: string,

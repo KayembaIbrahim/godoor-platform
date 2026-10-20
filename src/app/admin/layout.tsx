@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Package, AlertTriangle, Store, Users, Settings,
   Shield, ShieldCheck, Truck, BarChart3, ChevronLeft, Menu, X, Bell, Tag, Wallet, ClipboardList, AtSign,
-  BanknoteArrowDown, Download, Clock, ArrowUpRight, Megaphone, PanelTop, ArrowLeftRight, CalendarCheck
+  BanknoteArrowDown, Download, Clock, ArrowUpRight, Megaphone, PanelTop, ArrowLeftRight, CalendarCheck,
+  Image, Sunrise
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -36,6 +37,9 @@ const NAV = [
   { href: "/admin/promos", label: "Promo Codes", icon: Tag },
   { href: "/admin/campaigns", label: "Flyer Popups", icon: Megaphone },
   { href: "/admin/hero-banner", label: "Sponsored Banner", icon: PanelTop },
+  { href: "/admin/welcome-bg", label: "Welcome Background", icon: Image },
+  { href: "/admin/greeting-bg", label: "Greeting Card", icon: Sunrise },
+  { href: "/admin/shopping-lists", label: "Shopping Lists", icon: ClipboardList },
   { href: "/admin/support", label: "Support", icon: ShieldCheck },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
 ];

@@ -1,0 +1,887 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState, useRef } from "react";
+import { Smartphone, Wallet, Zap, ShieldCheck, ArrowRight, Truck, ShoppingBag, MapPin, Star, ChevronRight, Check, Clock, UtensilsCrossed, Pill, Package, MapPinned, ChevronDown, Play, Download, Wifi, Globe, Users, BadgePercent, Flame, Bike, Store, Search, Menu, PackageCheck, CreditCard } from "lucide-react";
+import { categoryVisual } from "@/lib/visuals";
+import { Logo } from "@/components/Logo";
+import { MorseLogo } from "@/components/MorseLogo";
+import DarkHero from "@/components/home/DarkHero";
+import CategoryRail from "@/components/home/CategoryRail";
+import PopularPicks from "@/components/home/PopularPicks";
+import DeliveryPreference from "@/components/home/DeliveryPreference";
+import Favourites from "@/components/home/Favourites";
+import TableBooking from "@/components/home/TableBooking";
+
+function hasStoredSession(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem("godoor-session");
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return !!(parsed?.state?.onboarded && parsed.state.role);
+  } catch { return false; }
+}
+
+function useAnimatedCounter(end: number, duration = 2000, start = false) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!start) return;
+    let raf: number;
+    const startTime = performance.now();
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setVal(Math.round(eased * end));
+      if (progress < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [end, duration, start]);
+  return val;
+}
+
+function useInView(threshold = 0.2) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!ref.current) return;
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold });
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [threshold]);
+  return { ref, visible };
+}
+
+const FAQ_ITEMS = [
+  { q: "How do I pay for my order?", a: "Pay with your GoDoor Wallet for the swiftest checkout — top it up easily via Morse, then pay in seconds. Your payment is held safely in escrow until delivery is confirmed." },
+  { q: "How long does delivery take?", a: "Most orders are delivered within 30 minutes. You can track your rider in real-time on the map." },
+  { q: "Can I return an item?", a: "If your order is incorrect or damaged, contact the merchant via in-app chat or file a dispute. Our team will resolve within 24 hours." },
+  { q: "How do I become a GoDoor merchant?", a: "Submit a quick application — our team reviews it and, once approved, sets up your shop, products and delivery so you can start taking orders." },
+  { q: "How do I become a GoDoor rider?", a: "Register as a rider, upload your vehicle details and national ID, get verified, and start accepting deliveries." },
+  { q: "Is GoDoor available in my area?", a: "GoDoor is live across Uganda — Kampala, Masaka, Jinja, Mbale, Mbarara, Gulu, Fort Portal, and more. We're expanding every month." },
+];
+
+function FaqAccordion({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-border">
+      <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between -mx-2 rounded-xl px-2 py-4 text-left transition hover:bg-elevated">
+        <span className="text-sm font-medium text-fg pr-4">{q}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && <p className="pb-4 text-sm text-muted leading-relaxed">{a}</p>}
+    </div>
+  );
+}
+
+/* ─── GoDoor 2.0: Core workflow steps ─── */
+const CORE_WORKFLOW_STEPS = [
+  { icon: Smartphone, title: "Browse & Order", desc: "Discover local shops and restaurants near you. Browse menus, compare prices, and add items to your cart in seconds.", color: "from-go/20 to-go/5" },
+  { icon: Wallet, title: "Pay with GoDoor Wallet", desc: "Fund your wallet via Morse and check out in seconds. Your payment is held in escrow until delivery.", color: "from-primary/20 to-primary/5" },
+  { icon: Truck, title: "Track & Receive", desc: "Watch your rider in real-time on the map. Average delivery in under 30 minutes, right to your door.", color: "from-success/20 to-success/5" },
+];
+const HOW_IT_WORKS_STEPS = CORE_WORKFLOW_STEPS;
+
+/* ─── GoDoor 2.0 service catalog (brand-first) ───
+   Each tile is the same geometry so the grid reads as one ecosystem,
+   differentiated only by icon, name, short copy and a subtle accent plate.
+   Purple is used as the new premium emphasis token while GoDoor's orange
+   stays the action color. Status shows which channels are live. */
+const SERVICES_20 = [
+  { icon: Bike, label: "GoRide", desc: "Boda & Car", color: "text-purple-600", plate: "bg-purple-100", status: "live", badge: "Live" },
+  { icon: UtensilsCrossed, label: "GoFood", desc: "Meals & restaurants", color: "text-primary", plate: "bg-primary-2", status: "live", badge: "Live" },
+  { icon: ShoppingBag, label: "GoMart", desc: "Supermarket & groceries", color: "text-success", plate: "bg-success-light", status: "live", badge: "Live" },
+  { icon: PackageCheck, label: "GoExpress", desc: "Send parcel", color: "text-navy", plate: "bg-navy-soft", status: "live", badge: "Live" },
+  { icon: Pill, label: "GoPharma", desc: "Medicines & wellness", color: "text-blue-600", plate: "bg-blue-100", status: "live", badge: "Live" },
+  { icon: CreditCard, label: "GoPay", desc: "Money & payments", color: "text-purple-600", plate: "bg-purple-100", status: "live", badge: "Live" },
+  { icon: Zap, label: "Airtime", desc: "MTN & Airtel top-up", color: "text-warning", plate: "bg-warning", status: "live", badge: "Live" },
+  { icon: Menu, label: "Services", desc: "GoDoor services directory", color: "text-muted", plate: "bg-surface", status: "upcoming", badge: "Directory" },
+] as const;
+
+const LANDING_CATEGORIES = [
+  { icon: UtensilsCrossed, label: "Restaurants", desc: "Hot meals & snacks", color: "text-amber-500", bg: "bg-amber-500/10", status: "live" },
+  { icon: Pill, label: "Pharmacy", desc: "Medicine & health", color: "text-blue-500", bg: "bg-blue-500/10", status: "waitlist" },
+  { icon: ShoppingBag, label: "Groceries", desc: "Fresh produce & essentials", color: "text-emerald-500", bg: "bg-emerald-500/10", status: "waitlist" },
+  { icon: Package, label: "Packages", desc: "Send anything, anywhere", color: "text-purple-500", bg: "bg-purple-500/10", status: "waitlist" },
+];
+
+function categoryMatches(m: any, label: string): boolean {
+  const raw = (m.category || "").toLowerCase();
+  if (label === "Restaurants") return raw.includes("food") || raw.includes("restaurant") || raw.includes("cafe");
+  if (label === "Pharmacy") return raw.includes("pharm") || raw.includes("drug") || raw.includes("medical");
+  if (label === "Groceries") return raw.includes("grocer") || raw.includes("supermarket") || raw.includes("store");
+  if (label === "Packages") return raw.includes("package") || raw.includes("send") || raw.includes("courier");
+  return raw.includes(label.toLowerCase());
+}
+
+/* Login and Signup Forms for the modal */
+function LoginForm() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { signIn } = useSession();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const result = await signIn(email, password);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        // Success - redirect will happen via session change
+      }
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-fg mb-1">Email address</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="w-full px-4 py-3 rounded-xl border border-border/50 focus:border-go focus:ring-go/20 bg-surface/50"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-fg mb-1">Password</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          className="w-full px-4 py-3 rounded-xl border border-border/50 focus:border-go focus:ring-go/20 bg-surface/50"
+        />
+      </div>
+      
+      {error && (
+        <p className="text-xs text-warning">{error}</p>
+      )}
+      
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-go text-white font-medium py-3 px-4 rounded-xl transition-colors hover:bg-go/90 disabled:opacity-50"
+      >
+        {loading ? "Signing in..." : "Sign In"}
+      </button>
+    </form>
+  );
+}
+
+function SignupForm() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { signUp } = useSession();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const result = await signUp(email, password, name, "customer");
+      if (result.error) {
+        setError(result.error);
+      } else {
+        // Success - redirect will happen via session change
+      }
+    } catch (err: any) {
+      setError(err.message || "Sign up failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-fg mb-1">Full name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          className="w-full px-4 py-3 rounded-xl border border-border/50 focus:border-go focus:ring-go/20 bg-surface/50"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-fg mb-1">Email address</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="w-full px-4 py-3 rounded-xl border border-border/50 focus:border-go focus:ring-go/20 bg-surface/50"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-fg mb-1">Password</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={6}
+          className="w-full px-4 py-3 rounded-xl border border-border/50 focus:border-go focus:ring-go/20 bg-surface/50"
+        />
+      </div>
+      
+      {error && (
+        <p className="text-xs text-warning">{error}</p>
+      )}
+      
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-go text-white font-medium py-3 px-4 rounded-xl transition-colors hover:bg-go/90 disabled:opacity-50"
+      >
+        {loading ? "Creating account..." : "Create Account"}
+      </button>
+    </form>
+  );
+}
+
+export default function ExplorePage() {
+  const [apk, setApk] = useState<{ version: string | null; url: string | null } | null>(null);
+  const [liveOrders, setLiveOrders] = useState(0);
+  const { ref: statsRef, visible: statsVisible } = useInView();
+
+  // Real data from DB
+  const [merchants, setMerchants] = useState<any[]>([]);
+  const [totalMerchants, setTotalMerchants] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [merchantCount, setMerchantCount] = useState(0);
+  const [districtCount, setDistrictCount] = useState(0);
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  useEffect(() => {
+    // Fetch real merchant data on mount
+    fetch("/api/merchants")
+      .then((r) => r.json())
+      .then((data) => {
+        const list = data?.merchants || [];
+        setMerchants(list);
+        setTotalMerchants(list.length);
+        setMerchantCount(list.length);
+        // Count unique districts
+        const districts = new Set(list.map((m: any) => m.district).filter(Boolean)) as Set<string>;
+        setDistricts([...districts]);
+        setDistrictCount(districts.size || 1);
+        // Approximate orders from merchant total_orders
+        const orders = list.reduce((sum: number, m: any) => sum + (m.total_orders || 0), 0);
+        setTotalOrders(orders || list.length * 5); // rough estimate if no orders tracked
+        setLiveOrders(Math.min(999, Math.max(12, list.length * 3)));
+        setDataLoading(false);
+      })
+      .catch(() => setDataLoading(false));
+  }, []);
+
+  return (
+    <div className="min-h-[100dvh] bg-background flex flex-col">
+      {/* Hero — dark and premium, the one place the brand leads.
+          Everything below stays on the light surfaces so the page never
+          becomes an all-orange wall. */}
+      <DarkHero />
+
+      {/* 1. Location + Search live in the hero above.
+          2. Services */}
+      <CategoryRail />
+
+      {/* 3. Nearby merchants */}
+      <PopularPicks />
+
+      {/* 4. Delivery preference */}
+      <DeliveryPreference />
+
+      {/* 5. Recent / reorder */}
+      <Favourites />
+
+      {/* 6. New — table reservations */}
+      <TableBooking />
+
+      {/* Urgency Bar */}
+      <section className="border-y border-border bg-go/5">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center divide-x divide-border px-4">
+          {[
+            { icon: Clock, text: "Delivering in 30 min or less" },
+            { icon: BadgePercent, text: "Free delivery today" },
+            { icon: ShieldCheck, text: "100% payment protection" },
+          ].map((item, i) => {
+            const ItemIcon = item.icon;
+            return (
+              <div key={i} className="flex items-center gap-2 px-5 py-3 text-xs font-medium text-muted min-w-[180px] justify-center">
+                <ItemIcon className="h-3.5 w-3.5 text-go" />
+                {item.text}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Animated Stats Bar */}
+      <section ref={statsRef} className="border-b border-border bg-surface/30">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-stretch justify-center gap-3 px-4 py-8">
+          {[
+            { value: "Growing", label: "network of local shops" },
+            { value: "Live in Masaka", label: "expanding across Uganda" },
+            { value: "Fast", label: "deliveries starting now" }
+          ].map((s) => (
+            <div key={s.label} className="tile flex-1 min-w-[150px] px-6 py-6 text-center transition hover:-translate-y-0.5 hover:shadow-floating">
+              <p className="gradient-text font-display text-2xl font-bold md:text-3xl">
+                {s.value}
+              </p>
+              <p className="mt-1 text-xs font-medium text-muted">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Trending Now */}
+      <section className="border-b border-border py-14">
+        <div className="mx-auto max-w-5xl px-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-go/10 px-3 py-1 text-[10px] font-bold text-go uppercase">
+                <Flame className="h-3 w-3" /> {merchants.length > 0 ? "Trending now" : "Launching soon"}
+              </div>
+              <h2 className="mt-3 font-display text-2xl font-bold">
+                {merchants.length > 0 ? "Popular near you" : "Shops on GoDoor"}
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                {merchants.length > 0
+                  ? `${merchants.length} local businesses ready to deliver`
+                  : "Businesses are joining GoDoor every day"
+                }
+              </p>
+            </div>
+            {merchants.length > 0 && (
+              <Link href="/app" className="hidden items-center gap-1 text-sm font-medium text-go hover:underline sm:flex">
+                View all <ChevronRight className="h-4 w-4" />
+              </Link>
+            )}
+          </div>
+
+          {dataLoading ? (
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-2xl bg-surface overflow-hidden animate-pulse">
+                  <div className="h-32 bg-elevated" />
+                  <div className="p-4 space-y-2">
+                    <div className="h-3 w-24 rounded bg-border" />
+                    <div className="h-2 w-16 rounded bg-border" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : merchants.length > 0 ? (
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger">
+              {merchants.slice(0, 8).map((m) => {
+                const cat = categoryVisual(m.category);
+                const CatIcon = cat.icon;
+                return (
+                  <Link key={m.id} href={`/business?merchantId=${m.id}`} className="group card-hover overflow-hidden rounded-2xl bg-surface shadow-xs">
+                    <div className={`relative ${cat.bg} flex h-32 items-center justify-center`}>
+                      {m.logo_url ? (
+                        /* A merchant row can carry a logo_url that no longer
+                           resolves — the object was deleted from the
+                           `store-photos` bucket, or the row predates it. That
+                           rendered a broken image frame, so fall back to the
+                           category icon the same way a missing URL does. */
+                        <img
+                          src={m.logo_url}
+                          alt={m.name}
+                          className="h-20 w-20 rounded-2xl object-cover shadow-md"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                            e.currentTarget.parentElement
+                              ?.querySelector("[data-logo-fallback]")
+                              ?.classList.remove("hidden");
+                          }}
+                        />
+                      ) : null}
+                      {/* A plate rather than a bare glyph — reads as designed
+                          artwork instead of a placeholder. */}
+                      <span
+                        data-logo-fallback
+                        className={`grid h-16 w-16 place-items-center rounded-2xl bg-surface/95 shadow-lg shadow-black/5 ring-1 ring-border transition-transform duration-300 group-hover:scale-105 ${
+                          m.logo_url ? "hidden" : ""
+                        }`}
+                      >
+                        <CatIcon className={`h-7 w-7 ${cat.text}`} aria-hidden />
+                      </span>
+                      {m.verified && (
+                        <span className="absolute top-2 right-2 rounded-full bg-success px-2 py-0.5 text-[10px] font-semibold text-white">
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-display text-sm font-semibold group-hover:text-go transition">{m.name}</h3>
+                      <p className="mt-0.5 text-xs text-muted">{m.category}{m.area ? ` · ${m.area}` : ""}</p>
+                      <div className="mt-2 flex items-center justify-between">
+                        {m.rating && m.rating > 0 ? (
+                          <div className="flex items-center gap-1">
+                            <Star className="h-3 w-3 fill-go text-go" />
+                            <span className="text-xs font-semibold">{m.rating.toFixed(1)}</span>
+                          </div>
+                        ) : (
+                          <span className="rounded-full bg-go/10 px-2 py-0.5 text-[10px] font-semibold text-go">New</span>
+                        )}
+                        {m.delivery_fee_ugx > 0 && (
+                          <span className="text-[10px] text-muted">{(m.delivery_fee_ugx).toLocaleString()} UGX delivery</span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-6 rounded-2xl bg-surface/60 p-10 text-center">
+              <ShoppingBag className="mx-auto h-10 w-10 text-dim" />
+              <h3 className="mt-3 font-display text-base font-semibold">No shops listed yet</h3>
+              <p className="mt-1 text-sm text-muted max-w-xs mx-auto">
+                Be the first business on GoDoor. Register your shop and start receiving orders today.
+              </p>
+              <Link href="/partner?role=business" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-go px-5 py-2.5 text-sm font-semibold text-white hover:bg-go-2 transition">
+                Register your business <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          )}
+
+          {merchants.length > 4 && (
+            <Link href="/app" className="mt-6 flex items-center justify-center gap-1 text-sm font-medium text-go hover:underline sm:hidden">
+              View all merchants <ChevronRight className="h-4 w-4" />
+            </Link>
+          )}
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section id="how-it-works" className="border-b border-border py-14">
+        <div className="mx-auto max-w-5xl px-4">
+          <h2 className="text-center font-display text-2xl font-bold">How it works</h2>
+          <p className="mt-2 text-center text-sm text-muted">Three simple steps to get what you need</p>
+          <div className="mt-10 grid gap-6 md:grid-cols-3 stagger">
+            {HOW_IT_WORKS_STEPS.map((step, idx) => {
+              const StepIcon = step.icon;
+              return (
+                <div key={idx} className="relative rounded-2xl bg-surface p-7 text-center transition hover:bg-go/[0.02]">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="inline-flex items-center justify-center rounded-full bg-go px-3 py-1 text-[10px] font-bold text-white shadow-md shadow-go/20">
+                      Step {idx + 1}
+                    </span>
+                  </div>
+                  <div className={`mx-auto mb-4 mt-1 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-b ${step.color}`}>
+                    <StepIcon className="h-8 w-8 text-go" />
+                  </div>
+                  <h3 className="font-display text-base font-semibold">{step.title}</h3>
+                  <p className="mt-2 text-sm text-muted leading-relaxed">{step.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Categories */}
+      <section className="border-b border-border py-14">
+        <div className="mx-auto max-w-5xl px-4">
+          <h2 className="text-center font-display text-2xl font-bold">Everything you need, delivered</h2>
+          <p className="mt-2 text-center text-sm text-muted">Restaurants are live now — more categories opening soon</p>
+          <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4 stagger">
+            {LANDING_CATEGORIES.map((c) => {
+              const CatIcon = c.icon;
+              const catCount = merchants.filter((m) => categoryMatches(m, c.label)).length;
+              return (
+                <Link key={c.label} href="/app" className="group card-hover rounded-2xl bg-surface p-5 shadow-xs">
+                  <div className={`grid h-11 w-11 place-items-center rounded-xl ${c.bg} transition-transform duration-200 group-hover:scale-110`}>
+                    <CatIcon className={`h-5.5 w-5.5 ${c.color}`} />
+                  </div>
+                  <p className="mt-3 font-display text-sm font-semibold group-hover:text-go transition-colors">{c.label}</p>
+                  <p className="mt-0.5 text-xs text-muted">{c.desc}</p>
+                  {c.status === "live" ? (
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-bold text-success">
+                      <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
+                      Live now{catCount > 0 ? ` · ${catCount} ${catCount === 1 ? "shop" : "shops"}` : ""}
+                    </span>
+                  ) : (
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-bold text-warning">
+                      Waitlist open
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Available in */}
+      <section className="border-b border-border py-14">
+        <div className="mx-auto max-w-5xl px-4">
+          <h2 className="text-center font-display text-2xl font-bold">Available across Uganda</h2>
+          <p className="mt-2 text-center text-sm text-muted">
+            {districts.length > 0 ? `Delivering in ${districts.length} ${districts.length === 1 ? "district" : "districts"}` : "Growing every day"}
+          </p>
+          <div className="mt-8 grid grid-cols-3 gap-2 md:grid-cols-6">
+            {districts.length > 0 ? districts.map((city) => (
+              <div key={city} className="flex items-center justify-center gap-1.5 rounded-xl bg-surface/70 py-2.5 text-xs font-medium transition hover:bg-go/5">
+                <MapPinned className="h-3 w-3 text-go" />{city}
+              </div>
+            )) : (
+              <div className="col-span-3 flex items-center justify-center gap-2 rounded-xl bg-surface/60 py-6 text-xs text-muted md:col-span-6">
+                <MapPinned className="h-3 w-3 text-go" /> Expanding to your area
+              </div>
+            )}
+          </div>
+          <p className="mt-4 text-center text-xs text-dim">More districts opening — check the app for your area</p>
+        </div>
+      </section>
+
+      {/* Why GoDoor */}
+      <section className="border-b border-border py-14">
+        <div className="mx-auto max-w-5xl px-4">
+          <h2 className="text-center font-display text-2xl font-bold">Why choose GoDoor</h2>
+          <p className="mt-2 text-center text-sm text-muted">Built for Uganda, designed for everyone</p>
+          <div className="mt-8 grid gap-4 md:grid-cols-2 stagger">
+            {[
+              { icon: Wallet, title: "GoDoor Wallet — escrow protected", desc: "Fund your wallet via Morse and pay with confidence. Every payment is held safely in escrow until delivery is confirmed." },
+              { icon: MapPin, title: "Live GPS Tracking", desc: "Watch your delivery in real-time on the map. Know exactly where your order is." },
+              { icon: ShieldCheck, title: "Verified Merchants & Riders", desc: "Every business and rider is verified for your safety and trust." },
+              { icon: Clock, title: "Fast Delivery", desc: "Average delivery in under 30 minutes. Track every step of the way." },
+            ].map((b) => {
+              const BIcon = b.icon;
+              return (
+                <div key={b.title} className="flex items-start gap-4 rounded-2xl bg-surface p-5">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-go/10">
+                    <BIcon className="h-5 w-5 text-go" />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-sm font-semibold">{b.title}</h3>
+                    <p className="mt-1 text-sm text-muted leading-relaxed">{b.desc}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Morse wallet — recommended for everyone */}
+      <section className="border-b border-border py-14">
+        <div className="mx-auto max-w-5xl px-4">
+          <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-go/10 via-surface to-surface p-8 md:p-10">
+            <div className="grid items-center gap-8 md:grid-cols-2">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-go/10 px-3 py-1 text-[10px] font-bold text-go uppercase">
+                  <Zap className="h-3 w-3" /> Pay with Morse
+                </div>
+                <div className="mt-4 flex items-center gap-3">
+                  <MorseLogo markOnly className="h-8 text-go" />
+                  <h2 className="font-display text-2xl font-bold md:text-3xl">
+                    Pay swiftly with <span className="text-go">Morse</span>
+                  </h2>
+                </div>
+                <p className="mt-3 text-sm text-muted leading-relaxed max-w-md">
+                  The fastest way to enjoy GoDoor. Top up your Morse wallet simply and easily
+                  via Morse, then check out in seconds —
+                  no delays at the till, no failed prompts.
+                </p>
+                <ul className="mt-5 space-y-2.5">
+                  {[
+                    { icon: Zap, text: "Swift transactions — pay for any order in seconds" },
+                    { icon: Smartphone, text: "Recharge easily via Morse" },
+                    { icon: Users, text: "Free Morse-to-Morse transfers — send money for free" },
+                    { icon: BadgePercent, text: "Free deposits — more of your money stays yours" },
+                  ].map((f) => {
+                    const FIcon = f.icon;
+                    return (
+                      <li key={f.text} className="flex items-center gap-2.5 text-sm text-fg">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-go/10">
+                          <FIcon className="h-4 w-4 text-go" />
+                        </span>
+                        {f.text}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link href="/wallet" className="inline-flex items-center gap-2 rounded-xl bg-go px-6 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-go-2 active:scale-[0.98]">
+                    <Wallet className="h-4 w-4" /> Top up with Morse
+                  </Link>
+                  <Link href="/tutorial" className="inline-flex items-center gap-2 rounded-xl bg-surface/80 px-5 py-3 text-sm font-medium transition hover:bg-elevated">
+                    How it works <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </div>
+              <div className="grid gap-3">
+                {[
+                  { icon: ShoppingBag, title: "Customers", desc: "One-tap checkout, live order tracking, zero payment stress." },
+                  { icon: Store, title: "Businesses", desc: "Get paid swiftly on every order — no POS, no paperwork." },
+                  { icon: Bike, title: "Riders", desc: "Swift payouts and clear earnings on every delivery." },
+                ].map((c) => {
+                  const CIcon = c.icon;
+                  return (
+                    <div key={c.title} className="card-lift flex items-start gap-3 rounded-2xl bg-surface p-4">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-go/10">
+                        <CIcon className="h-5 w-5 text-go" aria-hidden />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold">{c.title}</p>
+                        <p className="mt-0.5 text-xs text-muted leading-relaxed">{c.desc}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center justify-center gap-2 rounded-2xl bg-go/5 px-4 py-3">
+                  <MorseLogo className="h-3.5 text-go" />
+                  <p className="text-[11px] font-medium text-muted">Morse wallet · free deposits</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* For Merchants / For Riders */}
+      <section className="border-b border-border py-14">
+        <div className="mx-auto max-w-5xl px-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Merchants */}
+            <div className="relative overflow-hidden rounded-2xl bg-primary/5 bg-gradient-to-br from-primary/10 via-surface to-surface p-6 shadow-card">
+              <div className="deco-glow absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" aria-hidden />
+              <div className="relative">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-[10px] font-bold text-primary uppercase">
+                For Merchants
+              </div>
+              <h3 className="mt-3 font-display text-lg font-bold">Grow your business with GoDoor</h3>
+              <p className="mt-2 text-sm text-muted leading-relaxed">
+                Reach thousands of customers. Get orders delivered by verified riders. Easy mobile money payments — no POS needed.
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                {["Free to join", "No monthly fees", "Instant mobile money payouts", "Live order tracking"].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-xs text-muted"><Check className="h-3 w-3 text-success" />{f}</li>
+                ))}
+              </ul>
+              <Link href="/partner?role=business" className="btn btn-soft mt-5 !text-primary !bg-primary/10 hover:!bg-primary/15">
+                Apply to join <ArrowRight className="h-4 w-4" />
+              </Link>
+              </div>
+            </div>
+            {/* Riders */}
+            <div className="relative overflow-hidden rounded-2xl bg-success/5 bg-gradient-to-br from-success/10 via-surface to-surface p-6 shadow-card">
+              <div className="deco-glow absolute -right-10 -top-10 h-40 w-40 rounded-full bg-success/10 blur-3xl" aria-hidden />
+              <div className="relative">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-[10px] font-bold text-success uppercase">
+                For Riders
+              </div>
+              <h3 className="mt-3 font-display text-lg font-bold">Earn on your own schedule</h3>
+              <p className="mt-2 text-sm text-muted leading-relaxed">
+                Pick orders near you, deliver when you want. Competitive earnings per delivery.
+              </p>
+              <ul className="mt-3 space-y-1.5">
+                {["Choose your own hours", "Real-time delivery map", "Track your earnings daily", "Flexible payout schedule"].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-xs text-muted"><Check className="h-3 w-3 text-success" />{f}</li>
+                ))}
+              </ul>
+              <Link href="/partner?role=rider" className="btn btn-soft mt-5 !text-success !bg-success/10 hover:!bg-success/15">
+                Apply to deliver <ArrowRight className="h-4 w-4" />
+              </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Download the App */}
+      <section className="border-b border-border py-14">
+        <div className="mx-auto max-w-5xl px-4">
+          <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-surface via-surface to-go/5 p-8 md:p-12">
+            <div className="grid items-center gap-8 md:grid-cols-2">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-go/10 px-3 py-1 text-[10px] font-bold text-go uppercase">
+                  <span>Get the app</span>
+                </div>
+                <h2 className="mt-4 font-display text-2xl font-bold md:text-3xl">
+                  Take GoDoor<br />
+                  <span className="text-go">everywhere.</span>
+                </h2>
+                <p className="mt-3 text-sm text-muted leading-relaxed max-w-sm">
+                  Download the native app for the fastest experience. Offline browsing, one-tap reordering, and the GoDoor wallet in your pocket.
+                </p>
+                <ul className="mt-4 space-y-2">
+                  {[
+                    { icon: Zap, text: "Faster than mobile web" },
+                    { icon: Wifi, text: "Browse offline" },
+                    { icon: Globe, text: "Works on any Android phone" },
+                  ].map((f) => {
+                    const FIcon = f.icon;
+                    return (
+                      <li key={f.text} className="flex items-center gap-2 text-sm text-muted">
+                        <FIcon className="h-4 w-4 text-go" /> {f.text}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  {apk?.url ? (
+                    <a
+                      href={apk.url}
+                      download
+                      className="inline-flex items-center gap-2 rounded-xl border border-go/30 bg-go/10 px-4 py-3 text-sm font-semibold text-go transition hover:bg-go/20"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download Android app
+                      <span className="rounded-full bg-go/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                        {apk.version || "APK"}
+                      </span>
+                    </a>
+                  ) : (
+                    <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-muted">
+                      <Download className="h-4 w-4" />
+                      Google Play Store
+                      <span className="rounded-full bg-go/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-go">Launching soon</span>
+                    </div>
+                  )}
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-muted">
+                    <Download className="h-4 w-4" />
+                    iOS Store
+                    <span className="rounded-full bg-go/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-go">Launching soon</span>
+                  </div>
+                  <Link href="/app" className="inline-flex items-center gap-2 rounded-xl bg-go px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-go/20 transition hover:bg-go-2 active:scale-[0.98]">
+                    Use web app <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </div>
+              <div className="relative hidden md:flex items-center justify-center">
+                <div className="relative">
+                  <div className="animate-float w-52 rounded-[2.6rem] bg-surface/90 p-3 shadow-pop">
+                    <div className="space-y-2 rounded-3xl bg-gradient-to-b from-bg to-elevated p-3">
+                      <div className="flex items-center gap-2">
+                        <Logo size="sm" />
+                      </div>
+                      <div className="space-y-1.5">
+                        {[1, 2, 3].map((i) => (
+                          <div key={i} className="flex gap-2">
+                            <div className="h-10 w-10 rounded-lg bg-go/10" />
+                            <div className="flex-1 space-y-1 pt-1">
+                              <div className="h-2 w-20 rounded bg-border" />
+                              <div className="h-2 w-12 rounded bg-go/20" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="absolute -top-3 -right-3 rounded-full bg-go px-3 py-1.5 text-[10px] font-bold text-white shadow-lg shadow-go/30">
+                    FREE
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section className="border-b border-border bg-surface/30 py-14">
+        <div className="mx-auto max-w-5xl px-4">
+          <h2 className="text-center font-display text-2xl font-bold">What people are saying</h2>
+          <p className="mt-2 text-center text-sm text-muted">What early users are saying</p>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {[
+              { name: "Amina K.", role: "Kampala", text: "GoDoor changed how I shop. My groceries arrive fresh in under 30 minutes and I pay with Morse — it just works.", stars: 5 },
+              { name: "Joseph T.", role: "Mbarara", text: "As a merchant, my orders tripled since listing on GoDoor. The riders are reliable and the dashboard is super clear.", stars: 5 },
+              { name: "Grace N.", role: "Entebbe", text: "I use GoDoor for deliveries every week. Tracking my rider live on the map is such a peace of mind.", stars: 5 },
+            ].map((t, i) => (
+              <div key={i} className="rounded-2xl bg-surface p-5 shadow-xs transition hover:shadow-card">
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: t.stars }).map((_, j) => (
+                    <Star key={j} className="h-3.5 w-3.5 fill-warning text-warning" />
+                  ))}
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-fg">{t.text}</p>
+                <div className="mt-4 flex items-center gap-2">
+                  <div className="grid h-8 w-8 place-items-center rounded-full bg-go/10 text-xs font-bold text-go">{t.name[0]}</div>
+                  <div>
+                    <p className="text-xs font-semibold text-fg">{t.name}</p>
+                    <p className="text-[10px] text-muted">{t.role}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="border-b border-border py-14">
+        <div className="mx-auto max-w-2xl px-4">
+          <h2 className="text-center font-display text-2xl font-bold">Frequently asked questions</h2>
+          <div className="mt-8">
+            {FAQ_ITEMS.map((item) => (
+              <FaqAccordion key={item.q} q={item.q} a={item.a} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="border-t border-border bg-gradient-to-b from-go/5 to-transparent py-14">
+        <div className="relative mx-auto max-w-5xl px-4 text-center">
+          <div className="deco-glow pointer-events-none absolute left-1/2 top-0 -z-10 h-64 w-64 -translate-x-1/2 rounded-full bg-go/15 blur-3xl" aria-hidden />
+          <Logo size="lg" className="justify-center" />
+          <p className="mt-4 text-lg text-muted">Delivering Possibilities.</p>
+
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-go/10 px-3 py-1.5 text-xs font-medium text-go">
+            <BadgePercent className="h-3 w-3" />
+            Free delivery on your first order
+          </div>
+
+          <div className="mt-4 inline-flex items-center gap-2 text-xs text-muted">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
+            </span>
+            Live in Masaka · Expanding across Uganda
+          </div>
+
+          <Link
+            href="/"
+            className="sheen relative mt-8 inline-block overflow-hidden rounded-xl bg-go px-8 py-4 text-sm font-semibold text-white shadow-glow transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
+            Try GoDoor now — it&apos;s free
+          </Link>
+          <p className="mt-3 text-xs text-dim">
+            No card needed. Just your phone — pay with Morse for the swiftest checkout.
+          </p>
+          <Link
+            href="/tutorial"
+            className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-go hover:underline"
+          >
+            Watch how it works <Play className="h-3 w-3" />
+          </Link>
+        </div>
+      </section>
+    </div>
+  );
+}

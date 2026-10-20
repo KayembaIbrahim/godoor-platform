@@ -1,246 +1,585 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ShoppingItem, ShoppingList } from "@/lib/shopping-list";
+import { useEffect, useState } from "react";
+import {
+  ArrowRight,
+  ChevronDown,
+  Loader2,
+  Minus,
+  Plus,
+  ShoppingBasket,
+  Trash2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { formatUgx } from "@/lib/shopping-list";
+import type { ShoppingItem, ShoppingListStatus } from "@/lib/shopping-list";
+
+/**
+ * Customer Shopping List — version 10.5.1.
+ *
+ * What changed from the previous 246-line form:
+ *   • every item has a real quantity (not always 1), shown next to its cost;
+ *   • the fee breakdown is visible BEFORE submitting: UGX 500 per valid item
+ *     for the shopping service, merchandise, and delivery are three separate
+ *     lines that are never folded together;
+ *   • the fee is RECOMPUTED by the server on submit — the client sends items,
+ *     never a total, so a tampered total cannot change the charge;
+ *   • a list that is already being shopped can no longer be silently edited;
+ *   • the activity trail shows how a list got where it is.
+ */
+
+const FEE_PER_ITEM = 500;
+const MIN_ITEMS = 5;
+const MAX_ITEMS = 100;
+
+/** The row shape the API returns (snake_case columns from Postgres). */
+type ListRow = {
+  id: string;
+  name: string;
+  status: ShoppingListStatus;
+  items: ShoppingItem[];
+  shopping_fee_ugx: number;
+  merchandise_ugx: number;
+  delivery_fee_ugx: number;
+  total_ugx: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type DraftItem = { key: string; name: string; quantity: number };
 
 export default function ShoppingListPage() {
-  const [list, setList] = useState<ShoppingList | null>(null);
-  const [newItems, setNewItems] = useState<ShoppingItem[]>([]);
-  const [name, setName] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [lists, setLists] = useState<ListRow[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<DraftItem[]>([]);
+  const [itemName, setItemName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+  const [toast, setToast] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
 
-  // Load shopping list from API
   useEffect(() => {
-    const fetchShoppingList = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch("/api/shopping-list");
-        
-        if (!response.ok) {
-          throw new Error("Failed to fetch shopping list");
-        }
-        
-        const data = await response.json();
-        if (data.shoppingLists && data.shoppingLists.length > 0) {
-          setList(data.shoppingLists[0]);
-        } else {
-          setList(null);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchShoppingList();
+    void load();
   }, []);
 
-  // Handle adding a new item to the shopping list
-  const handleAddItem = async () => {
-    if (!name.trim()) return;
-    
-    const item: ShoppingItem = {
-      productId: `product-${Date.now()}`, // Unique product ID
-      merchantId: "merchant-001", // Default merchant
-      name: name.trim(),
-      unitPriceUgx: 500, // Required: 500 UGX per item
-      quantity: 1
-    };
-    
-    setNewItems([...newItems, item]);
-    setName("");
-  };
+  async function load() {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/shopping-list", { cache: "no-store" });
+      if (!res.ok) throw new Error(await friendlyError(res));
+      const data = (await res.json()) as { shoppingLists?: ListRow[] };
+      const rows = data.shoppingLists ?? [];
+      setLists(rows);
+      setActiveId((cur) => (cur && rows.some((r) => r.id === cur) ? cur : rows[0]?.id ?? null));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load your shopping list");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  // Handle removing an item
-  const removeItem = (index: number) => {
-    const updated = [...newItems];
-    updated.splice(index, 1);
-    setNewItems(updated);
-  };
+  function flash(kind: "ok" | "err", msg: string) {
+    setToast({ kind, msg });
+    window.setTimeout(() => setToast(null), 3600);
+  }
 
-  // Handle creating the shopping list with new items
-  const handleCreateList = async () => {
-    if (newItems.length < 5) {
-      setError("Shopping list must contain at least 5 items");
+  function addItem() {
+    const name = itemName.trim();
+    if (!name) return;
+    if (draft.length >= MAX_ITEMS) {
+      flash("err", `A list can hold at most ${MAX_ITEMS} items.`);
       return;
     }
-    
-    try {
-      const response = await fetch("/api/shopping-list", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: `list-${Date.now()}`, // Generate unique ID
-          items: newItems
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create shopping list");
-      }
-      
-      const data = await response.json();
-      setList(data.data);
-      setNewItems([]);
-      
-      // Show success message
-      alert(`Shopping list created successfully! Total: ${500 * newItems.length} UGX`);
-      
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create shopping list");
-    }
-  };
+    setDraft((d) => [...d, { key: `${Date.now()}-${d.length}`, name, quantity: 1 }]);
+    setItemName("");
+  }
 
-  // Calculate total price
-  const calculateTotalPrice = () => {
-    return newItems.reduce((total, item) => total + (item.unitPriceUgx * item.quantity), 0);
-  };
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading shopping list...</p>
-        </div>
-      </div>
+  function changeQty(key: string, delta: number) {
+    setDraft((d) =>
+      d.map((it) =>
+        it.key === key
+          ? { ...it, quantity: Math.max(1, Math.min(99, it.quantity + delta)) }
+          : it,
+      ),
     );
   }
 
+  function removeItem(key: string) {
+    setDraft((d) => d.filter((it) => it.key !== key));
+  }
+
+  const draftShoppingFee = draft.length * FEE_PER_ITEM;
+  const draftMerchandise = draft.reduce((s, it) => s + FEE_PER_ITEM * it.quantity, 0);
+  const draftTotal = draftShoppingFee + draftMerchandise;
+  const remaining = Math.max(0, MIN_ITEMS - draft.length);
+
+  async function submit() {
+    if (draft.length < MIN_ITEMS) {
+      flash("err", `Add ${remaining} more item${remaining === 1 ? "" : "s"} — a list needs at least ${MIN_ITEMS}.`);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/shopping-list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: draft.map((it) => ({ name: it.name, quantity: it.quantity })),
+        }),
+      });
+      if (!res.ok) throw new Error(await friendlyError(res));
+      const data = (await res.json()) as { data?: ListRow };
+      if (data.data) {
+        setLists((l) => [data.data!, ...l]);
+        setActiveId(data.data.id);
+      }
+      setDraft([]);
+      flash("ok", "Shopping list submitted. We will start shopping shortly.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not submit the list");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelList(id: string) {
+    if (!window.confirm("Cancel this shopping list?")) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/shopping-list/${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await friendlyError(res));
+      setLists((l) => l.filter((r) => r.id !== id));
+      setActiveId((cur) => (cur === id ? null : cur));
+      flash("ok", "Shopping list cancelled.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not cancel the list");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const active = lists.find((l) => l.id === activeId) ?? null;
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Shopping List</h1>
-          <p className="text-gray-600">Create your shopping list with at least 5 items</p>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Add New Items Section */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Add Items</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Item Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter item name..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              
-              <button
-                onClick={handleAddItem}
-                disabled={!name.trim()}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Add Item
-              </button>
-            </div>
-            
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Note:</strong> Each item costs 500 UGX. You need at least 5 items to create a list.
+    <div className="min-h-[100dvh] bg-bg pb-24">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-go/10 text-go">
+              <ShoppingBasket className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="truncate text-[15px] font-semibold leading-tight text-fg">Shopping List</h1>
+              <p className="truncate text-xs leading-tight text-muted">
+                {formatUgx(FEE_PER_ITEM)} UGX service fee per item
               </p>
             </div>
           </div>
+          {lists.length > 0 && (
+            <div className="relative shrink-0">
+              <select
+                value={activeId ?? ""}
+                onChange={(e) => setActiveId(e.target.value || null)}
+                aria-label="Choose a shopping list"
+                className="appearance-none rounded-xl border border-border bg-surface py-2 pl-3 pr-8 text-xs font-medium text-fg focus:border-go focus:outline-none focus:ring-2 focus:ring-go/30"
+              >
+                {lists.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {statusLabel(l.status)} · {formatUgx(l.total_ugx)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+            </div>
+          )}
+        </div>
+      </header>
 
-          {/* Current Items Section */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Current Items</h2>
-            
-            {newItems.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No items added yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {newItems.map((item, index) => (
-                  <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <span className="font-medium">{item.name}</span>
-                      <span className="text-sm text-gray-600 ml-2">
-                        (500 UGX × {item.quantity}) = {item.unitPriceUgx * item.quantity} UGX
-                      </span>
-                    </div>
+      <main className="mx-auto max-w-2xl space-y-4 px-4 pt-4">
+        {/* ── Composer ──────────────────────────────────────────────────── */}
+        <section className="card p-4 sm:p-5">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold text-fg">New shopping list</h2>
+            <span
+              className={cn(
+                "text-xs font-medium",
+                draft.length >= MIN_ITEMS ? "text-success" : "text-muted",
+              )}
+            >
+              {draft.length} / {MAX_ITEMS}
+            </span>
+          </div>
+
+          {/* Add row */}
+          <div className="flex gap-2">
+            <input
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addItem();
+                }
+              }}
+              placeholder="Item name — e.g. 2 litres of milk"
+              aria-label="Item name"
+              className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-fg placeholder:text-muted focus:border-go focus:outline-none focus:ring-2 focus:ring-go/25"
+            />
+            <button
+              type="button"
+              onClick={addItem}
+              disabled={!itemName.trim()}
+              className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-go px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-go-2 active:scale-[0.98] disabled:opacity-40"
+            >
+              <Plus className="h-4 w-4" /> Add
+            </button>
+          </div>
+
+          {/* Items */}
+          {draft.length > 0 && (
+            <ul className="mt-3 space-y-2">
+              {draft.map((it) => (
+                <li
+                  key={it.key}
+                  className="flex items-center gap-3 rounded-xl border border-border bg-surface-2 px-3 py-2.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-fg">{it.name}</p>
+                    <p className="text-xs text-muted">
+                      {formatUgx(FEE_PER_ITEM)} UGX per item
+                    </p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-bg">
                     <button
-                      onClick={() => removeItem(index)}
-                      className="text-red-600 hover:text-red-800 font-medium text-sm"
+                      type="button"
+                      onClick={() => changeQty(it.key, -1)}
+                      disabled={it.quantity <= 1}
+                      aria-label={`Reduce quantity of ${it.name}`}
+                      className="grid h-9 w-9 place-items-center rounded-lg text-muted transition hover:text-fg disabled:opacity-30"
                     >
-                      Remove
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="w-6 text-center text-sm font-semibold tabular-nums text-fg">
+                      {it.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => changeQty(it.key, 1)}
+                      disabled={it.quantity >= 99}
+                      aria-label={`Increase quantity of ${it.name}`}
+                      className="grid h-9 w-9 place-items-center rounded-lg text-muted transition hover:text-fg disabled:opacity-30"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                ))}
-                
-                <div className="pt-4 border-t">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-lg font-semibold">Total:</span>
-                    <span className="text-xl font-bold text-blue-600">
-                      {calculateTotalPrice()} UGX
-                    </span>
-                  </div>
-                  
-                  <button
-                    onClick={handleCreateList}
-                    disabled={newItems.length < 5}
-                    className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
-                  >
-                    Create Shopping List ({newItems.length} items)
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* Existing List Section */}
-        {list && (
-          <div className="mt-8 bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Your Existing Shopping List</h2>
-            
-            <div className="space-y-4">
-              {list.items.map((item, index) => (
-                <div key={index} className="flex justify-between items-center p-3 border rounded-lg">
-                  <div>
-                    <span className="font-medium">{item.name}</span>
-                    <span className="text-sm text-gray-600 ml-2">
-                      (500 UGX × {item.quantity}) = {item.unitPriceUgx * item.quantity} UGX
-                    </span>
-                  </div>
-                </div>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(it.key)}
+                    aria-label={`Remove ${it.name}`}
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted transition hover:bg-danger/10 hover:text-danger"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
               ))}
-              
-              <div className="pt-4 border-t">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold">Total:</span>
-                  <span className="text-xl font-bold text-green-600">
-                    {list.items.reduce((sum, item) => sum + (item.unitPriceUgx * item.quantity), 0)} UGX
-                  </span>
-                </div>
+            </ul>
+          )}
+
+          {/* Minimum rule */}
+          {draft.length < MIN_ITEMS && (
+            <p className="mt-3 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-xs font-medium text-warning">
+              Add {remaining} more item{remaining === 1 ? "" : "s"} — a shopping list starts at{" "}
+              {MIN_ITEMS} items.
+            </p>
+          )}
+
+          {/* Breakdown */}
+          {draft.length > 0 && (
+            <dl className="mt-4 space-y-1.5 rounded-xl bg-surface-2 px-3.5 py-3 text-sm">
+              <div className="flex items-center justify-between">
+                <dt className="text-muted">
+                  Shopping service ({draft.length} × {formatUgx(FEE_PER_ITEM)})
+                </dt>
+                <dd className="font-semibold tabular-nums text-fg">{formatUgx(draftShoppingFee)} UGX</dd>
               </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-muted">Items estimate</dt>
+                <dd className="font-semibold tabular-nums text-fg">{formatUgx(draftMerchandise)} UGX</dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-muted">Delivery</dt>
+                <dd className="text-xs text-muted">quoted after shopping</dd>
+              </div>
+              <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
+                <dt className="font-semibold text-fg">Total so far</dt>
+                <dd className="text-base font-bold tabular-nums text-go">
+                  {formatUgx(draftTotal)} UGX
+                </dd>
+              </div>
+            </dl>
+          )}
+
+          <button
+            type="button"
+            onClick={submit}
+            disabled={draft.length < MIN_ITEMS || busy}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-go px-5 py-3.5 text-sm font-semibold text-white shadow-glow transition hover:bg-go-2 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBasket className="h-4 w-4" />}
+            {busy ? "Submitting…" : "Submit shopping list"}
+          </button>
+          <p className="mt-2 text-center text-[11px] text-muted">
+            We shop the list and deliver. You approve the final price before payment.
+          </p>
+        </section>
+
+        {/* ── Active list ───────────────────────────────────────────────── */}
+        {active && (
+          <section className="card p-4 sm:p-5">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-semibold text-fg">{active.name}</h2>
+                <p className="mt-0.5 text-xs text-muted">
+                  {active.items.length} items · {new Date(active.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <StatusPill status={active.status} />
             </div>
-          </div>
+
+            <ul className="divide-y divide-border rounded-xl border border-border">
+              {active.items.map((it, i) => (
+                <li key={it.id ?? `${it.name}-${i}`} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                  <span className="min-w-0 flex-1 truncate text-sm text-fg">{it.name}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted">
+                    × {it.quantity}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            <dl className="mt-4 space-y-1.5 rounded-xl bg-surface-2 px-3.5 py-3 text-sm">
+              <div className="flex items-center justify-between">
+                <dt className="text-muted">Shopping service</dt>
+                <dd className="font-semibold tabular-nums text-fg">
+                  {formatUgx(active.shopping_fee_ugx)} UGX
+                </dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-muted">Merchandise</dt>
+                <dd className="font-semibold tabular-nums text-fg">
+                  {formatUgx(active.merchandise_ugx)} UGX
+                </dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-muted">Delivery</dt>
+                <dd className="font-semibold tabular-nums text-fg">
+                  {formatUgx(active.delivery_fee_ugx)} UGX
+                </dd>
+              </div>
+              <div className="mt-1 flex items-center justify-between border-t border-border pt-2">
+                <dt className="font-semibold text-fg">Total</dt>
+                <dd className="text-base font-bold tabular-nums text-go">
+                  {formatUgx(active.total_ugx)} UGX
+                </dd>
+              </div>
+            </dl>
+
+            {["submitted", "shopping", "awaiting_approval"].includes(active.status) && (
+              <button
+                type="button"
+                onClick={() => cancelList(active.id)}
+                disabled={busy}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-danger/30 px-3.5 py-2 text-xs font-semibold text-danger transition hover:bg-danger/10 disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Cancel this list
+              </button>
+            )}
+
+            <Activity listId={active.id} />
+          </section>
         )}
-      </div>
+
+        {/* ── History ───────────────────────────────────────────────────── */}
+        {lists.length > 0 && (
+          <section className="pb-2">
+            <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted">
+              Your lists
+            </h2>
+            <ul className="space-y-2">
+              {lists.map((l) => (
+                <li key={l.id}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveId(l.id)}
+                    className={cn(
+                      "card flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition",
+                      l.id === activeId && "border-go/50 shadow-md",
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-fg">
+                        {l.name}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted">
+                        {statusLabel(l.status)} · {l.items.length} items ·{" "}
+                        {formatUgx(l.total_ugx)} UGX
+                      </span>
+                    </span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-muted" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {!loading && lists.length === 0 && draft.length === 0 && (
+          <p className="px-1 pb-6 text-center text-sm text-muted">
+            No shopping lists yet. Add your first five items above.
+          </p>
+        )}
+      </main>
+
+      {/* ── Toast ──────────────────────────────────────────────────────── */}
+      {toast && (
+        <div
+          role="status"
+          className={cn(
+            "fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow-lg",
+            toast.kind === "ok" ? "bg-success" : "bg-danger",
+          )}
+        >
+          {toast.msg}
+        </div>
+      )}
+
+      {error && (
+        <div
+          role="alert"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm font-medium text-danger"
+        >
+          {error}
+        </div>
+      )}
     </div>
   );
+}
+
+/* ── Helpers ──────────────────────────────────────────────────────────── */
+
+function StatusPill({ status }: { status: ShoppingListStatus }) {
+  const map: Record<ShoppingListStatus, { label: string; cls: string }> = {
+    draft: { label: "Draft", cls: "bg-surface-2 text-muted" },
+    submitted: { label: "Submitted", cls: "bg-go/10 text-go" },
+    shopping: { label: "Being shopped", cls: "bg-brand-light text-brand-deep" },
+    awaiting_approval: { label: "Awaiting approval", cls: "bg-warning/10 text-warning" },
+    confirmed: { label: "Confirmed", cls: "bg-success/10 text-success" },
+    assigned: { label: "Rider assigned", cls: "bg-info-light text-info" },
+    delivering: { label: "Delivering", cls: "bg-info/10 text-info" },
+    delivered: { label: "Delivered", cls: "bg-success/10 text-success" },
+    cancelled: { label: "Cancelled", cls: "bg-danger/10 text-danger" },
+  };
+  const s = map[status] ?? map.draft;
+  return (
+    <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold", s.cls)}>
+      {s.label}
+    </span>
+  );
+}
+
+function statusLabel(status: ShoppingListStatus): string {
+  const map: Record<ShoppingListStatus, string> = {
+    draft: "Draft",
+    submitted: "Submitted",
+    shopping: "Being shopped",
+    awaiting_approval: "Awaiting approval",
+    confirmed: "Confirmed",
+    assigned: "Rider assigned",
+    delivering: "Delivering",
+    delivered: "Delivered",
+    cancelled: "Cancelled",
+  };
+  return map[status] ?? "Draft";
+}
+
+function Activity({ listId }: { listId: string }) {
+  const [events, setEvents] = useState<Array<{ event: string; created_at: string }>>([]);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/shopping-list/${encodeURIComponent(listId)}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { events?: Array<{ event: string; created_at: string }> };
+        if (alive) setEvents(data.events ?? []);
+      } catch {
+        /* the trail is informational — never block the page on it */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [listId]);
+
+  if (!events.length) return null;
+
+  return (
+    <details className="mt-3 rounded-xl border border-border bg-surface-2 px-3.5 py-2.5">
+      <summary className="cursor-pointer text-xs font-semibold text-muted">Activity</summary>
+      <ul className="mt-2 space-y-1">
+        {events.map((e, i) => (
+          <li key={i} className="flex items-center justify-between gap-3 text-xs">
+            <span className="text-fg">{eventLabel(e.event)}</span>
+            <span className="shrink-0 text-muted">
+              {new Date(e.created_at).toLocaleString()}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function eventLabel(event: string): string {
+  switch (event) {
+    case "submitted":
+      return "List submitted";
+    case "shopping":
+      return "A shopper started your list";
+    case "awaiting_approval":
+      return "Waiting for your approval";
+    case "confirmed":
+      return "Confirmed";
+    case "assigned":
+      return "Rider assigned";
+    case "delivering":
+      return "Out for delivery";
+    case "delivered":
+      return "Delivered";
+    case "cancelled":
+      return "Cancelled";
+    case "deleted":
+      return "Removed";
+    default:
+      return event.replace(/_/g, " ");
+  }
+}
+
+async function friendlyError(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: string };
+    if (body?.error) return body.error;
+  } catch {
+    /* fall through to the status text */
+  }
+  if (res.status === 401) return "Sign in to continue";
+  return `Request failed (${res.status})`;
 }
