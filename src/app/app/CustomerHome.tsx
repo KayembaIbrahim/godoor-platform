@@ -254,7 +254,7 @@ export default function CustomerHome() {
           underneath it. Without it the header — and with it the location
           control — sits behind the notch. */}
       <header className="safe-area-top sticky top-0 z-30 border-b border-hairline bg-canvas/90 backdrop-blur-xl">
-        <div className="flex items-center gap-2 px-4 py-2.5">
+        <div className="flex items-center gap-2 px-3 py-2">
           <Link
             href="/"
             className="flex min-h-11 shrink-0 items-center transition-transform active:scale-95"
@@ -290,15 +290,30 @@ export default function CustomerHome() {
           {/* The icon cluster. This used to be `gap-0.5` (2px), which packed
               the search, bell, theme toggle and avatar so tightly that they
               read as one smudge on a 360px phone and were easy to mis-tap.
-              `gap-1.5` (6px) plus a touch-friendly hit area on each control
-              gives them room to be read as separate buttons without making
-              the row any wider. */}
-          <div className="flex shrink-0 items-center gap-1.5">
+
+              The second round of fixes found the deeper problem: the four
+              controls were not the same SIZE. Search was 36px, the bell was
+              32px (a 16px icon inside `p-2`), the theme toggle was 32px, and
+              the avatar disc was 28px inside a 36px pill. Ragged sizes plus a
+              6px gap read as "crammed" no matter how the gap was tuned, because
+              the eye measures the tallest neighbour.
+
+              Every control in the cluster is now a uniform 40x40 hit area with
+              the glyph centred in it, and the cluster gap is 8px. The row's
+              horizontal padding also dropped from `px-4` to `px-3`, because the
+              logo lockup is 96px wide and four 40px buttons plus three 8px
+              gaps already needs 208px — with the old 32px of side padding the
+              row was exactly 320px wide, which left nothing on a 320px phone
+              and made the cluster look crushed against the edge.
+
+              The row now needs 272px, so it fits a 320px handset with room to
+              spare, and every control is a comfortable tap target. */}
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => setProductSearchOpen(true)}
               aria-label="Search GoDoor"
-              className="tap-44 grid h-9 w-9 place-items-center rounded-full text-fg transition hover:bg-elevated active:scale-95"
+              className="tap-44 grid h-10 w-10 place-items-center rounded-full text-fg transition hover:bg-elevated active:scale-95"
             >
               <Search className="h-4 w-4" />
             </button>

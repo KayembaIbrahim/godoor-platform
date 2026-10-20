@@ -220,11 +220,11 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
             e.stopPropagation();
             setMenuOpen((p) => !p);
           }}
-          className={`flex items-center gap-2 rounded-full border border-border bg-surface/60 py-1 transition hover:bg-elevated active:scale-95 ${compact ? "pl-1 pr-1" : "pl-1 pr-2.5"}`}
+          className={`flex items-center gap-2 rounded-full border border-border bg-surface/60 transition hover:bg-elevated active:scale-95 ${compact ? "h-10 w-10 justify-center p-0.5" : "py-1 pl-1 pr-2.5"}`}
           aria-label="Account menu"
           aria-expanded={menuOpen}
         >
-          <div className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-go/20 ring-1 ring-go/30">
+          <div className={`grid place-items-center overflow-hidden rounded-full bg-go/20 ring-1 ring-go/30 ${compact ? "h-full w-full" : "h-7 w-7"}`}>
             {(profile as any).avatarUrl ? (
               <img
                 src={(profile as any).avatarUrl}

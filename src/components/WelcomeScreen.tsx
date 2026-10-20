@@ -105,7 +105,7 @@ export function WelcomeScreen({
   const intensity = Math.max(0, Math.min(100, bg?.intensity ?? 100)) / 100;
 
   return (
-    <div className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-bg">
+    <div className="isolate relative flex min-h-[100dvh] flex-col overflow-hidden bg-bg">
       {/* ── Background ─────────────────────────────────────────────────── */}
       {hasShow ? (
         slides.map((s, i) => (

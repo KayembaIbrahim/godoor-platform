@@ -53,15 +53,21 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => { setOpen(!open); if (!open && unread > 0) markAllRead(); }}
-        className="tap-44 relative rounded-full p-2 text-muted hover:bg-elevated hover:text-fg transition"
+        className="tap-44 relative grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-elevated hover:text-fg transition"
         aria-label="Notifications"
       >
-        <Bell className="h-4 w-4" />
-        {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full bg-go text-[8px] font-bold text-white">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        )}
+        {/* The badge is anchored to the ICON, not to the button. The button
+            grew to 40x40 so every control in the header cluster is the same
+            size; anchoring the badge to the button instead would have left it
+            floating ~12px away from the bell it belongs to. */}
+        <span className="relative inline-flex">
+          <Bell className="h-4 w-4" />
+          {unread > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 grid h-4 w-4 place-items-center rounded-full bg-go text-[8px] font-bold text-white">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          )}
+        </span>
       </button>
 
       {open &&

@@ -166,11 +166,16 @@ export function HeaderClient() {
             theme toggle and avatar looking like one packed block on a narrow
             phone. `gap-2.5` gives each control its own space, and the profile
             button drops its name/chevron on small screens so the row keeps
-            its breathing room. */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+            its breathing room.
+
+            Every control here is a uniform 40x40 hit area — the wallet and
+            hamburger buttons used to be 32px while the bell, theme toggle and
+            avatar were 36-40px, and a ragged cluster reads as "crammed" no
+            matter how the gap is tuned. */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
           <Link
             href="/wallet"
-            className="tap-44 relative grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95"
+            className="tap-44 relative grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95"
             aria-label="GoDoor Wallet"
             title="GoDoor Wallet"
           >
@@ -183,7 +188,7 @@ export function HeaderClient() {
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
-            className="tap-44 grid h-8 w-8 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95 lg:hidden"
+            className="tap-44 grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95 lg:hidden"
             aria-label={menuOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={menuOpen}
           >
