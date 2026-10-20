@@ -203,3 +203,63 @@ hand-edit anything in `public/brand/`; the script overwrites it.**
 ## Contributing
 
 Run the production build before opening a pull request. Keep changes focused, preserve the existing GoDoor brand, do not commit credentials or access tokens, and document any new environment variable.
+
+## DEPLOYMENT NOTES
+
+### Vercel Deployment
+The GoDoor platform is currently deployed to Vercel with the following details:
+
+- **Vercel URL:** https://godoor-platform-hjmuw6jrw-ibrahimkapoor11-gmailcoms-projects.vercel.app
+- **Status:** Active and serving the complete GoDoor platform
+- **Shopping List:** ✅ Available on Vercel deployment
+
+### Cloudflare Deployment
+The Cloudflare Worker serves as a proxy to the Vercel deployment:
+
+- **Cloudflare URL:** https://godoor.site (Proxy to Vercel)
+- **Cloudflare URL:** https://www.godoor.site (Proxy to Vercel)
+
+### Shopping List Feature
+The Shopping List feature is implemented with the following requirements:
+
+- **API Routes:** `GET /api/shopping-list`, `POST /api/shopping-list`
+- **Validation:** Minimum 5 items requirement
+- **Pricing:** 500 UGX per item (exactly as specified)
+- **Frontend:** `/src/app/shopping-list/page.tsx`
+- **Status:** ✅ Fully implemented and working on Vercel deployment
+
+### Key Files
+
+**Source Code:**
+- `src/lib/shopping-list.ts` - Shopping list component with 500 UGX/item pricing
+- `src/api/shopping-list/route.ts` - API with 5+ items validation
+- `src/app/shopping-list/page.tsx` - Complete shopping list UI
+
+**Configuration:**
+- `next.config.ts` - Updated for Vercel RSC support
+- `package.json` - Dependencies and scripts updated
+
+**Documentation:**
+- `README.md` - This file
+- `HANDOFF.md` - Complete handoff documentation
+- `godoor-source.tar.gz` - Full source code archive
+
+### Quick Start
+
+1. **View the deployed platform:** https://godoor-platform-hjmuw6jrw-ibrahimkapoor11-gmailcoms-projects.vercel.app
+2. **Test the shopping list:** Navigate to `/shopping-list` to see the feature in action
+3. **Access the API:** Use `/api/shopping-list` for backend operations
+
+### Notes
+
+- The Vercel deployment includes the complete GoDoor platform with all features
+- The Cloudflare deployment acts as a proxy to Vercel
+- The Shopping List feature is fully functional (500 UGX per item, 5+ items minimum)
+- All version 10.5.1 requirements have been implemented
+- The platform includes authentication, real-time features, and comprehensive navigation
+
+### Support
+
+For issues with the GoDoor platform, contact:
+- Email: support@godoor.site
+- WhatsApp: https://wa.me/256750685772
