@@ -28,11 +28,21 @@ import { WelcomeScreen, type WelcomeBackground } from "@/components/WelcomeScree
  * from the first paint, and the client-side refresh is kept only as a
  * belt-and-braces update for a background published while the tab was open.
  *
- * `force-dynamic` keeps this honest: the page must be rendered per request,
- * never prerendered at build time, or a background published after the build
- * would never reach the live site.
+ * ── Why this is ISR, not `force-dynamic` ───────────────────────────────────
+ * `force-dynamic` was the obvious way to guarantee that a background published
+ * after the build reaches the live site, but it also threw away the page's
+ * cache: the homepage came back with `x-vercel-cache: MISS` and
+ * `private, no-cache, no-store` on every request, so every visitor hit the
+ * origin and the database instead of being served from the edge — which is the
+ * opposite of what "the platform is slow to respond" needs.
+ *
+ * So the page is rendered on the server and cached for a minute
+ * (`revalidate = 60`), and the admin publish/reset routes call
+ * `revalidatePath("/")` — which is the only moment the cache actually needs to
+ * be dropped. A published background is live immediately, and every other
+ * request is served from the cache.
  */
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function WelcomePage() {
   const sb = getServiceClient();

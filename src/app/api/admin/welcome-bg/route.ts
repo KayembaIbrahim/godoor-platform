@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import {
@@ -92,6 +93,12 @@ export async function PUT(req: Request) {
 
   const ok = await writeWelcomeBackground(sb, background);
   if (!ok) return NextResponse.json({ error: "Save failed" }, { status: 500 });
+  /* The welcome page is cached (revalidate = 60). Publishing has to take
+     effect NOW, not up to a minute later, so the cached render of "/" is
+     dropped explicitly. Without this the admin would publish, look at the
+     page, see the old artwork, and conclude — exactly as before — that
+     publishing does nothing. */
+  revalidatePath("/");
   return NextResponse.json({ ok: true, background });
 }
 
@@ -101,5 +108,6 @@ export async function DELETE() {
   if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
   const ok = await clearWelcomeBackground(sb);
   if (!ok) return NextResponse.json({ error: "Reset failed" }, { status: 500 });
+  revalidatePath("/");
   return NextResponse.json({ ok: true });
 }

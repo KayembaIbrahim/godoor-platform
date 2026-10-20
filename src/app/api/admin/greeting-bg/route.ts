@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import {
@@ -91,6 +92,14 @@ export async function PUT(req: Request) {
 
   const ok = await writeGreetingBackground(sb, background);
   if (!ok) return NextResponse.json({ error: "Save failed" }, { status: 500 });
+  /* The greeting card is rendered on the client, but the card is embedded in
+     the customer's, rider's and business home screens — all of which are
+     cached. Dropping those caches here means a newly published artwork is
+     live on the next request rather than whenever each screen's cache
+     happens to expire. */
+  revalidatePath("/app");
+  revalidatePath("/rider");
+  revalidatePath("/business");
   return NextResponse.json({ ok: true, background });
 }
 
@@ -100,5 +109,8 @@ export async function DELETE() {
   if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
   const ok = await clearGreetingBackground(sb);
   if (!ok) return NextResponse.json({ error: "Reset failed" }, { status: 500 });
+  revalidatePath("/app");
+  revalidatePath("/rider");
+  revalidatePath("/business");
   return NextResponse.json({ ok: true });
 }
