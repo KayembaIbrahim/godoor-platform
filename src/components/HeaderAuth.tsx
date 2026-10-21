@@ -92,14 +92,19 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
 
     return (
       <div className="relative" ref={dropRef}>
-        {/* Profile button — use pointerup for reliable mobile tap */}
+        {/* Profile button — use pointerup for reliable mobile tap.
+
+            `btn-3d` gives it its own surface, border and cast shadow: the
+            account control is an ACTION and stands on its own beside the
+            utility bar, rather than sitting inside it like a fourth
+            utility. */}
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             setMenuOpen((p) => !p);
           }}
-          className={`flex items-center gap-2 rounded-full border border-border bg-surface/60 transition-all hover:bg-elevated active:scale-95 shadow-lg hover:shadow-xl ring-1 ring-border/50 hover:ring-go/30 ${compact ? "h-10 w-10 justify-center p-0.5" : "py-1 pl-1 pr-2.5"}`}
+          className={`btn-3d flex items-center gap-2 transition-all active:scale-95 ${compact ? "h-10 w-10 justify-center p-0.5" : "py-1 pl-1 pr-2.5"}`}
           aria-label="Account menu"
           aria-expanded={menuOpen}
         >
@@ -212,11 +217,16 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
     );
   }
 
+  /* Signed out: the account control is one of the two INDEPENDENT buttons
+     that sit beside the shared utility bar, so it gets the same `btn-3d`
+     surface as the signed-in profile disc — black, raised, orange on
+     hover — rather than a flat gradient chip. */
   return (
     <button
       type="button"
       onClick={() => router.push("/signin")}
-      className="flex min-h-11 items-center gap-1.5 rounded-full bg-gradient-to-r from-go to-go-2 px-4 py-2.5 text-xs font-semibold text-white transition hover:from-go-2 hover:to-go active:scale-[0.97] shadow-lg hover:shadow-xl"
+      aria-label="Sign in"
+      className="btn-3d flex min-h-11 items-center gap-1.5 px-4 py-2.5 text-xs font-semibold transition active:scale-[0.97]"
     >
       <User aria-hidden className="h-3.5 w-3.5" />Sign in
     </button>

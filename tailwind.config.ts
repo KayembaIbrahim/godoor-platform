@@ -41,6 +41,14 @@ const config: Config = {
         "brand-hover": "rgb(var(--rgb-brand-hover) / <alpha-value>)",
         "brand-light": "rgb(var(--rgb-brand-light) / <alpha-value>)",
         "brand-deep": "rgb(var(--rgb-brand-deep) / <alpha-value>)",
+
+        /* Selection orange — the colour that marks a SELECTED nav item, a
+           selected control or a hoverable utility button. It is the same
+           orange as `primary`/`go`, exposed under its own name so the
+           "selected" meaning is readable at the call site. */
+        accent: "rgb(var(--rgb-accent-orange) / <alpha-value>)",
+        "accent-deep": "rgb(var(--rgb-accent-orange-deep) / <alpha-value>)",
+        "accent-light": "rgb(var(--rgb-accent-orange-light) / <alpha-value>)",
         info: "rgb(var(--rgb-info) / <alpha-value>)",
         "info-hover": "rgb(var(--rgb-info-hover) / <alpha-value>)",
         "info-light": "rgb(var(--rgb-info-light) / <alpha-value>)",

@@ -13,6 +13,10 @@ const MOBILE_NAV = [
   { href: "/business", label: "Home", icon: LayoutDashboard },
   { href: "/business/orders", label: "Orders", icon: Package },
   { href: "/business/bookings", label: "Bookings", icon: CalendarCheck },
+  /* The live map is a FIRST-CLASS destination for a business, so it is in
+     the mobile bar too — it used to live only in the desktop sidebar, which
+     meant a business on a phone had no way to watch its riders at all. */
+  { href: "/tracking", label: "Live Map", icon: MapIcon },
   { href: "/business/products", label: "Products", icon: ShoppingBag },
   { href: "/business/store", label: "Store", icon: Settings },
   { href: "/account", label: "Profile", icon: User },
@@ -21,7 +25,6 @@ const MOBILE_NAV = [
 const DESKTOP_NAV = [
   ...MOBILE_NAV,
   { href: "/business/earnings", label: "Earnings", icon: TrendingUp },
-  { href: "/tracking", label: "Live Map", icon: MapIcon },
   { href: "/verification", label: "Verification", icon: BadgeCheck },
 ];
 

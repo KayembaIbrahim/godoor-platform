@@ -156,6 +156,17 @@
   --rgb-brand: 13 148 136;
   --rgb-brand-hover: 15 118 110;
   --rgb-brand-light: 204 251 241;
+
+  /* Selection orange — only for "selected" marks: active nav pill, hover
+     state on utility buttons, standing button tint. Does NOT own the logo
+     or any CTA. */
+  --accent-orange: #F97316;
+  --accent-orange-deep: #EA580C;
+  --accent-orange-light: #FDBA74;
+
+  --rgb-accent-orange: 249 115 22;
+  --rgb-accent-orange-deep: 234 88 12;
+  --rgb-accent-orange-light: 253 186 116;
   --rgb-brand-deep: 4 47 46;
 
   --rgb-info: 37 99 235;
@@ -345,6 +356,16 @@
   --rgb-brand-hover: 94 234 212;
   --rgb-brand-light: 17 59 56;
   --rgb-brand-deep: 4 47 46;
+
+  /* Selection orange — dark surfaces keep the same orange as light mode,
+     so a selected pill reads orange on both themes. */
+  --accent-orange: #F97316;
+  --accent-orange-deep: #EA580C;
+  --accent-orange-light: #FDBA74;
+
+  --rgb-accent-orange: 249 115 22;
+  --rgb-accent-orange-deep: 234 88 12;
+  --rgb-accent-orange-light: 253 186 116;
 
   --rgb-info: 96 165 250;
   --rgb-info-hover: 147 197 253;
@@ -1569,12 +1590,44 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
       0 24px 54px -22px rgb(0 0 0 / 0.95);
   }
 
-  /* The selected tab inside the floating capsule. A single soft brand wash
-     plus a hairline, so "which tab am I on" is answered by the shape rather
-     than by a saturated block of colour. */
+  /* The selected tab inside the floating capsule. An orange wash plus an
+     orange hairline, so "which tab am I on" is answered by the colour as well
+     as by the shape. */
   .nav-float-active {
-    background: color-mix(in srgb, var(--brand) 12%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent);
+    background: color-mix(in srgb, var(--accent-orange) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-orange) 40%, transparent);
+  }
+  .dark .nav-float-active {
+    background: color-mix(in srgb, var(--accent-orange) 18%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-orange) 45%, transparent);
+  }
+
+  /* ─── Navigation bar ───────────────────────────────────────────────────
+     The primary navigation sits in ONE black capsule, the same object as the
+     utility icon bar. A row of loose transparent links in a light header
+     read as a list; a single black capsule reads as a designed control, and
+     it gives the orange SELECTED state something to sit against.
+
+     Idle links are white at reduced opacity; the selected link lights up
+     orange. */
+  .nav-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.25rem;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #1A1A1E 0%, #0B0B0D 100%);
+    border: 1px solid rgb(255 255 255 / 0.1);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      0 6px 18px -12px rgb(0 0 0 / 0.75);
+  }
+  .dark .nav-bar {
+    background: linear-gradient(180deg, #17171A 0%, #000000 100%);
+    border-color: rgb(255 255 255 / 0.12);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.1),
+      0 8px 22px -14px rgb(0 0 0 / 0.9);
   }
 
   /* Navigation pill */
@@ -1590,25 +1643,30 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
     transition: color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   }
   .nav-pill-idle {
-    color: var(--text-secondary);
+    color: rgb(255 255 255 / 0.66);
     background: transparent;
   }
   .nav-pill-idle:hover {
-    color: var(--text);
-    background: color-mix(in srgb, var(--navy) 6%, transparent);
+    color: var(--accent-orange);
+    background: color-mix(in srgb, var(--accent-orange) 14%, transparent);
   }
   .dark .nav-pill-idle:hover {
-    background: color-mix(in srgb, #FFFFFF 8%, transparent);
+    color: var(--accent-orange);
+    background: color-mix(in srgb, var(--accent-orange) 18%, transparent);
   }
+  /* The SELECTED tab: orange ink on a lit orange wash. */
   .nav-pill-active {
-    color: #fff;
+    color: var(--accent-orange);
     font-weight: 600;
-    background: linear-gradient(180deg, var(--brand-hover) 0%, var(--brand) 100%);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 6px 16px -10px rgb(13 148 136 / 0.9);
+    background: color-mix(in srgb, var(--accent-orange) 16%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.1),
+      inset 0 0 0 1px color-mix(in srgb, var(--accent-orange) 42%, transparent),
+      0 6px 16px -10px rgb(249 115 22 / 0.9);
   }
   .dark .nav-pill-active {
-    background: linear-gradient(180deg, var(--brand) 0%, var(--brand-hover) 100%);
-    color: #042F2E;
+    background: color-mix(in srgb, var(--accent-orange) 20%, transparent);
+    color: var(--accent-orange);
   }
   .nav-pill-cta {
     color: #fff;
@@ -1626,6 +1684,153 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
     font-weight: 600;
     background: linear-gradient(180deg, var(--purple-hover) 0%, var(--purple) 100%);
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 6px 16px -10px rgb(124 58 237 / 0.9);
+  }
+
+  /* ─── Utility icon bar ────────────────────────────────────────────────
+     The three UTILITY controls (wallet, notifications, theme) share ONE
+     capsule: a single surface, a single border, a single shadow. Read as
+     one object rather than three loose circles floating next to each
+     other.
+
+     The buttons INSIDE the bar are transparent — they must not carry their
+     own surface, or the capsule becomes three little discs sitting in a
+     tray. Only their hover state fills. */
+  .icon-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.25rem;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #1A1A1E 0%, #0B0B0D 100%);
+    border: 1px solid rgb(255 255 255 / 0.1);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      0 6px 18px -12px rgb(0 0 0 / 0.75);
+  }
+  .dark .icon-bar {
+    background: linear-gradient(180deg, #17171A 0%, #000000 100%);
+    border-color: rgb(255 255 255 / 0.12);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.1),
+      0 8px 22px -14px rgb(0 0 0 / 0.9);
+  }
+
+  /* An item inside the bar: no surface of its own, only a hover fill. */
+  .icon-bar-item {
+    display: grid;
+    place-items: center;
+    height: 2.25rem;
+    width: 2.25rem;
+    border-radius: 999px;
+    color: rgb(255 255 255 / 0.72);
+    transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  }
+  .icon-bar-item:hover {
+    background: color-mix(in srgb, var(--accent-orange) 18%, transparent);
+    color: var(--accent-orange);
+  }
+  .icon-bar-item:active {
+    transform: scale(0.92);
+  }
+  .dark .icon-bar-item:hover {
+    background: color-mix(in srgb, var(--accent-orange) 22%, transparent);
+    color: var(--accent-orange);
+  }
+
+  /* The controls inside the bar are 36px, not 40px — the capsule's own
+     padding supplies the breathing room, and a full 40px control made the
+     bar taller than the header row it sits in. The 44px touch target is
+     unaffected: `tap-44` expands the hit area with a pseudo-element rather
+     than with the element's own size. */
+  .icon-bar .tap-44 {
+    height: 2.25rem;
+    width: 2.25rem;
+  }
+
+  /* ─── Standalone 3D button ────────────────────────────────────────────
+     A button that stands ALONE next to the bar. It carries its own
+     surface, its own border and a real cast shadow, so it reads as a
+     physical object sitting on the header rather than as another segment
+     of the bar.
+
+     The lift is real: it translates up 1px on hover with a deeper shadow,
+     and presses back down on tap. */
+  .btn-3d {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    color: rgb(255 255 255 / 0.88);
+    background: linear-gradient(180deg, #1A1A1E 0%, #0B0B0D 100%);
+    border: 1px solid rgb(255 255 255 / 0.1);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      0 2px 4px -1px rgb(0 0 0 / 0.4),
+      0 8px 18px -10px rgb(0 0 0 / 0.5);
+    transition:
+      transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.2s ease,
+      background-color 0.2s ease,
+      color 0.2s ease,
+      border-color 0.2s ease;
+  }
+  .btn-3d:hover {
+    transform: translateY(-1px);
+    color: var(--accent-orange);
+    border-color: color-mix(in srgb, var(--accent-orange) 45%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
+      0 3px 6px -2px rgb(0 0 0 / 0.45),
+      0 14px 26px -12px rgb(0 0 0 / 0.55);
+  }
+  .btn-3d:active {
+    transform: translateY(0) scale(0.97);
+    box-shadow:
+      inset 0 2px 4px rgb(0 0 0 / 0.5),
+      0 1px 2px rgb(0 0 0 / 0.4);
+  }
+  .dark .btn-3d {
+    color: rgb(255 255 255 / 0.88);
+    background: linear-gradient(180deg, #17171A 0%, #000000 100%);
+    border-color: rgb(255 255 255 / 0.12);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.1),
+      0 2px 4px -1px rgb(0 0 0 / 0.6),
+      0 10px 20px -12px rgb(0 0 0 / 0.9);
+  }
+  .dark .btn-3d:hover {
+    color: var(--accent-orange);
+    border-color: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      0 3px 6px -2px rgb(0 0 0 / 0.6),
+      0 16px 30px -14px rgb(0 0 0 / 1);
+  }
+
+  /* The SELECTED / primary variant of the standalone button — the orange
+     face that marks the one action the user is meant to take. */
+  .btn-3d-brand {
+    color: #fff;
+    background: linear-gradient(180deg, #FB923C 0%, #EA580C 100%);
+    border-color: color-mix(in srgb, #EA580C 55%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.3),
+      0 2px 5px -1px rgb(234 88 12 / 0.45),
+      0 10px 20px -10px rgb(234 88 12 / 0.55);
+  }
+  .btn-3d-brand:hover {
+    color: #fff;
+    background: linear-gradient(180deg, #FDBA74 0%, #F97316 100%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.4),
+      0 4px 8px -2px rgb(234 88 12 / 0.5),
+      0 16px 28px -12px rgb(234 88 12 / 0.65);
+  }
+  .dark .btn-3d-brand {
+    color: #fff;
+    background: linear-gradient(180deg, #FB923C 0%, #EA580C 100%);
   }
 }
 

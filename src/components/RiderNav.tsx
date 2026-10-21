@@ -2,19 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Clock, Wallet, User } from "lucide-react";
+import { Home, Clock, Wallet, User, Map as MapIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
  * Bottom tab bar for riders.
  *
- * "Map" used to sit in this row and pointed at /tracking — the *customer's*
- * tracking screen, which asks for an order id and shows somebody else's
- * delivery. Riders get their map inside the active-delivery card where they
- * actually need it, so the dead tab is gone.
+ * "Map" points at /tracking, the shared live-map screen. It was removed
+ * earlier on the grounds that it showed "the customer's tracking screen" —
+ * but /tracking is not a customer's screen: with no order id it renders the
+ * ROLE overview, and for a rider that means the routes assigned to them.
+ * Without this tab a rider had no map of their own deliveries at all; the
+ * only way in was opening a single delivery from the job list.
+ *
+ * The screen behind the tab is the same one the customer and the business
+ * use — one map component, three role-scoped views of it.
  */
 const tabs = [
   { href: "/rider", label: "Home", icon: Home },
+  { href: "/tracking", label: "Map", icon: MapIcon },
   { href: "/rider/earnings", label: "Earnings", icon: Wallet },
   { href: "/rider/history", label: "History", icon: Clock },
   { href: "/account", label: "Profile", icon: User },

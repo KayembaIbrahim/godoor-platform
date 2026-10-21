@@ -125,7 +125,7 @@ export function HeaderClient() {
           >
             <Logo size="sm" />
           </Link>
-          <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
+          <nav className="nav-bar hidden items-center lg:inline-flex" aria-label="Primary">
             {isCustomer ? (
               <>
                 {NAV_LINKS.map((link) => {
@@ -183,42 +183,55 @@ export function HeaderClient() {
             ) : null}
           </nav>
         </div>
-        {/* The icon cluster — uniform 40x40 hit areas with breathing room.
+        {/* The icon cluster — a shared UTILITY BAR for the three utility
+            controls, then the two standalone actions beside it.
 
-            The profile (avatar) is LAST, in the RIGHT corner of the header.
-            It used to be FIRST, which put it hard against the GoDoor logo on
-            the left — the logo and the account control then read as one clump
-            at the start of the row, and the profile looked like it belonged to
-            the brand rather than to the account. Pinning it to the right
-            corner separates it from the brand and makes it the last thing the
-            eye lands on, which is where an account control belongs.
+            ── The 3 on the bar ───────────────────────────────────────────
+            Wallet, notifications and theme are utilities: they are the
+            "chrome" of the app, they are not destinations, and they are
+            used together. They share ONE capsule — a single surface, one
+            border, one shadow — so the eye reads a single object instead of
+            three loose circles. Before, each one carried its own border
+            and its own shadow, and the row read as a row of separate
+            stickers fighting for attention.
 
-            It is placed after the hamburger so it is the rightmost element in
-            the row at EVERY breakpoint. The hamburger only shows below `lg`,
-            so on a phone the row ends [... theme, menu, profile] and on a
-            desktop it ends [... theme, profile] — the profile is in the corner
-            either way.
+            ── The 2 that stand alone ────────────────────────────────────
+            The menu and the account control are ACTIONS, not utilities.
+            They are pulled out of the capsule and each stands on its own
+            surface with its own cast shadow (`btn-3d`), so they read as
+            two distinct objects in the corner of the header.
 
-            Every control here is a uniform 40x40 hit area — the wallet and
-            hamburger buttons used to be 32px while the bell, theme toggle and
-            avatar were 36-40px, and a ragged cluster reads as "crammed" no
-            matter how the gap is tuned. */}
-        <div className="flex items-center gap-2.5 sm:gap-3 lg:gap-4">
-          <Link
-            href="/wallet"
-            className="tap-44 relative grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95 shadow-sm hover:shadow-lg ring-1 ring-border/50"
-            aria-label="GoDoor Wallet"
-            title="GoDoor Wallet"
-          >
-            <Wallet className="h-4 w-4" />
-          </Link>
+            The account control is LAST, in the RIGHT corner, at every
+            breakpoint. It used to be FIRST, which put it hard against the
+            GoDoor logo on the left — the logo and the account control then
+            read as one clump at the start of the row, and the profile
+            looked like it belonged to the brand rather than to the
+            account. Pinning it to the right corner separates it from the
+            brand and makes it the last thing the eye lands on, which is
+            where an account control belongs. */}
+        <div className="flex items-center gap-2 sm:gap-2.5 lg:gap-3">
+          {/* The shared utility bar — three controls, one surface. */}
+          <div className="icon-bar">
+            <Link
+              href="/wallet"
+              className="icon-bar-item"
+              aria-label="GoDoor Wallet"
+              title="GoDoor Wallet"
+            >
+              <Wallet className="h-4 w-4" />
+            </Link>
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
           <BuildBadge />
-          <NotificationBell />
-          <ThemeToggle />
+
+          {/* The two standalone actions. The menu only exists below `lg`,
+              so on a desktop the corner holds the bar and the account
+              control; on a phone it holds all three. */}
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
-            className="tap-44 grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-navy transition-all hover:bg-navy hover:text-white active:scale-95 shadow-sm hover:shadow-lg ring-1 ring-border/50 lg:hidden"
+            className="btn-3d tap-44 grid h-10 w-10 place-items-center lg:hidden"
             aria-label={menuOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={menuOpen}
           >
@@ -258,14 +271,14 @@ export function HeaderClient() {
             ))}
             {!signedIn ? (
               <>
-                <Link href="/partner?role=business" onClick={() => setMenuOpen(false)} className="rounded-xl bg-primary/10 px-3 py-2.5 text-sm font-semibold text-primary hover:bg-primary/15 transition">Register your shop</Link>
-                <Link href="/partner?role=rider" onClick={() => setMenuOpen(false)} className="rounded-xl bg-success/10 px-3 py-2.5 text-sm font-semibold text-success hover:bg-success/15 transition">Become a rider</Link>
+                <Link href="/partner?role=business" onClick={() => setMenuOpen(false)} className="rounded-xl bg-accent px-3 py-2.5 text-sm font-semibold text-white hover:bg-accent-deep transition">Register your shop</Link>
+                <Link href="/partner?role=rider" onClick={() => setMenuOpen(false)} className="rounded-xl bg-accent px-3 py-2.5 text-sm font-semibold text-white hover:bg-accent-deep transition">Become a rider</Link>
                 <Link href="/app" onClick={() => setMenuOpen(false)} className="rounded-xl border border-border px-3 py-2.5 text-sm font-medium text-muted hover:bg-elevated hover:text-fg transition">Browse merchants</Link>
               </>
             ) : isBusiness ? (
-              <Link href={dashboardHref} onClick={() => setMenuOpen(false)} className="rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 transition">Business dashboard</Link>
+              <Link href={dashboardHref} onClick={() => setMenuOpen(false)} className="rounded-xl bg-accent px-3 py-2.5 text-sm font-semibold text-white hover:bg-accent-deep transition">Business dashboard</Link>
             ) : isRider ? (
-              <Link href={dashboardHref} onClick={() => setMenuOpen(false)} className="rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-white hover:bg-primary-2 transition">Rider dashboard</Link>
+              <Link href={dashboardHref} onClick={() => setMenuOpen(false)} className="rounded-xl bg-accent px-3 py-2.5 text-sm font-semibold text-white hover:bg-accent-deep transition">Rider dashboard</Link>
             ) : null}
           </nav>
         </div>

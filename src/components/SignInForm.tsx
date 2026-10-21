@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { User, ShoppingBag, Mail, Lock, Loader2, AlertTriangle, CheckCircle, ArrowRight } from "lucide-react";
-import { Logo } from "@/components/Logo";
 import { useSession, roleHomePath, type Role } from "@/lib/session-store";
 
 /**
@@ -103,10 +102,12 @@ export function SignInForm({ mode: initialMode = "login", next }: { mode?: SignI
   };
 
   return (
-    <div className="flex min-h-[85dvh] flex-col items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center gap-3"><Logo size="md" /></div>
-
+    <div className="w-full max-w-md">
+      {/* The form sits on a RAISED card: a real surface with its own border
+          and a deep cast shadow, floating above the welcome artwork. Over a
+          photograph a flat form is unreadable; a lifted panel gives the text
+          a guaranteed surface and gives the page depth. */}
+      <div className="rounded-3xl border border-border/80 bg-surface/85 p-5 shadow-[0_24px_60px_-24px_rgba(15,23,42,0.55),0_2px_8px_-2px_rgba(15,23,42,0.2)] backdrop-blur-xl sm:p-6">
         <div className="mb-5 flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-go/10">
             {isLogin ? <User className="h-5 w-5 text-go" /> : <ShoppingBag className="h-5 w-5 text-go" />}
@@ -117,18 +118,31 @@ export function SignInForm({ mode: initialMode = "login", next }: { mode?: SignI
           </div>
         </div>
 
-        <div className="mb-5 flex rounded-2xl border border-border p-1 shadow-sm">
+        {/* The mode switch — TWO independent buttons, each with its own
+            surface and its own lift. They used to be two halves of one
+            segmented bar, which read as a single control you drag; they are
+            two different destinations, so they get to look like two
+            different buttons. */}
+        <div className="mb-5 flex gap-2.5">
           <button
             type="button"
             onClick={() => setIsLogin(true)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${isLogin ? "bg-bg text-fg shadow-sm" : "text-muted hover:bg-elevated hover:text-fg"}`}
+            className={`btn-3d flex-1 px-4 py-2.5 text-sm font-semibold transition ${
+              isLogin
+                ? "btn-3d-brand text-white"
+                : "text-muted hover:text-fg"
+            }`}
           >
             Sign in
           </button>
           <button
             type="button"
             onClick={() => setIsLogin(false)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${!isLogin ? "bg-bg text-fg shadow-sm" : "text-muted hover:bg-elevated hover:text-fg"}`}
+            className={`btn-3d flex-1 px-4 py-2.5 text-sm font-semibold transition ${
+              !isLogin
+                ? "btn-3d-brand text-white"
+                : "text-muted hover:text-fg"
+            }`}
           >
             Create account
           </button>
@@ -174,7 +188,7 @@ export function SignInForm({ mode: initialMode = "login", next }: { mode?: SignI
         )}
 
         <button type="button" disabled={loading || cooldown > 0} onClick={handleAuth}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-go py-3 text-sm font-semibold text-white hover:bg-go-2 transition disabled:opacity-50">
+          className="btn-3d btn-3d-brand mt-4 flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold transition disabled:opacity-50 disabled:hover:translate-y-0">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
           {cooldown > 0 ? `Wait ${cooldown}s` : isLogin ? "Sign in" : "Create account"}
         </button>

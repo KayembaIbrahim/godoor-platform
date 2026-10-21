@@ -896,6 +896,31 @@ function OrderTracker({ order }: { order: DBOrder }) {
 
 // ── Role Overview ──────────────────────────────────────────────
 
+/**
+ * The heading of the shared live-map screen, per role.
+ *
+ * All three roles land on the SAME map page — the difference is whose
+ * deliveries it shows and what the map is FOR, so the title says which one
+ * you are looking at:
+ *   - customer → the deliveries they placed
+ *   - rider    → the routes assigned to them
+ *   - business → the deliveries leaving their store
+ */
+const OVERVIEW_TITLE: Record<string, string> = {
+  customer: "Track my orders",
+  rider: "My live routes",
+  business: "Store deliveries",
+  admin: "Live map",
+};
+
+/** What the map means for each role, shown when nothing is in transit. */
+const OVERVIEW_EMPTY: Record<string, string> = {
+  customer: "Place an order and track the rider live here.",
+  rider: "Accept a delivery and its live route will show here.",
+  business: "Assigned deliveries will appear here for real-time rider tracking.",
+  admin: "Deliveries in transit will appear here.",
+};
+
 function RoleOverview() {
   const { supabaseUser, role, profile } = useSession();
   const { coords: viewerLoc, accuracy: viewerAccuracy } = useGeolocation();
@@ -914,16 +939,43 @@ function RoleOverview() {
   useEffect(() => {
     const load = async () => {
       try {
-        let all = await fetchOrders();
-        const uid = supabaseUser?.id || profile.email || "";
+        const all = await fetchOrders();
+        const uid = supabaseUser?.id || "";
+        const email = profile.email || "";
+
         if (role === "business") {
-          const mine = all.filter((o) => ["payment_confirmed", "preparing", "rider_assigned", "delivering"].includes(o.status));
+          /* Scope the business to ITS OWN store.
+             The filter used to be status-only, so a business saw every order
+             on the platform that happened to be in the same state — including
+             deliveries belonging to completely different shops. The orders API
+             already limits the rows to the caller's own stores, but a business
+             can own more than one, so the store is pinned here explicitly. */
+          let storeId: string | null = null;
+          if (uid) {
+            try {
+              const { fetchMerchantByOwnerId } = await import("@/lib/db");
+              const m = await fetchMerchantByOwnerId(uid);
+              storeId = m?.id ?? null;
+            } catch {}
+          }
+          const mine = all.filter(
+            (o) =>
+              (!storeId || o.merchant_id === storeId) &&
+              ["payment_confirmed", "preparing", "rider_assigned", "delivering"].includes(o.status),
+          );
           setOrders(mine);
         } else if (role === "rider") {
+          /* A rider's map is their OWN route: orders assigned to them. */
           const mine = all.filter((o) => o.rider_id === uid && ["rider_assigned", "delivering"].includes(o.status));
           setOrders(mine);
         } else if (role === "customer") {
-          const mine = all.filter((o) => (o.customer_id === uid || o.customer_email === profile.email) && ["preparing", "rider_assigned", "delivering"].includes(o.status));
+          /* A customer's map is their OWN deliveries, in any state that has a
+             location worth showing. */
+          const mine = all.filter(
+            (o) =>
+              (o.customer_id === uid || o.customer_email === email) &&
+              ["preparing", "rider_assigned", "delivering"].includes(o.status),
+          );
           setOrders(mine);
         } else {
           setOrders([]);
@@ -1045,7 +1097,7 @@ function RoleOverview() {
     <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-10 pt-4 md:max-w-5xl">
       <header className="mb-4 flex items-center justify-between border-b border-border pb-3">
         <h1 className="font-display text-lg font-semibold flex items-center gap-2">
-          <Navigation className="h-5 w-5 text-go" /> Live Map
+          <Navigation className="h-5 w-5 text-go" /> {OVERVIEW_TITLE[role ?? "customer"] ?? "Live Map"}
         </h1>
         <ThemeToggle />
       </header>
@@ -1087,9 +1139,7 @@ function RoleOverview() {
             <Package className="mx-auto h-7 w-7 text-dim" />
             <p className="mt-2 text-sm font-medium">No orders in transit</p>
             <p className="text-xs text-muted">
-              {role === "business" ? "Assigned deliveries will appear here for real-time rider tracking." :
-               role === "rider" ? "Accept a delivery and its live route will show here." :
-               "Place an order and track the rider live here."}
+              {OVERVIEW_EMPTY[role ?? "customer"] ?? OVERVIEW_EMPTY.customer}
             </p>
           </div>
         )}

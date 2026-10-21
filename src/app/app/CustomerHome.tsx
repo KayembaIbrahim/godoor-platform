@@ -292,21 +292,29 @@ export default function CustomerHome() {
               only the brand, the page context and the account controls, and
               the address always has the whole width to itself. */}
 
-          {/* The icon cluster — uniform 40x40 hit areas. The profile/avatar is
-              LAST, in the RIGHT corner of the header, so it is never mistaken
+          {/* The icon cluster — the three UTILITY controls (search,
+              notifications, theme) share ONE capsule, and the account
+              control stands on its own beside it.
+
+              Same rule as the global header: utilities belong in a bar
+              because they are chrome, not destinations. The account control
+              is an ACTION, so it is pulled out and given its own surface —
+              and it sits LAST, in the RIGHT corner, so it is never mistaken
               for part of the GoDoor logo on the left. It used to be first,
               which butted it straight against the brand. */}
-          <div className="flex shrink-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setProductSearchOpen(true)}
-              aria-label="Search GoDoor"
-              className="tap-44 grid h-10 w-10 place-items-center rounded-full text-fg transition hover:bg-elevated active:scale-95 shadow-sm hover:shadow-lg ring-1 ring-border/50"
-            >
-              <Search className="h-4 w-4" />
-            </button>
-            <NotificationBell />
-            <ThemeToggle />
+          <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
+            <div className="icon-bar">
+              <button
+                type="button"
+                onClick={() => setProductSearchOpen(true)}
+                aria-label="Search GoDoor"
+                className="icon-bar-item tap-44"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+              <NotificationBell />
+              <ThemeToggle />
+            </div>
             <HeaderAuth compact />
           </div>
         </div>
@@ -402,6 +410,40 @@ export default function CustomerHome() {
           <ActiveDeliveryCard order={activeOrder} />
         </div>
       )}
+
+      {/* Live overview map — always there, always one tap away. Even when no
+          delivery is in transit, the screen is the same /tracking page: the
+          customer's own deliveries across every status the map covers. It sits
+          ABOVE the services row so a customer lands on it first and can track
+          without scrolling; the active delivery card above it handles the
+          in-transit case specifically.
+
+          On a wide screen it collapses to a compact inline link beside the
+          section header rather than a full-width card — a 4-line banner in a
+          1200px column reads as an empty space with a border around it. */}
+      <div className="px-4 pt-4">
+        <Link
+          href="/tracking"
+          className="group flex w-full items-center gap-3 rounded-2xl border border-go/25 bg-go/5 p-4 transition hover:border-go/40 hover:bg-go/10 active:scale-[0.995] md:w-auto md:rounded-full md:border-transparent md:bg-transparent md:p-0 md:hover:bg-transparent"
+        >
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-go/15 transition group-hover:scale-105 md:h-8 md:w-8 md:rounded-full">
+            <Navigation className="h-5 w-5 text-go animate-pulse md:h-4 md:w-4" />
+          </div>
+          <span className="flex-1 md:hidden">
+            <p className="text-sm font-bold text-go">Live delivery map</p>
+            <p className="text-[11px] text-muted group-hover:text-go transition">
+              Track all your orders on the inside map
+            </p>
+          </span>
+          <span className="hidden items-center gap-1.5 text-xs font-semibold text-go transition group-hover:translate-x-0.5 md:flex">
+            <Navigation className="h-3.5 w-3.5" />
+            Live delivery map
+          </span>
+          <span className="flex items-center gap-1 text-xs font-semibold text-go transition group-hover:translate-x-0.5 md:hidden">
+            View map &rarr;
+          </span>
+        </Link>
+      </div>
 
       {/* ── C. Services ─────────────────────────────────────────────────
           The brief's identity row — GoFood, GoMart, GoPharma, GoExpress,

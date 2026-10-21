@@ -75,7 +75,7 @@ export function CustomerNav() {
                   // visible pill is shorter — the curve makes the control
                   // look smaller than it is, so the hit area has to be explicit.
                   "group relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center rounded-[20px] px-1 py-1 transition-all duration-200 active:scale-95",
-                  isActive ? "text-brand" : "text-muted hover:text-fg"
+                  isActive ? "text-accent" : "text-muted hover:text-fg"
                 )}
               >
                 {/* Active indicator capsule */}
@@ -109,7 +109,7 @@ export function CustomerNav() {
                       // overflows its 20%-width cell on a 320px phone and
                       // collides with the neighbouring tab's label.
                       "mt-0.5 max-w-full truncate text-[10px] font-medium leading-none tracking-tight transition-colors",
-                      isActive ? "font-bold text-brand" : "text-muted group-hover:text-fg"
+                      isActive ? "font-bold text-accent" : "text-muted group-hover:text-fg"
                     )}
                   >
                     {t.label}
