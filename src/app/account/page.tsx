@@ -491,8 +491,6 @@ export default function AccountPage() {
     );
   };
 
-  const UGANDA_DISTRICTS = ["Masaka", "Kampala", "Wakiso", "Mukono", "Jinja", "Mbale", "Mbarara", "Gulu", "Lira", "Arua", "Fort Portal", "Hoima", "Kabale", "Soroti", "Tororo"];
-
   return (
     <div className="mx-auto min-h-screen max-w-lg bg-bg px-4 pb-24 pt-4 md:max-w-4xl">
       <div className="md:grid md:grid-cols-[320px_minmax(0,1fr)] md:items-start md:gap-4">

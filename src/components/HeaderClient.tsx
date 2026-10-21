@@ -183,33 +183,34 @@ export function HeaderClient() {
             ) : null}
           </nav>
         </div>
-        {/* The icon cluster. `gap-2` (8px) left the wallet, build badge, bell,
-            theme toggle and avatar looking like one packed block on a narrow
-            phone. `gap-2.5` gives each control its own space, and the profile
-            button drops its name/chevron on small screens so the row keeps
-            its breathing room.
+        {/* The icon cluster — uniform 40x40 hit areas with breathing room.
+
+            The profile (avatar) is FIRST, so it is the first thing the eye
+            finds and the one control the user reaches for most. It used to sit
+            last, on the far right next to the hamburger, where it was the
+            easiest control in the row to miss.
 
             Every control here is a uniform 40x40 hit area — the wallet and
             hamburger buttons used to be 32px while the bell, theme toggle and
             avatar were 36-40px, and a ragged cluster reads as "crammed" no
             matter how the gap is tuned. */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 lg:gap-4">
+          <HeaderAuth compact />
           <Link
             href="/wallet"
-            className="tap-44 relative grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95"
+            className="tap-44 relative grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95 shadow-sm hover:shadow-lg ring-1 ring-border/50"
             aria-label="GoDoor Wallet"
             title="GoDoor Wallet"
           >
             <Wallet className="h-4 w-4" />
           </Link>
           <BuildBadge />
-      <NotificationBell />
+          <NotificationBell />
           <ThemeToggle />
-          <HeaderAuth compact />
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
-            className="tap-44 grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95 lg:hidden"
+            className="tap-44 grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-navy transition-all hover:bg-navy hover:text-white active:scale-95 shadow-sm hover:shadow-lg ring-1 ring-border/50 lg:hidden"
             aria-label={menuOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={menuOpen}
           >

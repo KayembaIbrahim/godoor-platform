@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Search, MapPin, Navigation, X, Loader2, Crosshair } from "lucide-react";
 import { fetchPlaceSuggestions, type LatLng } from "@/lib/location";
+import { searchUgandaPlaces } from "@/lib/uganda-places";
 
 type AddressResult = { place: string; lat: number; lng: number };
 
@@ -102,12 +103,35 @@ export function AddressSearchModal({
     }
   }, [open]);
 
+  /**
+   * Search for a place.
+   *
+   * The LOCAL gazetteer is consulted FIRST and its results are shown
+   * immediately, so typing "Nansana" puts "Nansana, Wakiso" on screen while
+   * the user is still typing. The network lookup then runs and appends the
+   * street-level detail Mapbox knows about.
+   *
+   * Previously this waited 300ms and then made ONE call to Mapbox, so the
+   * list stayed empty for the whole time the request took — and stayed empty
+   * forever if Mapbox was slow, rate-limited or the token was missing. That
+   * is the "some places aren't named" report: the rider saw a blank box.
+   */
   const search = useCallback((q: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim()) { setResults([]); return; }
+    const trimmed = q.trim();
+    if (!trimmed) { setResults([]); setLoading(false); return; }
+
+    // Instant, offline, always works.
+    const local = searchUgandaPlaces(trimmed, 6).map((p) => ({
+      place: p.district && p.district !== p.name ? `${p.name}, ${p.district}` : p.name,
+      lat: p.lat,
+      lng: p.lng,
+    }));
+    setResults(local);
     setLoading(true);
+
     debounceRef.current = setTimeout(async () => {
-      const r = await fetchPlaceSuggestions(q);
+      const r = await fetchPlaceSuggestions(trimmed);
       setResults(r);
       setLoading(false);
     }, 300);
@@ -231,14 +255,20 @@ export function AddressSearchModal({
         {!loading && query && results.length === 0 && (
           <div className="px-4 py-8 text-center">
             <p className="text-sm text-muted">No results for &ldquo;{query}&rdquo;</p>
-            <p className="mt-1 text-xs text-dim">Try a different search or use your current location</p>
+            <p className="mt-1 text-xs text-dim">
+              Every Ugandan district, town and Kampala area is searchable by name — try
+              the district or town name, or use your current location.
+            </p>
           </div>
         )}
 
         {/* Hint */}
         {!query && results.length === 0 && (
           <div className="px-4 py-6 text-center">
-            <p className="text-xs text-dim">Type your area, street, or landmark to find nearby shops</p>
+            <p className="text-xs text-dim">
+              Type a place in Uganda — a district, a town, a Kampala area, a street, or a
+              landmark.
+            </p>
           </div>
         )}
       </div>

@@ -238,27 +238,33 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
             e.stopPropagation();
             setMenuOpen((p) => !p);
           }}
-          className={`flex items-center gap-2 rounded-full border border-border bg-surface/60 transition hover:bg-elevated active:scale-95 ${compact ? "h-10 w-10 justify-center p-0.5" : "py-1 pl-1 pr-2.5"}`}
+          className={`flex items-center gap-2 rounded-full border border-border bg-surface/60 transition-all hover:bg-elevated active:scale-95 shadow-lg hover:shadow-xl ring-1 ring-border/50 hover:ring-go/30 ${compact ? "h-10 w-10 justify-center p-0.5" : "py-1 pl-1 pr-2.5"}`}
           aria-label="Account menu"
           aria-expanded={menuOpen}
         >
-          <div className={`grid place-items-center overflow-hidden rounded-full bg-go/20 ring-1 ring-go/30 ${compact ? "h-full w-full" : "h-7 w-7"}`}>
+          <div className={`relative grid place-items-center overflow-hidden rounded-full bg-gradient-to-br from-go to-go-2 ring-2 ring-go/30 shadow-inner ${compact ? "h-full w-full" : "h-7 w-7"}`}>
             {(profile as any).avatarUrl ? (
               <img
                 src={(profile as any).avatarUrl}
                 alt=""
-                className="h-full w-full object-cover"
+                className="h-full w-full object-cover rounded-full"
               />
             ) : (
-              <span className="text-xs font-bold text-go">{initial}</span>
+              <span className="text-xs font-bold text-white drop-shadow-md">{initial}</span>
             )}
+            {/* A lit rim across the top of the disc — the highlight that makes
+                the avatar read as a lit sphere rather than a flat cut-out. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-full bg-gradient-to-b from-white/35 to-transparent"
+            />
           </div>
           {!compact && (
             <span className="hidden text-xs font-medium text-fg sm:inline">{displayName}</span>
           )}
           {!compact && (
             <ChevronDown
-              className={`h-3 w-3 text-muted transition-transform ${menuOpen ? "rotate-180" : ""}`}
+              className={`h-3 w-3 text-muted transition-all duration-300 ${menuOpen ? "rotate-180 text-go" : "hover:text-fg"}`}
             />
           )}
         </button>

@@ -8,6 +8,7 @@ import { useMerchants } from "@/lib/hooks";
 import { CATEGORIES, matchCategory } from "@/lib/categories";
 import { CORE_RAIL_CATEGORIES, RAIL_LABELS } from "@/lib/service-tiles";
 import { browseHref } from "@/lib/service-slugs";
+import { discRgb as sharedDiscRgb } from "@/lib/category-discs";
 import { CustomerNav } from "@/components/CustomerNav";
 
 /**
@@ -29,36 +30,14 @@ import { CustomerNav } from "@/components/CustomerNav";
 /**
  * Pastel disc colours.
  *
- * Chosen for lightness contrast rather than hue alone: each has to stay legible
- * on BOTH the cream page and the ink cards, because the same disc treatment is
- * used in both places. The values are chosen so the icon keeps at least a 3:1
- * contrast against its own tinted plate in both themes.
+ * These used to be a private copy of the palette, which meant the catalogue
+ * screen and the home rail could show DIFFERENT colours for the same category
+ * — the rail was slate for most categories while this page was a full rainbow.
+ * Two screens of the same app should never disagree about what "Pharmacy"
+ * looks like, so the shared module is the only source of truth now.
  */
-const DISCS: Record<string, string> = {
-  "Food & Restaurants": "249 115 22",
-  "Groceries & Market": "5 150 105",
-  Pharmacy: "37 99 235",
-  "Delivery & Courier": "100 116 139",
-  "Clothing & Fashion": "217 70 239",
-  "Beauty & Personal Care": "236 72 153",
-  "Electronics & Appliances": "14 165 233",
-  "Home & Furniture": "180 83 9",
-  "Health & Wellness": "20 184 166",
-  Agriculture: "84 110 53",
-  "Pets & Animals": "168 85 247",
-  "Baby & Kids": "244 114 182",
-  "Sports & Outdoors": "234 88 12",
-  "Books & Stationery": "71 85 105",
-  "Automotive & Fuel": "100 116 139",
-  "Events & Tickets": "192 132 252",
-  "Travel & Hotels": "2 132 199",
-  "Laundry & Cleaning": "45 212 191",
-  "Repairs & Services": "148 163 184",
-  "Gifts & Flowers": "251 113 133",
-};
-
 function discRgb(id: string): string {
-  return DISCS[id] ?? "100 116 139";
+  return sharedDiscRgb(id);
 }
 
 export default function CategoriesPage() {
@@ -163,16 +142,16 @@ export default function CategoriesPage() {
             </button>
           </div>
         ) : (
-          <ul className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+          <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
             {rows.map((r) => (
               <li key={r.id}>
                 <Link
                   href={browseHref(r.id)}
-                  className="flex items-center gap-2.5 rounded-2xl border border-border bg-surface p-3 transition hover:border-go/40 active:scale-[0.98]"
+                  className="group flex items-center gap-3 rounded-2xl border border-border bg-surface p-3 transition-all duration-200 hover:border-go/40 hover:shadow-[0_10px_24px_-8px_rgb(0_0_0/0.22)] active:scale-[0.98] active:shadow-none"
                 >
                   <CategoryDisc id={r.id} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-fg">{r.label}</span>
+                    <span className="block truncate text-sm font-semibold text-fg transition-colors group-hover:text-go">{r.label}</span>
                     <span className="block text-[11px] text-muted">
                       {r.count > 0 ? (
                         <>

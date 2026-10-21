@@ -115,7 +115,7 @@ return (
               {s.href ? (
                 <Link
                   href={s.href}
-                  className="transition hover:scale-105 active:scale-95"
+                  className="transition-transform duration-200 active:scale-95"
                   aria-label={`${s.label} — ${s.sub}`}
                   title={`${s.label} — ${s.sub}`}
                 >
@@ -125,7 +125,7 @@ return (
                 <button
                   type="button"
                   onClick={() => handleServiceClick(s.action!)}
-                  className="transition hover:scale-105 active:scale-95"
+                  className="transition-transform duration-200 active:scale-95"
                   aria-label={`${s.label} — ${s.sub}`}
                   title={`${s.label} — ${s.sub}`}
                 >

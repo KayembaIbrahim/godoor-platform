@@ -468,14 +468,75 @@ h1, h2, h3 {
    The brief asks for each category icon inside a soft pastel circle. They
    must stay legible on cream AND on the ink cards, so the palette is chosen
    by lightness contrast rather than by hue alone, and every disc carries a
-   matching hairline so it has an edge on either background. */
+   matching hairline so it has an edge on either background.
+
+   THE 3D TREATMENT
+   ----------------
+   A flat pastel circle reads as a sticker. The depth here comes from three
+   layers that all share the ONE `--disc-rgb` triplet, so a category can be
+   re-tinted without touching its geometry:
+
+     1. a vertical gradient plate (lighter at the top) — the "top face";
+     2. an inner highlight hairline at the top — the lit edge;
+     3. a two-part drop shadow — a tight contact shadow plus a soft ambient
+        one, which is what actually makes an object sit ON a surface rather
+        than being printed on it.
+
+   The glyph itself gets its own shadow so it reads as raised off the plate.
+   Hover lifts the disc, active presses it back down — the same physical
+   vocabulary as the rest of the app's controls. */
 .hybrid-disc {
   display: grid;
   place-items: center;
   border-radius: 9999px;
-  border: 1px solid rgb(var(--disc-rgb) / 0.22);
-  background-color: rgb(var(--disc-rgb) / 0.14);
+  border: 1px solid rgb(var(--disc-rgb) / 0.26);
+  background-color: rgb(var(--disc-rgb) / 0.13);
+  background-image: linear-gradient(
+    160deg,
+    rgb(var(--disc-rgb) / 0.26) 0%,
+    rgb(var(--disc-rgb) / 0.12) 48%,
+    rgb(var(--disc-rgb) / 0.08) 100%
+  );
   color: rgb(var(--disc-rgb));
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.10),
+    0 4px 10px -2px rgb(0 0 0 / 0.14),
+    inset 0 1px 0 rgb(255 255 255 / 0.45);
+  transition:
+    transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.18s ease;
+}
+
+/* The glyph sits proud of the plate. */
+.hybrid-disc > svg {
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.18));
+}
+
+.hybrid-disc:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.12),
+    0 10px 20px -4px rgb(0 0 0 / 0.18),
+    inset 0 1px 0 rgb(255 255 255 / 0.55);
+}
+
+.hybrid-disc:active {
+  transform: translateY(1px) scale(0.97);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.12),
+    0 3px 8px -3px rgb(0 0 0 / 0.16),
+    inset 0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+/* On the ink cards the ambient shadow cannot be seen against a dark
+   background, so the disc is lit from the other side instead: the inner
+   highlight becomes a soft inner glow and the contact shadow is dropped. */
+.hybrid .hybrid-disc,
+.hybrid-card .hybrid-disc {
+  box-shadow:
+    0 2px 6px -1px rgb(0 0 0 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.16),
+    inset 0 -8px 16px -10px rgb(var(--disc-rgb) / 0.55);
 }
 
 /* ─── Chip / pill ─── */

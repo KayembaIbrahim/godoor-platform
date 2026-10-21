@@ -2,6 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchTimed, firstOf, withTimeout, GEO_TIMEOUT_MS } from "./net";
+import {
+  DISTRICT_NAMES,
+  DISTRICT_PLACES,
+  districtForPoint,
+  gazetteerPlaceName,
+  nearestUgandaPlace,
+  searchUgandaPlaces,
+} from "./uganda-places";
 
 export type LatLng = { lat: number; lng: number };
 export const KAMPALA: LatLng = { lat: 0.3163, lng: 32.5822 };
@@ -14,9 +22,9 @@ export const KAMPALA: LatLng = { lat: 0.3163, lng: 32.5822 };
  * distance calculation roughly 130 km off, so a customer standing in Masaka was
  * measured from Kampala: shops sorted as "far away", and the header could name
  * a district they were never in. The fallback must be the city the platform
- * actually serves.
+ * actually serves — Masaka at -0.3417°, 31.7344°.
  */
-export const MASAKA: LatLng = { lat: -0.3384, lng: 32.6344 };
+export const MASAKA: LatLng = { lat: -0.3417, lng: 31.7344 };
 
 /**
  * Geolocation, native and web, behind one small interface.
@@ -111,91 +119,37 @@ function getGeoApi(): Promise<GeoApi> {
 
 
 /** Uganda's districts — businesses pick their fixed district, customers browse by district. */
-export const UGANDA_DISTRICTS = [
-  "Kampala", "Wakiso", "Mukono", "Masaka", "Mbarara", "Jinja", "Gulu", "Lira", "Arua",
-  "Mbale", "Tororo", "Soroti", "Fort Portal", "Kabale", "Hoima", "Entebbe", "Ntungamo",
-  "Bushenyi", "Kasese", "Kitgum", "Adjumani", "Apac", "Oyam", "Nebbi", "Zombo", "Koboko",
-  "Yumbe", "Moroto", "Kotido", "Nakapiripirit", "Kapchorwa", "Kumi", "Sironko", "Bugiri",
-  "Iganga", "Mayuge", "Kamuli", "Kayunga", "Luwero", "Nakasongola", "Mityana", "Mubende",
-  "Kiboga", "Kyankwanzi", "Rakai", "Kyotera", "Kalangala", "Sembabule", "Gomba",
-  "Bukomansimbi", "Masindi", "Buliisa", "Kiryandongo", "Kyenjojo", "Kibaale", "Kamwenge",
-  "Ibanda", "Isingiro", "Kiruhura", "Lyantonde", "Rukungiri", "Kanungu", "Kisoro",
-  "Bundibugyo", "Ntoroko", "Amuria", "Katakwi", "Serere", "Bukedea", "Alebtong", "Dokolo",
-  "Kaberamaido", "Amolatar", "Otuke", "Agago", "Pader", "Lamwo", "Amuru", "Nwoya", "Buvuma",
-] as const;
+/**
+ * Every district of Uganda.
+ *
+ * This used to be a hand-maintained list of 67 names that had drifted well
+ * behind the country's administrative map, and it was the sole source of
+ * truth for "which district is this point in". A customer in one of the
+ * districts it did not name was given a NEIGHBOURING district's name, or a
+ * raw coordinate string — the "some places aren't named" complaint.
+ *
+ * The list now comes from `@/lib/uganda-places`, which is a full gazetteer:
+ * every district, plus the cities, towns and Kampala neighbourhoods people
+ * actually type, each with coordinates and spelling aliases. It is local, so
+ * it works with no network, no Mapbox token and no rate limit.
+ */
+export const UGANDA_DISTRICTS = DISTRICT_NAMES as readonly string[];
 
-/** Fallback centres of Uganda's major districts for GPS → district detection. */
-const DISTRICT_CENTROIDS: { name: string; lat: number; lng: number }[] = [
-  { name: "Kampala", lat: 0.3163, lng: 32.5822 },
-  { name: "Wakiso", lat: 0.4044, lng: 32.4595 },
-  { name: "Mukono", lat: 0.3533, lng: 32.7553 },
-  { name: "Masaka", lat: -0.3356, lng: 31.7341 },
-  { name: "Mbarara", lat: -0.6072, lng: 30.6545 },
-  { name: "Jinja", lat: 0.4244, lng: 33.2042 },
-  { name: "Gulu", lat: 2.7746, lng: 32.2990 },
-  { name: "Lira", lat: 2.2499, lng: 32.8999 },
-  { name: "Arua", lat: 3.0151, lng: 30.9111 },
-  { name: "Mbale", lat: 1.0784, lng: 34.1750 },
-  { name: "Tororo", lat: 0.6930, lng: 34.1809 },
-  { name: "Soroti", lat: 1.7146, lng: 33.6113 },
-  { name: "Fort Portal", lat: 0.6710, lng: 30.2750 },
-  { name: "Kabale", lat: -1.2490, lng: 29.9899 },
-  { name: "Hoima", lat: 1.4356, lng: 31.3436 },
-  { name: "Entebbe", lat: 0.0645, lng: 32.4469 },
-  { name: "Kasese", lat: 0.1836, lng: 30.0909 },
-  { name: "Busia", lat: 0.4636, lng: 34.0972 },
-  { name: "Mityana", lat: 0.4177, lng: 32.0597 },
-  { name: "Mubende", lat: 0.5582, lng: 31.3949 },
-  { name: "Kitgum", lat: 3.2885, lng: 32.8781 },
-  { name: "Adjumani", lat: 3.3788, lng: 31.7910 },
-  { name: "Nebbi", lat: 2.4790, lng: 31.0889 },
-  { name: "Moroto", lat: 2.5273, lng: 34.6666 },
-  { name: "Kotido", lat: 2.9808, lng: 34.1333 },
-  { name: "Kapchorwa", lat: 1.4000, lng: 34.3667 },
-  { name: "Iganga", lat: 0.6094, lng: 33.4687 },
-  { name: "Kamuli", lat: 0.9455, lng: 33.1140 },
-  { name: "Kayunga", lat: 0.7020, lng: 32.8887 },
-  { name: "Luwero", lat: 0.8492, lng: 32.4733 },
-  { name: "Nakasongola", lat: 1.3089, lng: 32.4565 },
-  { name: "Kiboga", lat: 0.9161, lng: 31.7742 },
-  { name: "Rakai", lat: -0.7190, lng: 31.4870 },
-  { name: "Kyotera", lat: -0.6150, lng: 31.5180 },
-  { name: "Kalangala", lat: -0.3073, lng: 32.2250 },
-  { name: "Sembabule", lat: 0.0750, lng: 31.4167 },
-  { name: "Masindi", lat: 1.6747, lng: 31.7150 },
-  { name: "Kiryandongo", lat: 1.8764, lng: 32.0645 },
-  { name: "Kyenjojo", lat: 0.6080, lng: 30.6390 },
-  { name: "Ibanda", lat: -0.1336, lng: 30.4947 },
-  { name: "Isingiro", lat: -0.8500, lng: 30.6167 },
-  { name: "Rukungiri", lat: -0.7989, lng: 29.9250 },
-  { name: "Kanungu", lat: -0.8678, lng: 29.8131 },
-  { name: "Kisoro", lat: -1.2849, lng: 29.6850 },
-  { name: "Bundibugyo", lat: 0.6860, lng: 30.0650 },
-  { name: "Ntoroko", lat: 1.0750, lng: 30.2750 },
-  { name: "Amuria", lat: 2.0030, lng: 33.6500 },
-  { name: "Katakwi", lat: 1.8911, lng: 33.9660 },
-  { name: "Serere", lat: 1.4930, lng: 33.5500 },
-  { name: "Kumi", lat: 1.4607, lng: 33.9361 },
-  { name: "Sironko", lat: 1.2300, lng: 34.2480 },
-  { name: "Bugiri", lat: 0.5700, lng: 33.7410 },
-  { name: "Mayuge", lat: 0.4590, lng: 33.4800 },
-  { name: "Kaberamaido", lat: 1.7393, lng: 33.1590 },
-  { name: "Alebtong", lat: 2.2447, lng: 33.2547 },
-  { name: "Dokolo", lat: 1.9160, lng: 33.1690 },
-  { name: "Amolatar", lat: 1.6285, lng: 32.8316 },
-  { name: "Otuke", lat: 2.5000, lng: 33.5080 },
-  { name: "Agago", lat: 2.8330, lng: 33.3330 },
-  { name: "Pader", lat: 3.0500, lng: 33.2167 },
-  { name: "Lamwo", lat: 3.6169, lng: 32.8022 },
-  { name: "Amuru", lat: 2.8093, lng: 31.8497 },
-  { name: "Nwoya", lat: 2.6350, lng: 31.6950 },
-  { name: "Buvuma", lat: -0.1000, lng: 33.3500 },
-  { name: "Moyo", lat: 3.6417, lng: 31.7239 },
-  { name: "Yumbe", lat: 3.4653, lng: 31.2475 },
-  { name: "Koboko", lat: 3.4167, lng: 30.9667 },
-  { name: "Maracha", lat: 3.2667, lng: 30.9333 },
-  { name: "Zombo", lat: 2.5167, lng: 30.9500 },
-];
+/**
+ * The administrative centre of every district, used for GPS → district
+ * detection.
+ *
+ * This used to be a hand-written array of 67 rows that had fallen behind the
+ * country's administrative map. Anything it did not name fell through to the
+ * NEXT district, so a customer in an unnamed district was told they were
+ * somewhere else entirely.
+ *
+ * It is now derived from the gazetteer, so it can never fall behind: adding a
+ * district to `@/lib/uganda-places` adds it here automatically.
+ */
+const DISTRICT_CENTROIDS: { name: string; lat: number; lng: number }[] = DISTRICT_PLACES.map(
+  (d) => ({ name: d.name, lat: d.lat, lng: d.lng }),
+);
 
 function matchDistrictInText(text: string): string | null {
   const lower = text.toLowerCase();
@@ -208,8 +162,17 @@ function matchDistrictInText(text: string): string | null {
 }
 
 /**
- * Detect which district a GPS point is in. Uses Mapbox context, then Nominatim,
- * then falls back to the nearest known district centroid (within ~60 km).
+ * Detect which district a GPS point is in.
+ *
+ * Order of preference:
+ *   1. Mapbox's own context (most precise when the token is present).
+ *   2. Nominatim's address hierarchy.
+ *   3. The LOCAL gazetteer — the nearest known Ugandan place.
+ *
+ * The third step used to be "nearest of 67 hand-written district centroids",
+ * which meant a customer standing in any of the districts that list had
+ * fallen behind was given a NEIGHBOURING district's name. The gazetteer knows
+ * every district, and it cannot fail because it makes no network call.
  */
 export async function detectDistrict(c: LatLng): Promise<string | null> {
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -245,7 +208,13 @@ export async function detectDistrict(c: LatLng): Promise<string | null> {
     }
   } catch {}
 
-  // Nearest known centroid
+  // The gazetteer. It knows every district, so this names the district the
+  // customer is actually in rather than the nearest one somebody remembered
+  // to type into an array.
+  const fromGazetteer = districtForPoint(c, 70);
+  if (fromGazetteer) return fromGazetteer;
+
+  // Last resort: the raw centroid list, with a wider radius than before.
   let best: string | null = null;
   let bestKm = Infinity;
   for (const d of DISTRICT_CENTROIDS) {
@@ -308,27 +277,37 @@ export async function reverseGeocode(c: LatLng): Promise<string> {
       }
     }
   } catch {}
+
+  // The gazetteer, before the raw coordinates.
+  //
+  // This is the step that turns "0.3163°, 32.5822°" into a place a human can
+  // read. It used to be skipped entirely: if Mapbox and Nominatim both failed
+  // — no token, no network, a timeout — the customer was shown a coordinate
+  // string and the complaint was "some places aren't named".
+  const gazetteer = gazetteerPlaceName(c);
+  if (gazetteer) return gazetteer;
+
   return fallbackAddress(c);
 }
 
 function fallbackAddress(c: LatLng): string {
-  // Find the nearest known district centroid and describe the location by district
-  let best = "Uganda";
-  let bestKm = Infinity;
-  let bestLat = c.lat;
-  let bestLng = c.lng;
-  for (const d of DISTRICT_CENTROIDS) {
-    const km = distanceKm(c, { lat: d.lat, lng: d.lng });
-    if (km < bestKm) {
-      bestKm = km;
-      best = d.name;
-      bestLat = d.lat;
-      bestLng = d.lng;
-    }
+  /* The gazetteer knows every district and every town in the country, so the
+     nearest one is almost always the right answer. If the point is genuinely
+     outside anything it knows — a farm on a hill, a vehicle on a highway —
+     the district is still better than nothing, and a raw coordinate is the
+     honest last resort. */
+  const near = nearestUgandaPlace(c, 60);
+  if (near) {
+    const { place } = near;
+    if (place.kind === "district") return `${place.name}, Uganda`;
+    if (place.district) return `${place.name}, ${place.district}, Uganda`;
+    return `${place.name}, Uganda`;
   }
-  if (bestKm <= 60) {
-    return best + ", Uganda";
-  }
+
+  // Nothing within 60 km. Name the district from the wider gazetteer anyway.
+  const district = districtForPoint(c, 120);
+  if (district) return `${district}, Uganda`;
+
   return c.lat.toFixed(4) + "°, " + c.lng.toFixed(4) + "°";
 }
 
@@ -632,22 +611,73 @@ export function formatDistance(km: number): string {
 }
 
 
-/** Mapbox Places autocomplete for address search (street-accurate across Uganda) */
-export function fetchPlaceSuggestions(query: string): Promise<{ place: string; lat: number; lng: number }[]> {
+/**
+ * Address search for the location picker.
+ *
+ * ── What was broken ────────────────────────────────────────────────────────
+ * This called Mapbox and NOTHING else. So the suggestion list was:
+ *
+ *   • EMPTY whenever there was no `NEXT_PUBLIC_MAPBOX_TOKEN`;
+ *   • EMPTY whenever Mapbox was slow, rate-limited or down;
+ *   • EMPTY for any place Mapbox did not have — and Mapbox's Uganda coverage
+ *     is good for streets and cities but thin for the smaller towns and
+ *     sub-county centres where the boda riders actually pick up from.
+ *
+ * A rider typing "Nansana", "Kawempe" or "Buhweju" was shown an empty list,
+ * and the complaint was literally "some places aren't named".
+ *
+ * ── What it does now ───────────────────────────────────────────────────────
+ * The LOCAL gazetteer is searched first and its hits are returned first, then
+ * Mapbox's street-level results are appended. So:
+ *
+ *   • a typed place ALWAYS matches, online or not;
+ *   • a street address still wins for precision, because it is listed second
+ *     and the user picks it deliberately;
+ *   • the result is never empty for a place GoDoor knows about.
+ */
+export function fetchPlaceSuggestions(
+  query: string,
+): Promise<{ place: string; lat: number; lng: number }[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return Promise.resolve([]);
+
+  // 1. The gazetteer. Local, instant, and it cannot fail.
+  const local = searchUgandaPlaces(trimmed, 6).map((p) => ({
+    place: p.district && p.district !== p.name ? `${p.name}, ${p.district}` : p.name,
+    lat: p.lat,
+    lng: p.lng,
+  }));
+
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-  if (!token || !query.trim()) return Promise.resolve([]);
+  if (!token) return Promise.resolve(local);
+
+  // 2. Mapbox, for the street-level detail the gazetteer cannot have.
   return fetchTimed(
-    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=UG&language=en&types=address,neighborhood,locality,place&limit=5`,
+    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(trimmed)}.json?access_token=${token}&country=UG&language=en&types=address,neighborhood,locality,place&limit=6`,
     undefined,
     GEO_TIMEOUT_MS,
   )
     .then((r) => r.json())
     .then((json) => {
-      return (json.features || []).map((f: { place_name: string; center: number[] }) => ({
+      const remote: { place: string; lat: number; lng: number }[] = (
+        json.features || []
+      ).map((f: { place_name: string; center: number[] }) => ({
         place: f.place_name,
         lat: f.center[1],
         lng: f.center[0],
       }));
+      // The gazetteer first, then anything Mapbox found that we do not
+      // already have — a street result for "Kawempe Road" is worth keeping
+      // even though "Kawempe" is already on the list.
+      const seen = new Set(local.map((l) => l.place.toLowerCase()));
+      const merged = [...local];
+      for (const r of remote) {
+        const key = r.place.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(r);
+      }
+      return merged.slice(0, 10);
     })
-    .catch(() => []);
+    .catch(() => local);
 }

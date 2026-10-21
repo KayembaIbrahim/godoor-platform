@@ -291,45 +291,20 @@ export default function CustomerHome() {
               only the brand, the page context and the account controls, and
               the address always has the whole width to itself. */}
 
-          {/* The icon cluster. This used to be `gap-0.5` (2px), which packed
-              the search, bell, theme toggle and avatar so tightly that they
-              read as one smudge on a 360px phone and were easy to mis-tap.
-
-              The second round of fixes found the deeper problem: the four
-              controls were not the same SIZE. Search was 36px, the bell was
-              32px (a 16px icon inside `p-2`), the theme toggle was 32px, and
-              the avatar disc was 28px inside a 36px pill. Ragged sizes plus a
-              6px gap read as "crammed" no matter how the gap was tuned, because
-              the eye measures the tallest neighbour.
-
-              Every control in the cluster is now a uniform 40x40 hit area with
-              the glyph centred in it, and the cluster gap is 8px. The row's
-              horizontal padding also dropped from `px-4` to `px-3`, because the
-              logo lockup is 96px wide and four 40px buttons plus three 8px
-              gaps already needs 208px — with the old 32px of side padding the
-              row was exactly 320px wide, which left nothing on a 320px phone
-              and made the cluster look crushed against the edge.
-
-              The row now needs 272px, so it fits a 320px handset with room to
-              spare, and every control is a comfortable tap target. */}
+          {/* The icon cluster — uniform 40x40 hit areas. Profile/avatar first on the
+   left so it's easy to spot; search, bell and theme toggle follow. */}
           <div className="flex shrink-0 items-center gap-3">
+            <HeaderAuth compact />
             <button
               type="button"
               onClick={() => setProductSearchOpen(true)}
               aria-label="Search GoDoor"
-              className="tap-44 grid h-10 w-10 place-items-center rounded-full text-fg transition hover:bg-elevated active:scale-95"
+              className="tap-44 grid h-10 w-10 place-items-center rounded-full text-fg transition hover:bg-elevated active:scale-95 shadow-sm hover:shadow-lg ring-1 ring-border/50"
             >
               <Search className="h-4 w-4" />
             </button>
             <NotificationBell />
-            {/* The global HeaderClient steps aside on this route (it renders the
-                toggle), so without this the customer home — the one screen a
-                customer actually lives on — offered no way to reach dark mode
-                at all. Anyone who wanted the black theme had to leave the app
-                and come back. Same component, so the cycle behaviour matches
-                every other page. */}
             <ThemeToggle />
-            <HeaderAuth compact />
           </div>
         </div>
       </header>
