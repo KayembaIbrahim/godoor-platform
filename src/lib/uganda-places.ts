@@ -417,10 +417,9 @@ export function districtForPoint(
   c: { lat: number; lng: number },
   maxKm = 70,
 ): string | null {
-  const districts = DISTRICT_INDEX;
   let best: UgandaPlace | null = null;
   let bestKm = Infinity;
-  for (const p of districts) {
+  for (const p of DISTRICTS) {
     const dx = (p.lng - c.lng) * 111.32 * Math.cos(((p.lat + c.lat) / 2) * (Math.PI / 180));
     const dy = (p.lat - c.lat) * 110.57;
     const km = Math.sqrt(dx * dx + dy * dy);
@@ -432,8 +431,6 @@ export function districtForPoint(
   if (!best || bestKm > maxKm) return null;
   return best.name;
 }
-
-const DISTRICT_INDEX = DISTRICTS;
 
 /**
  * A human-readable place name for a coordinate, from the gazetteer alone.
