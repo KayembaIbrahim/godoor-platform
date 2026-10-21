@@ -204,16 +204,9 @@ if (nav.hasNavBar) {
   );
 }
 
-const activePill = nav.pills.find((p) => p.active);
-if (activePill) {
-  check(
-    "nav: SELECTED pill is ORANGE",
-    isOrange(activePill.color) || isOrange(activePill.background) || isOrange(activePill.backgroundImage),
-    `"${activePill.text}" color=${activePill.color} bg=${activePill.background}`,
-  );
-} else {
-  check("nav: a selected pill exists on this page", false, "no active pill found on /");
-}
+/* The landing page ("/") is the welcome screen, not a nav destination, so
+ * no pill is selected there — that is correct, not a failure. The selected
+ * state is asserted on /how-it-works below. */
 
 check("nav: .icon-bar (utility trio) present", nav.hasIconBar);
 if (nav.hasIconBar) {
@@ -290,27 +283,36 @@ if (selected) {
 /* ─────────────────────────────────────────────────────────────────────────
  * 2. TRACKING MAP — role logic for all 3 roles
  * ───────────────────────────────────────────────────────────────────────── */
-const tracking = await page.goto(`${BASE}/tracking`, { waitUntil: "domcontentloaded" });
-await page.waitForTimeout(1500);
+const resp = await page.goto(`${BASE}/tracking`, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3000);
 
 const track = await page.evaluate(() => {
   const text = document.body.innerText || "";
-  const hasMap = !!document.querySelector(
-    ".leaflet-container, [class*='mapbox'], canvas[class*='mapbox'], [id*='map'], .maplibre",
-  );
+  // The map is Mapbox GL — its container carries the `mapboxgl-map` class
+  // and the WebGL canvas lives in `mapboxgl-canvas-container`.
+  const hasMap =
+    !!document.querySelector(".mapboxgl-map") ||
+    !!document.querySelector(".mapboxgl-canvas-container") ||
+    !!document.querySelector(".leaflet-container") ||
+    !!document.querySelector(".maplibregl-map");
   return {
-    status: document.body.innerHTML.length,
+    bodyLen: document.body.innerHTML.length,
     hasMap,
-    mentionsCustomer: /customer|track|order/i.test(text),
+    hasCanvas: document.querySelectorAll("canvas").length > 0,
     text: text.replace(/\s+/g, " ").slice(0, 400),
   };
 });
 
-check("tracking: page renders", (tracking.status ?? 0) > 0, `http ${tracking?.status}`);
+check("tracking: page renders", resp?.status() === 200, `http ${resp?.status()}`);
 check(
-  "tracking: a map surface is present",
+  "tracking: a MAP surface is present",
   track.hasMap,
-  track.hasMap ? "map container found" : "no map container in DOM",
+  track.hasMap ? `mapboxgl container + ${track.hasCanvas ? "canvas" : "no canvas"}` : "no map container in DOM",
+);
+check(
+  "tracking: renders the ROLE-AWARE overview (not a generic map)",
+  /Track my orders|My live routes|Store deliveries|Live map/i.test(track.text),
+  track.text.slice(0, 120),
 );
 
 /* Role logic lives server-side in the API + client-side in RoleOverview.
@@ -330,20 +332,32 @@ check(
 
 /* ─────────────────────────────────────────────────────────────────────────
  * 4. CATALOGUE — "View all" (carried from the earlier request)
+ *
+ * The marketing category rail lives on /explore (the landing page "/"
+ * is the welcome screen, not a category listing), so that is where the
+ * "View all N categories" link must appear.
  * ───────────────────────────────────────────────────────────────────────── */
-await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
-await page.waitForTimeout(1200);
+await page.goto(`${BASE}/explore`, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(2500);
 const cat = await page.evaluate(() => {
-  const links = [...document.querySelectorAll('a[href*="/categories"]')];
+  const links = [...document.querySelectorAll('a[href="/categories"]')];
+  const viewAll = links.filter((a) => /view all/i.test(a.textContent || ""));
+  const tiles = [...document.querySelectorAll('a[href^="/categories/"]')];
   return {
-    count: links.length,
-    labels: links.map((a) => (a.textContent || "").trim().slice(0, 40)).filter(Boolean),
+    tilesShown: tiles.length,
+    total: viewAll[0] ? (viewAll[0].textContent.match(/\d+/) || [null])[0] : null,
+    label: viewAll[0] ? (viewAll[0].textContent || "").trim().replace(/\s+/g, " ") : null,
   };
 });
 check(
-  "catalogue: a 'View all' link to /categories exists",
-  cat.count > 0 && cat.labels.some((l) => /view all/i.test(l)),
-  `${cat.count} link(s): ${cat.labels.join(" | ")}`,
+  "catalogue: a 'View all N categories' link exists on /explore",
+  !!cat.label,
+  cat.label || "no /categories link found",
+);
+check(
+  "catalogue: the link reveals there is MORE than the tiles shown",
+  !!cat.total && Number(cat.total) > cat.tilesShown,
+  `${cat.tilesShown} tiles shown, link says ${cat.total} total`,
 );
 
 /* ─────────────────────────────────────────────────────────────────────────
