@@ -4,7 +4,6 @@ import "./globals.css";
 import { ThemeEffect } from "@/components/ThemeEffect";
 import { HeaderClient } from "@/components/HeaderClient";
 import { ClientProviders } from "@/components/ClientProviders";
-import { AppFooter } from "@/components/AppFooter";
 
 /* The stylesheet has always declared Poppins (headings) and Inter (body) via
    --font-display / --font-sans, but nothing ever fetched the files — no
@@ -139,7 +138,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ClientProviders>
           <main className="min-h-0">{children}</main>
         </ClientProviders>
-        <AppFooter />
       </body>
     </html>
   );

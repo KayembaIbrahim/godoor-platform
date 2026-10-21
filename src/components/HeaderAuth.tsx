@@ -187,7 +187,12 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
      browser paints, so a signed-in user sees their avatar immediately and
      never sees a flash of the "Sign in" button. */
   const hydrated = useHydrated();
-  const showAccount = hydrated && onboarded;
+  /* `hydrated ? onboarded : false` — NOT `hydrated && onboarded`.
+     The session store rehydrates synchronously from localStorage, so
+     `onboarded` is already `true` on the client's first render. `&&` would
+     let that leak into the first render, the trees would disagree, and React
+     would discard the whole server-rendered page (#418). */
+  const showAccount = hydrated ? onboarded : false;
   // The dialog is a page-wide singleton (see `auth-modal-store`), so the hero
   // can ask for "Create account" and open THIS form rather than duplicating it.
   const authMode = useAuthModal((s) => s.mode);

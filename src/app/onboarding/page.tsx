@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Package, ShoppingBag, Truck, ArrowRight, Store, Clock, MapPin, Play } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useSession, type Role } from "@/lib/session-store";
+import { AppFooter } from "@/components/AppFooter";
 
 const ROLES: {
   id: Role;
@@ -76,6 +77,7 @@ export default function OnboardingPage() {
   };
 
   return (
+    <>
     <div className="hero-wash min-h-[calc(100dvh-3.5rem)]">
       <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-lg flex-col px-4 py-6">
         <div className="flex items-center justify-between">
@@ -170,5 +172,7 @@ export default function OnboardingPage() {
         </div>
       </div>
     </div>
+      <AppFooter />
+    </>
   );
 }

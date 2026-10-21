@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { ArrowLeft, Store, Truck, Check, Loader2, Mail, Send } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { AppFooter } from "@/components/AppFooter";
 
 type Role = "business" | "rider";
 
@@ -103,6 +104,7 @@ function PartnerBody() {
   }
 
   return (
+    <>
     <div className="hero-wash min-h-[calc(100dvh-3.5rem)]">
       <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-lg flex-col px-4 py-6">
         <div className="flex items-center justify-between">
@@ -246,5 +248,7 @@ function PartnerBody() {
         </div>
       </div>
     </div>
+      <AppFooter />
+    </>
   );
 }

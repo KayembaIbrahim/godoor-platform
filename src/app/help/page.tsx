@@ -7,6 +7,7 @@ import { Logo } from "@/components/Logo";
 import { supabase } from "@/lib/supabase";
 import { getApiUser } from "@/lib/api-auth";
 import { v4 as uuidv4 } from "uuid";
+import { AppFooter } from "@/components/AppFooter";
 
 interface Message {
   id: string;
@@ -974,6 +975,7 @@ export default function HelpPage() {
   }
   
   return (
+    <>
     <div className="min-h-screen bg-black">
       {/* Premium cinematic background */}
       <div className="absolute inset-0">
@@ -1103,5 +1105,7 @@ export default function HelpPage() {
         </div>
       )}
     </div>
+      <AppFooter />
+    </>
   );
 }

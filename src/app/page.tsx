@@ -1,6 +1,7 @@
 import { getServiceClient } from "@/lib/supabase-server";
 import { readWelcomeBackground } from "@/lib/welcome-bg-server";
 import { WelcomeScreen, type WelcomeBackground } from "@/components/WelcomeScreen";
+import { AppFooter } from "@/components/AppFooter";
 
 /**
  * GoDoor Welcome Page — app-style entry screen (version 10.5.1).
@@ -59,5 +60,10 @@ export default async function WelcomePage() {
       }
     : null;
 
-  return <WelcomeScreen initialBackground={background} />;
+  return (
+    <>
+      <WelcomeScreen initialBackground={background} />
+      <AppFooter />
+    </>
+  );
 }

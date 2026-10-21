@@ -1,9 +1,11 @@
 "use client";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { AppFooter } from "@/components/AppFooter";
 
 export default function PrivacyPage() {
   return (
+    <>
     <div className="mx-auto max-w-3xl px-4 py-8 pb-24">
       <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg transition mb-4">
         <ArrowLeft className="h-4 w-4" /> Back to home
@@ -41,5 +43,7 @@ export default function PrivacyPage() {
         </section>
       </div>
     </div>
+      <AppFooter />
+    </>
   );
 }

@@ -16,6 +16,12 @@ export function ThemeToggle() {
      nothing flickers. */
   const hydrated = useHydrated();
 
+  /* The theme the *server* rendered, and therefore the theme the first client
+     render must also produce. Every part of this button — icon, aria-label
+     and title — has to be derived from this one value, otherwise a user with
+     a persisted dark theme gets a mismatched attribute and React throws #418. */
+  const shown = hydrated ? theme : "light";
+
   const nextTheme = () => {
     if (theme === "light") setTheme("dark");
     else if (theme === "dark") setTheme("system");
@@ -23,8 +29,6 @@ export function ThemeToggle() {
   };
 
   const themeIcon = () => {
-    // Before hydration, show the same icon the server rendered.
-    const shown = hydrated ? theme : "light";
     switch (shown) {
       case "light":
         return <Sun className="h-4 w-4" />;
@@ -40,8 +44,8 @@ export function ThemeToggle() {
       type="button"
       onClick={nextTheme}
       className="tap-44 grid h-10 w-10 place-items-center rounded-full text-muted transition hover:bg-elevated hover:text-fg active:scale-95"
-      aria-label={`Switch to ${theme === "light" ? "dark" : theme === "dark" ? "system" : "light"} mode`}
-      title={`Current: ${theme} mode. Click to cycle.`}
+      aria-label={`Switch to ${shown === "light" ? "dark" : shown === "dark" ? "system" : "light"} mode`}
+      title={`Current: ${shown} mode. Click to cycle.`}
     >
       {themeIcon()}
     </button>

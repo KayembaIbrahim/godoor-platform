@@ -56,7 +56,12 @@ export function WelcomeScreen({
      swap to the dashboard link once React has hydrated; the layout effect
      behind `useHydrated` flips this before the browser paints. */
   const hydrated = useHydrated();
-  const showDashboard = hydrated && onboarded;
+  /* `hydrated ? onboarded : false` — NOT `hydrated && onboarded`.
+     The session store rehydrates synchronously from localStorage, so
+     `onboarded` is already `true` on the client's first render. Combining
+     the two with `&&` would make the client's first render disagree with
+     the server's and React would discard the server-rendered artwork. */
+  const showDashboard = hydrated ? onboarded : false;
   const openAuth = useAuthModal((s) => s.open);
 
   // The published welcome background. Seeded from the server so the first

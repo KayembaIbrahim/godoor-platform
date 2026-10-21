@@ -97,7 +97,15 @@ export function HeaderClient() {
   if (ownsItsHeader) return null;
 
   const dashboardHref = roleHomePath(role);
-  const signedIn = hydrated && onboarded;
+  /* `hydrated ? onboarded : false` — NOT `hydrated && onboarded`.
+     Zustand's `persist` rehydrates synchronously from localStorage, so
+     `onboarded` is already `true` on the client's very first render.
+     `hydrated && onboarded` would therefore be `true` on the client and
+     `false` on the server, and React would throw #418 and discard the
+     server-rendered page. Gating on `hydrated` alone keeps the first client
+     render identical to the server's, and the real value flows in once the
+     layout effect flips `hydrated`. */
+  const signedIn = hydrated ? onboarded : false;
   const isBusiness = signedIn && role === "business";
   const isRider = signedIn && role === "rider";
   const isCustomer = !signedIn || role === "customer";

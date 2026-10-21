@@ -9,6 +9,7 @@ import {
   Smartphone, Globe, Shield, ChevronRight, Play, X, Bell
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { AppFooter } from "@/components/AppFooter";
 
 /* ── Tutorial data ─────────────────────────────────────────────── */
 
@@ -181,6 +182,7 @@ export default function TutorialPage() {
   const isFirst = slide === 0;
 
   return (
+    <>
     <div className="min-h-[calc(100dvh-3.5rem)] bg-bg flex flex-col">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -263,5 +265,7 @@ export default function TutorialPage() {
         )}
       </div>
     </div>
+      <AppFooter />
+    </>
   );
 }

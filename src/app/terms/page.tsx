@@ -1,9 +1,11 @@
 "use client";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { AppFooter } from "@/components/AppFooter";
 
 export default function TermsPage() {
   return (
+    <>
     <div className="mx-auto max-w-3xl px-4 py-8 pb-24">
       <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg transition mb-4">
         <ArrowLeft className="h-4 w-4" /> Back to home
@@ -44,5 +46,7 @@ export default function TermsPage() {
         <p className="text-xs text-dim">Questions? Contact us at <a href="mailto:support@godoor.site" className="text-go hover:underline">support@godoor.site</a></p>
       </div>
     </div>
+      <AppFooter />
+    </>
   );
 }

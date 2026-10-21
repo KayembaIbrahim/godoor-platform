@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { Logo } from "@/components/Logo";
 import { Database, CheckCircle2, Loader2, ExternalLink } from "lucide-react";
+import { AppFooter } from "@/components/AppFooter";
 
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const URL_SB = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -56,6 +57,7 @@ export default function SetupPage() {
   };
 
   return (
+    <>
     <div className="hero-wash min-h-screen">
       <div className="mx-auto max-w-lg px-4 py-12">
         <div className="mb-8 flex justify-center"><Logo size="md" /></div>
@@ -97,5 +99,7 @@ export default function SetupPage() {
         </div>
       </div>
     </div>
+      <AppFooter />
+    </>
   );
 }
