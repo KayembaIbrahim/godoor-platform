@@ -291,10 +291,11 @@ export default function CustomerHome() {
               only the brand, the page context and the account controls, and
               the address always has the whole width to itself. */}
 
-          {/* The icon cluster — uniform 40x40 hit areas. Profile/avatar first on the
-   left so it's easy to spot; search, bell and theme toggle follow. */}
+          {/* The icon cluster — uniform 40x40 hit areas. The profile/avatar is
+              LAST, in the RIGHT corner of the header, so it is never mistaken
+              for part of the GoDoor logo on the left. It used to be first,
+              which butted it straight against the brand. */}
           <div className="flex shrink-0 items-center gap-3">
-            <HeaderAuth compact />
             <button
               type="button"
               onClick={() => setProductSearchOpen(true)}
@@ -305,6 +306,7 @@ export default function CustomerHome() {
             </button>
             <NotificationBell />
             <ThemeToggle />
+            <HeaderAuth compact />
           </div>
         </div>
       </header>

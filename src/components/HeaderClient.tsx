@@ -185,17 +185,25 @@ export function HeaderClient() {
         </div>
         {/* The icon cluster — uniform 40x40 hit areas with breathing room.
 
-            The profile (avatar) is FIRST, so it is the first thing the eye
-            finds and the one control the user reaches for most. It used to sit
-            last, on the far right next to the hamburger, where it was the
-            easiest control in the row to miss.
+            The profile (avatar) is LAST, in the RIGHT corner of the header.
+            It used to be FIRST, which put it hard against the GoDoor logo on
+            the left — the logo and the account control then read as one clump
+            at the start of the row, and the profile looked like it belonged to
+            the brand rather than to the account. Pinning it to the right
+            corner separates it from the brand and makes it the last thing the
+            eye lands on, which is where an account control belongs.
+
+            It is placed after the hamburger so it is the rightmost element in
+            the row at EVERY breakpoint. The hamburger only shows below `lg`,
+            so on a phone the row ends [... theme, menu, profile] and on a
+            desktop it ends [... theme, profile] — the profile is in the corner
+            either way.
 
             Every control here is a uniform 40x40 hit area — the wallet and
             hamburger buttons used to be 32px while the bell, theme toggle and
             avatar were 36-40px, and a ragged cluster reads as "crammed" no
             matter how the gap is tuned. */}
         <div className="flex items-center gap-2.5 sm:gap-3 lg:gap-4">
-          <HeaderAuth compact />
           <Link
             href="/wallet"
             className="tap-44 relative grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-navy transition hover:bg-navy hover:text-white active:scale-95 shadow-sm hover:shadow-lg ring-1 ring-border/50"
@@ -216,6 +224,9 @@ export function HeaderClient() {
           >
             {menuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
+          {/* The profile control — last, so it sits in the RIGHT corner of the
+              header on every screen size. */}
+          <HeaderAuth compact />
         </div>
       </div>
       {menuOpen && (
