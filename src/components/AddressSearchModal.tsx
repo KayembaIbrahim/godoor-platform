@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Search, MapPin, Navigation, X, Loader2, Crosshair } from "lucide-react";
 import { fetchPlaceSuggestions, type LatLng } from "@/lib/location";
-import { searchUgandaPlaces } from "@/lib/uganda-places";
+import { searchUgandaPlaces, placeLabel } from "@/lib/uganda-places";
 
 type AddressResult = { place: string; lat: number; lng: number };
 
@@ -111,29 +111,46 @@ export function AddressSearchModal({
    * the user is still typing. The network lookup then runs and appends the
    * street-level detail Mapbox knows about.
    *
+   * Each call bumps `seq`; only the answer whose `seq` matches the
+   * latest input is ever applied, so a fast keystroke after a slow one
+   * can never clobber the new results with an older response.
+   *
    * Previously this waited 300ms and then made ONE call to Mapbox, so the
-   * list stayed empty for the whole time the request took — and stayed empty
-   * forever if Mapbox was slow, rate-limited or the token was missing. That
-   * is the "some places aren't named" report: the rider saw a blank box.
+   * list stayed empty for the whole time — and stayed empty forever if
+   * Mapbox was slow, rate-limited or the token was missing. That is the
+   * "some places aren't named" report: the rider saw a blank box.
    */
+  const seqRef = useRef(0);
+
   const search = useCallback((q: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const trimmed = q.trim();
     if (!trimmed) { setResults([]); setLoading(false); return; }
 
+    // Every search gets a ticket. Only the holder of the newest ticket may
+    // write to the list.
+    const ticket = ++seqRef.current;
+
     // Instant, offline, always works.
     const local = searchUgandaPlaces(trimmed, 6).map((p) => ({
-      place: p.district && p.district !== p.name ? `${p.name}, ${p.district}` : p.name,
+      place: placeLabel(p),
       lat: p.lat,
       lng: p.lng,
     }));
     setResults(local);
     setLoading(true);
 
-    debounceRef.current = setTimeout(async () => {
-      const r = await fetchPlaceSuggestions(trimmed);
-      setResults(r);
-      setLoading(false);
+    debounceRef.current = setTimeout(() => {
+      fetchPlaceSuggestions(trimmed).then((r) => {
+        // A slower request for an OLDER query must never overwrite the
+        // results of the query the user is actually looking at.
+        if (ticket !== seqRef.current) return;
+        setResults(r);
+        setLoading(false);
+      }).catch(() => {
+        if (ticket !== seqRef.current) return;
+        setLoading(false);
+      });
     }, 300);
   }, []);
 

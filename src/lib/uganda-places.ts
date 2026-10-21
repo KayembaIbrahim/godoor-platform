@@ -368,6 +368,17 @@ export function searchUgandaPlaces(query: string, limit = 8): UgandaPlace[] {
 }
 
 /**
+ * The display label for a place.
+ *
+ * A town is labelled with the district it belongs to, because "Nansana" on
+ * its own is ambiguous and "Nansana, Wakiso" is not. A district is labelled
+ * with its own name only, because "Masaka, Masaka" says nothing twice.
+ */
+export function placeLabel(p: UgandaPlace): string {
+  return p.district && p.district !== p.name ? `${p.name}, ${p.district}` : p.name;
+}
+
+/**
  * The nearest known Ugandan place to a coordinate.
  *
  * `maxKm` bounds how far the answer may be from the point. Past that the

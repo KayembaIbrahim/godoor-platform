@@ -15,8 +15,9 @@ import {
   nearestUgandaPlace,
   districtForPoint,
   gazetteerPlaceName,
+  placeLabel,
 } from "@/lib/uganda-places";
-import { MASAKA } from "@/lib/location";
+import { MASAKA, normalizePlaceName } from "@/lib/location";
 
 let failures = 0;
 function check(label: string, actual: unknown, expected: unknown) {
@@ -118,6 +119,31 @@ if (masakaPlace) {
     );
   check("MASAKA is within 5km of the gazetteer's Masaka", km < 5, true);
 }
+
+console.log("\n── place labels are human readable ──");
+for (const p of TOWNS) {
+  // A town is labelled with the district it belongs to, and never with a
+  // second copy of its own name.
+  const label = placeLabel(p);
+  const parts = label.split(", ").map((s) => s.toLowerCase());
+  check(`town "${p.name}" → "${label}"`, parts[0] !== parts[1], true);
+}
+for (const d of DISTRICTS) {
+  check(`district "${d.name}" → "${d.name}"`, placeLabel(d) === d.name, true);
+}
+
+console.log("\n── duplicate first fragments collapse ──");
+for (const name of [
+  "Buhweju, Buhweju, Uganda",
+  "Kampala, Kampala, Kampala",
+  "Kazo, Kazo, Western Region",
+]) {
+  const out = normalizePlaceName(name);
+  const parts = out.split(", ").map((s) => s.toLowerCase());
+  check(`"${name}" → "${out}"`, parts[0] !== parts[1], true);
+}
+check('"Nansana, Wakiso" survives unchanged', normalizePlaceName("Nansana, Wakiso"), "Nansana, Wakiso");
+check('"Fort Portal" survives unchanged', normalizePlaceName("Fort Portal"), "Fort Portal");
 
 console.log(failures === 0 ? "\nALL PASS\n" : `\n${failures} FAILURE(S)\n`);
 process.exit(failures === 0 ? 0 : 1);

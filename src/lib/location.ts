@@ -8,6 +8,7 @@ import {
   districtForPoint,
   gazetteerPlaceName,
   nearestUgandaPlace,
+  placeLabel,
   searchUgandaPlaces,
 } from "./uganda-places";
 
@@ -612,6 +613,23 @@ export function formatDistance(km: number): string {
 
 
 /**
+ * A place name with a duplicated first fragment collapsed.
+ *
+ * Mapbox's Uganda geocoder has id-at-topology quirks — the same feature can
+ * surface as "Buhweju, Buhweju, Uganda" because its address hierarchy lists
+ * the town and the district twice. Collapsing an immediately-repeated first
+ * fragment fixes that without losing meaning, since the two are identical.
+ */
+export function normalizePlaceName(name: string): string {
+  const parts = name.trim().split(/\s*,\s*/);
+  // Collapse a repeated leading fragment, however many times it repeats.
+  while (parts.length > 1 && parts[0].toLowerCase() === parts[1].toLowerCase()) {
+    parts.splice(1, 1);
+  }
+  return parts.join(", ");
+}
+
+/**
  * Address search for the location picker.
  *
  * ── What was broken ────────────────────────────────────────────────────────
@@ -628,7 +646,8 @@ export function formatDistance(km: number): string {
  *
  * ── What it does now ───────────────────────────────────────────────────────
  * The LOCAL gazetteer is searched first and its hits are returned first, then
- * Mapbox's street-level results are appended. So:
+ * Mapbox's street-level results are appended (normalised so duplicates like
+ * "Buhweju, Buhweju, Uganda" collapse to "Buhweju"). So:
  *
  *   • a typed place ALWAYS matches, online or not;
  *   • a street address still wins for precision, because it is listed second
@@ -643,7 +662,7 @@ export function fetchPlaceSuggestions(
 
   // 1. The gazetteer. Local, instant, and it cannot fail.
   const local = searchUgandaPlaces(trimmed, 6).map((p) => ({
-    place: p.district && p.district !== p.name ? `${p.name}, ${p.district}` : p.name,
+    place: placeLabel(p),
     lat: p.lat,
     lng: p.lng,
   }));
@@ -662,7 +681,7 @@ export function fetchPlaceSuggestions(
       const remote: { place: string; lat: number; lng: number }[] = (
         json.features || []
       ).map((f: { place_name: string; center: number[] }) => ({
-        place: f.place_name,
+        place: normalizePlaceName(f.place_name),
         lat: f.center[1],
         lng: f.center[0],
       }));
