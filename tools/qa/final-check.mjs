@@ -2,7 +2,7 @@
  * The live regression suite for this release. It is the canonical check — the
  * narrower probes that used to live beside it have been folded in here:
  *
- *   1. profile icon is FIRST in the header cluster (left corner), signed out
+ *   1. profile icon is LAST in the header cluster (right corner), signed out
  *      and signed in;
  *   2. catalogue discs are 3D (gradient, layered shadow, lifted glyph, hover
  *      lift) and the cards are rounded with an animated shadow;
@@ -98,7 +98,9 @@ await section("global header (signed out)", async ({ page, goto, headerRow }) =>
   ok("the brand is the far-left element", !!brand && brand === rows[0], brand?.label);
   const account = rows.find((c) => /account|profile|sign in/i.test(c.label));
   const cluster = rows.filter((c) => c !== brand);
-  ok("the account control is FIRST in the icon cluster", !!account && cluster[0] === account, cluster.map(c=>c.label).join(" -> "));
+  // The profile belongs in the RIGHT corner — last in the cluster, hard
+  // against the edge of the row, clear of the GoDoor logo on the left.
+  ok("the account control is LAST in the icon cluster (right corner)", !!account && cluster[cluster.length - 1] === account, cluster.map(c=>c.label).join(" -> "));
 });
 
 // ── 1b. the customer home header (must be signed in) ───────────────────────
@@ -108,11 +110,11 @@ await section("customer home header (signed in)", async ({ page, goto, headerRow
   const rows = await headerRow();
   for (const c of rows) console.log(`        ${String(c.x).padStart(4)}  ${c.label}`);
   // The brand precedes the cluster here, so the account is second overall —
-  // but it must be FIRST among the cluster's own controls.
+  // but it must be LAST among the cluster's own controls, in the right corner.
   const brand = rows.find((c) => /home/i.test(c.label));
   const cluster = rows.filter((c) => c !== brand);
   const account = rows.find((c) => /account|profile|sign in/i.test(c.label));
-  ok("the account control is FIRST in the customer-home cluster", !!account && cluster[0] === account, cluster.map(c=>c.label).join(" -> "));
+  ok("the account control is LAST in the customer-home cluster (right corner)", !!account && cluster[cluster.length - 1] === account, cluster.map(c=>c.label).join(" -> "));
   ok("the signed-in avatar is showing", (await page.locator('button[aria-label="Account menu"]').count()) > 0);
 });
 
