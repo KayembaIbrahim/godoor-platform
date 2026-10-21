@@ -8,7 +8,6 @@ import ParticleField from "./ParticleField";
 import { useGeolocation, formatAccuracy } from "@/lib/location";
 import { rememberDetectedAddress, getLastAddress } from "@/components/AddressSearchModal";
 import { isDeliberate } from "@/lib/customer-location-core";
-import { useAuthModal } from "@/lib/auth-modal-store";
 import { useSession } from "@/lib/session-store";
 import { FIRST_ORDER_OFFER } from "@/lib/first-order-offer";
 
@@ -54,7 +53,6 @@ export default function DarkHero() {
      prompt — visually claiming nothing was happening. */
   const isDetecting = locating || geo.status === "idle" || geo.status === "locating";
   const { onboarded } = useSession();
-  const openAuth = useAuthModal((s) => s.open);
 
   /**
    * The discount this banner advertises.
@@ -177,27 +175,25 @@ export default function DarkHero() {
             without an account; this simply makes joining the obvious next step
             for the people who came here to order.
 
-            Both buttons drive the one auth dialog and ask for the form that
-            matches the button, rather than opening sign-in and making the
-            visitor find the toggle. Signed-in visitors get neither — the
+            Both buttons lead to the one welcome sign-in page and ask for the
+            form that matches the button, rather than opening sign-in and making
+            the visitor find the toggle. Signed-in visitors get neither — the
             account menu in the header is already their route in. */}
         {!onboarded && (
           <div className="mt-7 flex flex-col items-center gap-2.5 sm:flex-row sm:justify-center sm:gap-3">
-            <button
-              type="button"
-              onClick={() => openAuth("signup")}
+            <Link
+              href="/signin?mode=signup"
               className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-go px-6 py-3 text-sm font-bold text-white shadow-[0_10px_30px_-12px_rgba(249,115,22,0.9)] transition hover:bg-go-2 active:scale-[0.98] sm:w-auto"
             >
               <UserPlus className="h-4 w-4" aria-hidden />
               Create free account
-            </button>
-            <button
-              type="button"
-              onClick={() => openAuth("login")}
+            </Link>
+            <Link
+              href="/signin"
               className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface px-6 py-3 text-sm font-semibold text-fg transition hover:bg-elevated active:scale-[0.98] sm:w-auto"
             >
               Sign in
-            </button>
+            </Link>
           </div>
         )}
         {!onboarded && (

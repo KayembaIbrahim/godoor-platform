@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Poppins } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { ThemeEffect } from "@/components/ThemeEffect";
 import { HeaderClient } from "@/components/HeaderClient";
@@ -11,14 +11,24 @@ import { ClientProviders } from "@/components/ClientProviders";
    fell back to the OS UI font. These two loaders publish the real faces as CSS
    variables that globals.css points at, so all 737 existing `font-display` /
    `text-muted`-style call sites start working without being touched.
-   Both are variable fonts, so no per-weight files are emitted. */
-const poppins = Poppins({
-  /* Poppins is not flagged as a variable font in this Next version's font
-     data, so weights are listed explicitly. These are the only weights
-     `font-display` is paired with across the app (81 bold, 53 semibold),
-     plus 400/500 for headings that inherit body weight. */
-  weight: ["400", "500", "600", "700"],
-  subsets: ["latin"],
+
+   These used to come from `next/font/google`. That loader downloads the
+   woff2 files from fonts.gstatic.com *at build time*, and the download is
+   retried three times when the network is unavailable — which stalled every
+   production build in the sandbox with a bare "Retrying 1/3..." and no error.
+   The faces are now vendored under src/fonts and loaded with
+   `next/font/local`, so the build is fully offline and deterministic. The
+   published files are the same ones Google serves: the Inter variable font
+   and Poppins at the four weights the design system pairs `font-display`
+   with (81 bold, 53 semibold) plus 400/500 for headings that inherit body
+   weight. */
+const poppins = localFont({
+  src: [
+    { path: "../fonts/Poppins-400.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/Poppins-500.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/Poppins-600.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/Poppins-700.woff2", weight: "700", style: "normal" },
+  ],
   display: "swap",
   /* Published under the names the design system actually reads.
      These used to be --font-poppins / --font-inter, which nothing referenced:
@@ -28,12 +38,16 @@ const poppins = Poppins({
      every page and never applied — the whole site rendered in the browser
      fallback while claiming to use the brand typeface. */
   variable: "--font-display",
+  fallback: ["system-ui", "sans-serif"],
 });
 
-const inter = Inter({
-  subsets: ["latin"],
+const inter = localFont({
+  src: "../fonts/Inter-Variable.woff2",
+  weight: "100 900",
+  style: "normal",
   display: "swap",
   variable: "--font-sans",
+  fallback: ["system-ui", "sans-serif"],
 });
 
 /* The canonical origin. Without an explicit `metadataBase`, Next derives

@@ -42,6 +42,7 @@ import {
   isDetecting,
   type StoredCustomerAddress,
 } from "@/lib/customer-location-core";
+import { CATEGORIES } from "@/lib/categories";
 
 /**
  * GoDoor customer home — hybrid theme.
@@ -415,8 +416,27 @@ export default function CustomerHome() {
           mounting it removes a second competing set instead of adding one.
 
           The full category directory still exists — it is what "View all"
-          and the Services sheet both point at. */}
+          and the Services sheet both point at.
+
+          WHY THE HEADER CARRIES A COUNT
+          ------------------------------
+          Eight service discs read as the whole catalogue. A customer
+          shopping for hardware, a salon or a bookstore had no way to learn
+          those categories exist — the eight tiles were the only category
+          affordance on the screen, so the absence of a tile was read as the
+          absence of the category. The count next to "View all" makes the row
+          an obvious subset of something larger, and the button makes that
+          larger thing one tap away. */}
       <section aria-label="Services" className="px-4 pt-5">
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <h2 className="font-display text-base font-bold text-fg">Services</h2>
+          <Link
+            href="/categories"
+            className="inline-flex min-h-11 shrink-0 items-center gap-1 text-xs font-semibold text-go transition hover:text-go-2"
+          >
+            View all {CATEGORIES.length} categories &rarr;
+          </Link>
+        </div>
         <QuickServicesGrid />
       </section>
 

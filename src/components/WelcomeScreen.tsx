@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Compass, ShieldCheck, Wallet, Clock } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { useAuthModal } from "@/lib/auth-modal-store";
 import { useHydrated } from "@/lib/use-hydrated";
 import { useSession, roleHomePath } from "@/lib/session-store";
 
@@ -62,7 +61,6 @@ export function WelcomeScreen({
      the two with `&&` would make the client's first render disagree with
      the server's and React would discard the server-rendered artwork. */
   const showDashboard = hydrated ? onboarded : false;
-  const openAuth = useAuthModal((s) => s.open);
 
   // The published welcome background. Seeded from the server so the first
   // paint already has the artwork in it; the fetch below refreshes it.
@@ -244,20 +242,18 @@ export function WelcomeScreen({
           </Link>
         ) : (
           <div className="mt-7 flex w-full max-w-xs flex-col gap-2.5">
-            <button
-              type="button"
-              onClick={() => openAuth("login")}
+            <Link
+              href="/signin"
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-go px-6 py-3.5 text-sm font-semibold text-white shadow-glow transition hover:bg-go-2 active:scale-[0.98]"
             >
               Sign in
-            </button>
-            <button
-              type="button"
-              onClick={() => openAuth("signup")}
+            </Link>
+            <Link
+              href="/signin?mode=signup"
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface/80 px-6 py-3.5 text-sm font-semibold text-fg backdrop-blur-sm transition hover:bg-elevated active:scale-[0.98]"
             >
               Create account
-            </button>
+            </Link>
           </div>
         )}
 
