@@ -550,6 +550,16 @@ function MapboxMapInner({
   const styleAppliedRef = useRef<boolean | null>(null);
   const [ready, setReady] = useState(false);
   const [userMoved, setUserMoved] = useState(false);
+  /* Bumped on every base-style swap. `setStyle` destroys every source and
+     layer the app added on top of it, so the effects that (re)create the route
+     and the accuracy halos depend on this counter to know they must rebuild.
+
+     It is declared HERE, with the other state, and not further down: the route
+     effect lists it in its dependency array, and a dependency array is
+     evaluated while the component renders — a `const` declared further down
+     the same body would still be in its temporal dead zone at that point and
+     the whole map would throw "Cannot access 'x' before initialization". */
+  const [styleGeneration, setStyleGeneration] = useState(0);
 
   const boxH: string | number = fillHeight ? "100%" : height;
 
@@ -886,8 +896,7 @@ function MapboxMapInner({
 
      `styleGeneration` is bumped on every swap and included in that effect's
      dependencies, so the sources and layers are rebuilt on the new style and
-     the route is redrawn. */
-  const [styleGeneration, setStyleGeneration] = useState(0);
+     the route is redrawn. (Declared up with the other state — see above.) */
 
   useEffect(() => {
     const map = mapRef.current;

@@ -28,7 +28,15 @@ function check(name, pass, detail = "") {
 }
 
 const browser = await chromium.launch({
-  args: ["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"],
+  args: [
+    "--disable-dev-shm-usage",
+    "--no-sandbox",
+    "--disable-gpu",
+    "--single-process",
+    "--disable-features=IsolateOrigins,site-per-process",
+    "--renderer-process-limit=1",
+    "--js-flags=--max-old-space-size=384",
+  ],
 });
 const ctx = await browser.newContext({
   viewport: { width: 412, height: 900 },
@@ -42,14 +50,14 @@ page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
 
 console.log(`→ ${BASE}/nav-harness`);
 await page.goto(`${BASE}/nav-harness`, { waitUntil: "domcontentloaded", timeout: 60_000 });
-await page.waitForFunction(() => !!(window as any).__godoorMapState, null, { timeout: 60_000 });
+await page.waitForFunction(() => !!window.__godoorMapState, null, { timeout: 60_000 });
 await page.waitForTimeout(3500);
 
 /** Camera + rider screen position, measured from the live map. */
 async function measure() {
   return page.evaluate((rider) => {
-    const m = (window as any).__godoorMap;
-    const state = (window as any).__godoorMapState();
+    const m = window.__godoorMap;
+    const state = window.__godoorMapState();
     const p = m.project([rider.lng, rider.lat]);
     const canvas = m.getCanvas();
     return {
