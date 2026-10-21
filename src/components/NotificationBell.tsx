@@ -32,7 +32,7 @@ function timeAgo(ms: number): string {
   return Math.floor(sec / 86400) + "d ago";
 }
 
-export function NotificationBell() {
+export function NotificationBell({ inBar = false }: { inBar?: boolean } = {}) {
   const { role, supabaseUser } = useSession();
   const { items, unreadCount, markAllRead } = useNotifications();
   const myItems = items.filter((n) => !n.role || !role || n.role === role);
@@ -59,7 +59,11 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => { setOpen(!open); if (!open && unread > 0) markAllRead(); }}
-        className="tap-44 relative grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-elevated hover:text-fg transition"
+        className={
+          inBar
+            ? "icon-bar-item tap-44 relative transition active:scale-90"
+            : "tap-44 relative grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-elevated hover:text-fg transition"
+        }
         aria-label="Notifications"
       >
         {/* The badge is anchored to the ICON, not to the button. The button

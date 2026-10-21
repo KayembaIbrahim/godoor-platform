@@ -4,8 +4,17 @@ import { useThemeStore } from "@/lib/theme-store";
 import { useHydrated } from "@/lib/use-hydrated";
 import { Sun, Moon, Monitor } from "lucide-react";
 
-/** Cycles light → dark → system, so every preference stays reachable. */
-export function ThemeToggle() {
+/**
+ * Cycles light → dark → system, so every preference stays reachable.
+ *
+ * `inBar` renders the control as an ITEM of the black utility capsule
+ * (`.icon-bar`) rather than as a standalone button. The bar's own item
+ * styling supplies the ink and the hover fill, so the control's usual
+ * `text-muted` / `hover:bg-elevated` utilities are dropped — muted grey is
+ * nearly invisible against the black capsule, and the light hover fill
+ * flashes white across a dark surface.
+ */
+export function ThemeToggle({ inBar = false }: { inBar?: boolean } = {}) {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   /* The theme is persisted to localStorage and rehydrated synchronously, so
@@ -43,7 +52,11 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={nextTheme}
-      className="tap-44 grid h-10 w-10 place-items-center rounded-full text-muted transition hover:bg-elevated hover:text-fg active:scale-95"
+      className={
+        inBar
+          ? "icon-bar-item tap-44 transition active:scale-90"
+          : "tap-44 grid h-10 w-10 place-items-center rounded-full text-muted transition hover:bg-elevated hover:text-fg active:scale-95"
+      }
       aria-label={`Switch to ${shown === "light" ? "dark" : shown === "dark" ? "system" : "light"} mode`}
       title={`Current: ${shown} mode. Click to cycle.`}
     >

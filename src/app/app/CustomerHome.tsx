@@ -312,8 +312,8 @@ export default function CustomerHome() {
               >
                 <Search className="h-4 w-4" />
               </button>
-              <NotificationBell />
-              <ThemeToggle />
+              <NotificationBell inBar />
+              <ThemeToggle inBar />
             </div>
             <HeaderAuth compact />
           </div>

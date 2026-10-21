@@ -220,8 +220,8 @@ export function HeaderClient() {
             >
               <Wallet className="h-4 w-4" />
             </Link>
-            <NotificationBell />
-            <ThemeToggle />
+            <NotificationBell inBar />
+            <ThemeToggle inBar />
           </div>
           <BuildBadge />
 
