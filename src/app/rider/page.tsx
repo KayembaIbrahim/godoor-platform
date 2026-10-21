@@ -1374,7 +1374,14 @@ export default function RiderDashboard() {
                     congestion={riderRoadRoute?.congestion ?? null}
                     trafficAware={!!riderRoadRoute?.trafficAware}
                     quotedFeeUgx={activeDelivery.delivery_fee_ugx}
-                    userLocation={coords}
+                    /* The rider's own GPS fix is ALREADY the orange puck
+                       (`riderLoc`). Passing it a second time as
+                       `userLocation` drew the white-ringed "You" dot on the
+                       exact same pixel, so two pulsing rings sat on top of
+                       each other and the rider's true position was impossible
+                       to read. The rider IS the puck — there is no separate
+                       "you" to mark. */
+                    userLocation={null}
                     label={activeDelivery.merchant_name || "Pickup"}
                     merchantName={activeDelivery.merchant_name || "Pickup"}
                     customerName={activeDelivery.customer_name || "Customer"}

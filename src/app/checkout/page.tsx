@@ -18,7 +18,7 @@ import { createOrder, fetchMerchantById, type DBMerchant } from "@/lib/db";
 import WalletLock from "@/components/WalletLock";
 import { usePromo, refreshPromoTable } from "@/lib/customer-stores";
 import { SignupModal, useSignupPrompt } from "@/components/SignupPrompt";
-import { AddressSearchModal, getLastAddress } from "@/components/AddressSearchModal";
+import { AddressSearchModal, getLastAddress, rememberDetectedAddress } from "@/components/AddressSearchModal";
 import { MorseLogo } from "@/components/MorseLogo";
 import dynamic from "next/dynamic";
 
@@ -127,6 +127,46 @@ export default function CheckoutPage() {
   }, []);
   const { appliedPromo, apply: applyPromo, clear: clearPromo } = usePromo();
 
+  /**
+   * Auto-fill the delivery address from the location the app already detected.
+   *
+   * ── The defect this replaces ──────────────────────────────────────────────
+   * The checkout page read `getLastAddress()` ONCE, on mount, and never
+   * persisted anything it detected. Two consequences, both reported as "the
+   * location is not filled automatically":
+   *
+   *   1. A customer who arrived straight from a product link — never through
+   *      the welcome page, never through the home screen — had no stored
+   *      address at all. The app was sitting there with a perfectly good GPS
+   *      fix, and the checkout still said "Tap to set delivery address" and
+   *      waited for the customer to type their own street.
+   *   2. `address` was seeded from `gpsAddress` at mount, which is `null` on
+   *      the first render because detection has not answered yet. It was never
+   *      re-seeded, so the editable field stayed empty even after the fix
+   *      landed a second later.
+   *
+   * Now the detected place is written back to the shared store — which is how
+   * it survives the navigation, and how the home screen and the checkout agree
+   * on one address — and the field follows the detection as it resolves. A
+   * deliberate pick is never overwritten: `rememberDetectedAddress` refuses to
+   * replace a `manual` entry, and the effect below checks the same thing
+   * before it touches the field.
+   */
+  const addrTouched = useRef(false);
+  useEffect(() => {
+    if (!gpsAddress || !coords) return;
+    /* Write the detection back to the shared store so the home screen, the
+       order sheet and this page agree on ONE address, and so it survives the
+       navigation. `rememberDetectedAddress` refuses to overwrite a `manual`
+       entry, so a customer who typed their own street is never undone. */
+    rememberDetectedAddress(gpsAddress, coords);
+    /* Only fill the field if the customer has not chosen an address
+       themselves — the detection is a default, not an override. */
+    if (addrTouched.current) return;
+    setSavedAddr((prev) => prev ?? { place: gpsAddress, lat: coords.lat, lng: coords.lng });
+    setAddress((prev) => prev || gpsAddress);
+  }, [gpsAddress, coords?.lat, coords?.lng]);
+
   /* Load the live promo table once, so a code an admin has just retuned or
      switched off is honoured immediately instead of being judged against the
      copy that shipped with the bundle. Failure is silent and harmless — the
@@ -220,8 +260,10 @@ export default function CheckoutPage() {
         delivery_address: deliveryAddress,
         // Real location only — null when GPS/address is unknown so the server
         // stores no pin instead of a fake default pin.
-        customer_lat: savedAddr?.lat || coords?.lat || null,
-        customer_lng: savedAddr?.lng || coords?.lng || null,
+        // `??` not `||`: a legitimate 0 coordinate (the Equator, or lng 0) must
+        // survive. `||` would throw it away and store null instead.
+        customer_lat: savedAddr?.lat ?? coords?.lat ?? null,
+        customer_lng: savedAddr?.lng ?? coords?.lng ?? null,
         scheduled_for: slotTs,
         // Use payment_submitted so business sees it immediately in "payment_submitted" tab — pending is lazy and hides orders
         status: "payment_submitted",
@@ -588,6 +630,9 @@ export default function CheckoutPage() {
       open={addrSearchOpen}
       onClose={() => setAddrSearchOpen(false)}
       onSelect={(r) => {
+        /* A deliberate pick: from here on the customer's own address wins over
+           any later detection, so the drop-off pin cannot move under them. */
+        addrTouched.current = true;
         setSavedAddr(r);
         setAddress(r.place);
       }}

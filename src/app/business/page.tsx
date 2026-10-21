@@ -89,6 +89,27 @@ function BusinessDashboardInner() {
   const gpsWatchRef = useRef<number | null>(null);
   const streamingRef = useRef<{ merchantId: string; lastSend: number } | null>(null);
 
+  /* The merchant's own registered position — or null when they have never
+     registered one. Null is meaningful: it means "we do not know where this
+     shop is", and the map must say so by showing no shop pin rather than
+     inventing one at a city centroid. */
+  const shopLoc: LatLng | null =
+    merchantRecord && Math.abs(merchantRecord.lat) > 1e-9 && Math.abs(merchantRecord.lng) > 1e-9
+      ? { lat: merchantRecord.lat, lng: merchantRecord.lng }
+      : null;
+
+  /* The white-ringed "You" dot is drawn from `userLocation`, which during
+     live sharing IS `myLiveLoc`. Drawing the provider puck at the same
+     coordinate put two markers on one pixel, their pulsing rings on top of
+     each other. When they coincide, the user dot already says "you are here",
+     so the puck is redundant. */
+  const userDotLoc: LatLng | null = liveSharing ? myLiveLoc || myLocation : myLocation;
+  const userDotIsSame = Boolean(
+    liveSharing && myLiveLoc && userDotLoc &&
+      Math.abs(userDotLoc.lat - myLiveLoc.lat) < 1e-7 &&
+      Math.abs(userDotLoc.lng - myLiveLoc.lng) < 1e-7
+  );
+
   useEffect(() => { setMounted(true); }, []);
 
   // Stop streaming GPS to the server when the dashboard unmounts.
@@ -558,19 +579,25 @@ function BusinessDashboardInner() {
                 center={
                   (liveSharing && myLiveLoc) ||
                   Object.values(liveRiderLocs)[0] ||
-                  (merchantRecord?.lat && Math.abs(merchantRecord.lat) > 1e-9 ? { lat: merchantRecord.lat, lng: merchantRecord.lng } : { lat: 0.3163, lng: 32.5822 })
+                  shopLoc ||
+                  { lat: 0.3163, lng: 32.5822 }
                 }
                 markers={[
-                  // Shop location marker — always visible with business name tag (static fallback if no GPS yet)
-                  {
+                  /* Shop location marker.
+                     Only drawn when the merchant has actually registered
+                     coordinates. It used to fall back to a hard-coded Kampala
+                     centroid, which put a confidently-labelled pin carrying the
+                     real business name 130 km from the shop — a marker that
+                     looks right and is wrong. A business with no registered
+                     position now simply has no shop pin, which is honest; the
+                     "add your location" prompt below the map is what tells
+                     them why. */
+                  ...(shopLoc ? [{
                     id: "shop",
-                    position: {
-                      lat: merchantRecord?.lat && Math.abs(merchantRecord.lat) > 1e-9 ? merchantRecord.lat : 0.3163,
-                      lng: merchantRecord?.lng && Math.abs(merchantRecord.lng) > 1e-9 ? merchantRecord.lng : 32.5822,
-                    },
+                    position: shopLoc,
                     label: merchantRecord?.name || "My Shop",
                     isPickup: true,
-                  },
+                  }] : []),
                   // Active rider markers (with real heading so the arrow points true)
                   ...Object.entries(liveRiderLocs).map(([riderId, loc]) => ({
                     id: riderId,
@@ -579,8 +606,12 @@ function BusinessDashboardInner() {
                     isRider: true,
                     heading: (loc as { heading?: number | null }).heading ?? null,
                   })),
-                  // Own moving marker — only while live sharing is switched on
-                  ...(liveSharing && myLiveLoc ? [{
+                  /* Own moving marker — only while live sharing is switched on.
+                     It is suppressed when it would sit on top of the "You" dot:
+                     the white-ringed user dot is drawn from `userLocation`,
+                     which is this very coordinate, so both markers used to land
+                     on the same pixel and the pulsing rings overlapped. */
+                  ...(liveSharing && myLiveLoc && !userDotIsSame ? [{
                     id: "me-live",
                     position: myLiveLoc,
                     label: merchantRecord?.name || "Provider",
@@ -590,9 +621,9 @@ function BusinessDashboardInner() {
                 ]}
                 zoom={14}
                 fillHeight
-                userLocation={liveSharing ? myLiveLoc || myLocation : myLocation}
+                userLocation={userDotLoc}
                 fitBounds={[
-                  { lat: merchantRecord?.lat && Math.abs(merchantRecord.lat) > 1e-9 ? merchantRecord.lat : 0.3163, lng: merchantRecord?.lng && Math.abs(merchantRecord.lng) > 1e-9 ? merchantRecord.lng : 32.5822 },
+                  ...(shopLoc ? [shopLoc] : []),
                   ...Object.values(liveRiderLocs) as Array<{ lat: number; lng: number }>,
                   ...(liveSharing && myLiveLoc ? [myLiveLoc] : []),
                   ...(myLocation ? [myLocation] : []),

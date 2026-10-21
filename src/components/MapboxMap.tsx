@@ -19,6 +19,43 @@ function validCenter(c: LatLng): LatLng {
   return Math.abs(c.lat) <= 1e-9 && Math.abs(c.lng) <= 1e-9 ? KAMPALA_DEFAULT : c;
 }
 
+/* ─── Navigation camera geometry ───────────────────────────────
+   These three helpers drive the DRIVER's map. They exist because the
+   camera used to sit exactly on the rider at a fixed zoom, which made
+   navigation feel cramped: the rider was pinned to the middle of a small
+   circle of road, and the road AHEAD — the only thing a driver needs —
+   was off the top of the screen. */
+
+/** Ground metres covered by one screen pixel at a given zoom/latitude.
+    Web Mercator, 512 px tiles (Mapbox's convention). */
+function metresPerPixel(lat: number, zoom: number): number {
+  return (40075017 * Math.cos((lat * Math.PI) / 180)) / (512 * Math.pow(2, zoom));
+}
+
+/** Move a point `metres` along a compass bearing (degrees, 0 = north). */
+function offsetAlongBearing(p: LatLng, bearingDeg: number, metres: number): LatLng {
+  const b = (bearingDeg * Math.PI) / 180;
+  const dLat = (metres * Math.cos(b)) / 111_320;
+  const dLng = (metres * Math.sin(b)) / (111_320 * Math.cos((p.lat * Math.PI) / 180));
+  return { lat: p.lat + dLat, lng: p.lng + dLng };
+}
+
+/** Zoom that keeps the next turn AND a comfortable look-ahead in view.
+    A turn 20 m away needs street level; a turn 800 m away must not be
+    approached with the camera jammed into the rider's shoulder. */
+function adaptiveNavZoom(baseZoom: number, distToTurnM: number | null, viewportPx: number, lat: number): number {
+  if (distToTurnM == null || !isFinite(distToTurnM) || distToTurnM <= 0) return baseZoom;
+  const mpp = metresPerPixel(lat, baseZoom);
+  /* The turn itself, plus ~70 m of road beyond it so the driver can see
+     where the road goes after the turn. */
+  const neededM = 1.7 * (distToTurnM + 70);
+  const neededPx = neededM / Math.max(mpp, 1e-6);
+  const want = baseZoom + Math.log2(Math.max(viewportPx, 1) / Math.max(neededPx, 1));
+  /* Never zoom in past the base (that was the "too tight to read" bug) and
+     never so far out that the map becomes a city overview. */
+  return Math.min(baseZoom, Math.max(13.8, want));
+}
+
 /** GeoJSON polygon approximating a circle of `metres` around a point. */
 function accuracyCircleFeature(lat: number, lng: number, metres: number) {
   const ring: [number, number][] = [];
@@ -114,6 +151,14 @@ type Props = {
   /** Zoom used when following the driver. Street-level beats the 14° default
       a city-wide overview uses. */
   navigationZoom?: number;
+  /** Tilt applied to the driver's map. A pitched camera shows the road
+      running away towards the horizon, which is what makes a navigation view
+      feel open instead of cramped. 0 keeps the flat 2D top-down. */
+  navigationPitch?: number;
+  /** Distance (metres) from the rider to the next turn along the route.
+      Drives the adaptive zoom: the camera pulls back when the next turn is
+      far away and closes in when it is close. */
+  nextTurnDistanceM?: number | null;
   userLocation?: LatLng | null;
   /** Radius (metres) of the reported GPS fix — drawn as a halo around the
       user dot so people can see how precise "you are here" really is. */
@@ -471,6 +516,7 @@ function MapboxMapInner({
   center, markers = [], onMapClick, zoom = 14, height = 300, fillHeight = false,
   className, userLocation, userAccuracy, onError, fitBounds, fitPadding: outerPadding, route, maneuvers,
   congestion = null, navigationBearing = null, navigationZoom = 16.5,
+  navigationPitch = 45, nextTurnDistanceM = null,
 }: Props & { onError?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -479,6 +525,16 @@ function MapboxMapInner({
   const userMarkerRef = useRef<any>(null);
   const accuracyRef = useRef<any>(null);
   const riderAccuracyRef = useRef<any>(null);
+
+  /** Empty an accuracy halo's source, if it exists. */
+  const clearAccuracySource = useCallback((sourceId: "gdr-accuracy" | "gdr-rider-accuracy") => {
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      const src = map.getSource(sourceId) as any;
+      if (src?.setData) src.setData({ type: "FeatureCollection", features: [] });
+    } catch {}
+  }, []);
   const glideRef = useRef<Map<string, number>>(new Map());
   const dotMarkerRef = useRef<any>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -502,6 +558,21 @@ function MapboxMapInner({
   const baseStyle = isDark ? DARK_STYLE : LIGHT_STYLE;
 
   const fitPadding: Padding = outerPadding || { top: 96, bottom: 88, left: 56, right: 56 };
+  /* `outerPadding` is a fresh object literal on every parent render, so it
+     cannot be a dependency of `applyFocus` — that callback is the thing that
+     re-frames the camera, and a changing identity meant the camera was
+     re-framed on EVERY render, including the ones caused by a GPS fix. The
+     padding is read from this ref instead, so the value stays current while
+     the callback stays stable. */
+  const fitPaddingRef = useRef<Padding>(fitPadding);
+  fitPaddingRef.current = fitPadding;
+
+  /* The map's CURRENT bearing, read back from the map itself. The rider puck
+     is rotated in screen space, so its arrow has to be expressed relative to
+     this — a puck rotated by the absolute compass heading while the map is
+     itself rotated by the same heading points off to the side instead of up
+     the road. */
+  const mapBearingRef = useRef(0);
 
   const markUserMoved = useCallback(() => { userMovedRef.current = true; setUserMoved(true); }, []);
   const isUserMoved = () => userMovedRef.current;
@@ -599,9 +670,19 @@ function MapboxMapInner({
         });
       }
       if (pts.length >= 2) {
-        // With congestion we emit one 2-point feature per segment so each can be
-        // painted by its own traffic level; otherwise a single LineString.
-        const useCongestion = !!congestion && congestion.length >= pts.length - 1;
+        /* With congestion we emit one 2-point feature per segment so each can be
+           painted by its own traffic level; otherwise a single LineString.
+
+           `congestion` holds ONE entry per segment of the ORIGINAL route
+           (route.length - 1), but `pts` is the FILTERED route — a degenerate
+           point (0,0) is dropped. Dropping a point merges two segments into
+           one, so every segment AFTER the dropped one would take the wrong
+           traffic level: the route would be painted with traffic that belongs
+           to a different road. The per-segment colouring is therefore only
+           used when nothing was actually filtered; otherwise the whole route
+           is drawn in the neutral brand colour, which is honest. */
+        const nothingFiltered = (route || []).length === pts.length;
+        const useCongestion = nothingFiltered && !!congestion && congestion.length >= pts.length - 1;
         const features = useCongestion
           ? pts.slice(0, -1).map((p, i) => ({
               type: "Feature" as const,
@@ -623,7 +704,7 @@ function MapboxMapInner({
         map.getSource("gdr-route-arrows-src").setData({ type: "FeatureCollection", features: [] });
       }
     } catch {}
-  }, [ready, route, congestion]);
+  }, [ready, route, congestion, styleGeneration]);
 
   /* ── Turn-by-turn navigation badges ──
      Numbered discs at each maneuver, sitting above the route line but below
@@ -738,9 +819,41 @@ function MapboxMapInner({
       mapInstance.addControl(new mapboxgl.default.AttributionControl({ compact: true }), "bottom-right");
       mapInstance.addControl(new mapboxgl.default.ScaleControl({ maxWidth: 80, unit: "metric" }), "bottom-left");
 
+      /* Test hook: expose the live camera so the navigation-view checks can
+         read the real zoom / pitch / bearing and the rider's screen position
+         instead of guessing from pixels. A plain reference — no secrets, and
+         it is what the map already exposes to its own controls. */
+      try {
+        (window as any).__godoorMap = mapInstance;
+        (window as any).__godoorMapState = () => {
+          const m = (window as any).__godoorMap;
+          if (!m) return null;
+          const c = m.getCenter();
+          return {
+            zoom: m.getZoom(),
+            pitch: m.getPitch(),
+            bearing: m.getBearing(),
+            center: { lat: c.lat, lng: c.lng },
+            size: { w: m.getCanvas().clientWidth, h: m.getCanvas().clientHeight },
+          };
+        };
+      } catch {}
+
       ["dragstart", "zoomstart", "pitchstart", "rotatestart"].forEach((evt) =>
         mapInstance.on(evt, markUserMoved)
       );
+
+      /* Keep the live bearing in a ref. The rider puck is a DOM element rotated
+         in screen space, so its arrow has to be expressed RELATIVE to the
+         map's own rotation. Without this the arrow was drawn at the absolute
+         compass heading while the map was itself rotated to that same heading,
+         so the arrow pointed sideways while the rider rode straight ahead. */
+      const syncBearing = () => {
+        try { mapBearingRef.current = mapInstance.getBearing(); } catch {}
+      };
+      mapInstance.on("rotate", syncBearing);
+      mapInstance.on("move", syncBearing);
+      syncBearing();
 
       if (onMapClick) {
         mapInstance.on("click", (e: any) => onMapClick({ lat: e.lngLat.lat, lng: e.lngLat.lng }));
@@ -763,13 +876,28 @@ function MapboxMapInner({
     };
   }, [MAPBOX_TOKEN, markUserMoved]); // eslint-disable-line
 
-  /* ── Swap the base style when the app theme flips ── */
+  /* ── Swap the base style when the app theme flips ──
+     `setStyle` replaces the whole style, which DESTROYS every source and layer
+     the app added on top of it — the route polyline, the arrow source, the
+     accuracy halos. The effect that draws the route only creates them when
+     they are missing, and its dependencies did not change on a theme flip, so
+     it never ran again: the route line was simply GONE for the rest of the
+     session, and the halos with it.
+
+     `styleGeneration` is bumped on every swap and included in that effect's
+     dependencies, so the sources and layers are rebuilt on the new style and
+     the route is redrawn. */
+  const [styleGeneration, setStyleGeneration] = useState(0);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     if (styleAppliedRef.current === isDark) return;
     styleAppliedRef.current = isDark;
-    try { map.setStyle(baseStyle); } catch {}
+    try {
+      map.setStyle(baseStyle);
+      setStyleGeneration((g) => g + 1);
+    } catch {}
   }, [isDark, baseStyle, ready]);
 
   const fitKey = useMemo(
@@ -799,8 +927,52 @@ function MapboxMapInner({
   }, [rawBearing]);
   const navBearing = smoothBearing;
 
+  /* ── The driver's navigation camera ──────────────────────────────
+     Three things made the rider's map feel cramped and hard to navigate
+     on, and all three are fixed here:
+
+       1. The camera sat EXACTLY on the rider, so the rider was pinned to
+          the middle of the screen and the road ahead — the only thing a
+          driver needs — was off the top. The camera is now pushed FORWARD
+          along the heading, which drops the rider low on the screen and
+          fills the upper half with the street ahead.
+       2. The map was flat (pitch 0), a top-down slice with no sense of
+          distance. It is now tilted, so the road runs away towards the
+          horizon the way a windscreen shows it.
+       3. The zoom was a fixed 16.5 regardless of how far away the next
+          turn was. It is now derived from the distance to the next turn:
+          close the turn in, pull back for a long straight. */
+
+  /** Live pixel height of the map viewport (0 until mounted). */
+  const viewportH = () => {
+    const el = containerRef.current;
+    const h = el?.clientHeight || 0;
+    return h > 0 ? h : 480;
+  };
+
+  /** Where the camera should sit, and at what zoom, while driving. */
+  const navCameraTarget = useCallback((rider: LatLng, bearing: number) => {
+    const zoom = adaptiveNavZoom(navigationZoom, nextTurnDistanceM, viewportH(), rider.lat);
+    const pitch = navigationPitch;
+    /* How far below the vertical centre the rider should sit. Capped so the
+       rider never gets pushed off the bottom of the screen by a very tall
+       viewport. */
+    const aheadPx = Math.min(viewportH() * 0.28, 140);
+    const mpp = metresPerPixel(rider.lat, zoom);
+    /* A pitched camera foreshortens the ground per screen pixel, so the
+       ground distance that fills `aheadPx` is larger by 1/cos(pitch). */
+    const aheadM = Math.max(0, (aheadPx * mpp) / Math.max(Math.cos((pitch * Math.PI) / 180), 0.35));
+    return { center: offsetAlongBearing(rider, bearing, aheadM), zoom, pitch };
+  }, [navigationZoom, navigationPitch, nextTurnDistanceM]);
+
   const applyFocus = useCallback(() => {
     if (!mapRef.current || !ready) return;
+    /* Respect the user's own pan/zoom. Every other camera effect in this file
+       checks `isUserMoved()` before it takes the camera, but this one did not,
+       so the next GPS fix (a few seconds later) yanked the view straight back
+       to the auto-framed position and threw away whatever the user had just
+       done with their finger. The map fought the user on every fix. */
+    if (isUserMoved()) return;
     try {
       const pts = (fitBounds || []).filter((p) => p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9));
       /* When the rider is actively navigating, "focus" means street level on
@@ -822,10 +994,13 @@ function MapboxMapInner({
         const rider = liveMarkers.find((m) => m.isRider)?.position;
         const self = rider || (liveUser && (Math.abs(liveUser.lat) > 1e-9 || Math.abs(liveUser.lng) > 1e-9) ? liveUser : null);
         const c = self ? { lat: Number(self.lat), lng: Number(self.lng) } : validCenter(center);
+        /* Aim the camera AHEAD of the rider, tilted, and at a zoom that keeps
+           the next turn on screen. */
+        const target = navCameraTarget(c, navBearing);
         mapRef.current.flyTo({
-          center: [c.lng, c.lat],
-          zoom: navigationZoom,
-          pitch: 0,
+          center: [target.center.lng, target.center.lat],
+          zoom: target.zoom,
+          pitch: target.pitch,
           bearing: navBearing,
           duration: 900,
         });
@@ -837,7 +1012,7 @@ function MapboxMapInner({
         const lngs = pts.map((p) => p.lng);
         mapRef.current.fitBounds(
           [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)],
-          { padding: fitPadding, duration: 900, maxZoom: 15.5 }
+          { padding: fitPaddingRef.current, duration: 900, maxZoom: 15.5 }
         );
       } else {
         const c = validCenter(center);
@@ -849,9 +1024,21 @@ function MapboxMapInner({
           duration: 900,
         });
       }
-      lastCenterRef.current = { lat: center.lat, lng: center.lng };
+      /* Record where the camera ACTUALLY is, not the `center` prop. After a
+         `fitBounds` the camera is somewhere inside the fitted extent, which is
+         not the centroid of pickup + drop-off + rider. Storing the centroid
+         here meant the follow loop compared the rider's position against a
+         point the camera was never at, so the "has the rider moved enough to
+         be worth re-centring" test was measuring the wrong distance. Read the
+         real centre back off the map. */
+      try {
+        const cam = mapRef.current.getCenter();
+        lastCenterRef.current = { lat: cam.lat, lng: cam.lng };
+      } catch {
+        lastCenterRef.current = { lat: center.lat, lng: center.lng };
+      }
     } catch {}
-  }, [ready, fitKey, center.lat, center.lng, zoom, fitPadding, navBearing, navigationZoom]); // eslint-disable-line
+  }, [ready, fitKey, center.lat, center.lng, zoom, navBearing, navigationZoom]); // eslint-disable-line
 
   useEffect(() => {
     if (!mapRef.current || !ready) return;
@@ -892,10 +1079,11 @@ function MapboxMapInner({
     lastCenterRef.current = c;
     try {
       if (navBearing != null) {
+        const target = navCameraTarget(c, navBearing);
         mapRef.current.easeTo({
-          center: [c.lng, c.lat],
-          zoom: navigationZoom,
-          pitch: 0,
+          center: [target.center.lng, target.center.lat],
+          zoom: target.zoom,
+          pitch: target.pitch,
           bearing: navBearing,
           duration: 900,
           easing: (t: number) => t, // linear: a constant chase reads as "attached"
@@ -905,6 +1093,40 @@ function MapboxMapInner({
       }
     } catch {}
   }, [center.lat, center.lng, zoom, ready, navBearing, navigationZoom]); // eslint-disable-line
+
+  /* ── Re-frame when the NEXT TURN changes distance ──
+     The adaptive zoom depends on how far away the next turn is, and that
+     distance changes on every route update — long before the rider has
+     moved far enough to trigger the follow effect above. Without this the
+     camera kept the zoom it had when the turn was a kilometre away, right
+     up until the rider was on top of the junction. */
+  useEffect(() => {
+    if (!mapRef.current || !ready || navBearing == null || isUserMoved()) return;
+    const rider = liveMarkersRef.current.find((m) => m.isRider)?.position;
+    const fallbackUser = userLocationRef.current;
+    const self =
+      rider ||
+      (fallbackUser &&
+      (Math.abs(fallbackUser.lat) > 1e-9 || Math.abs(fallbackUser.lng) > 1e-9)
+        ? fallbackUser
+        : null);
+    if (!self) return;
+    const c = { lat: Number(self.lat), lng: Number(self.lng) };
+    const target = navCameraTarget(c, navBearing);
+    try {
+      const cur = mapRef.current.getZoom();
+      /* Only touch the camera when the wanted zoom is meaningfully different,
+         so a route re-render does not nudge the view under the rider. */
+      if (Math.abs(cur - target.zoom) < 0.25) return;
+      mapRef.current.easeTo({
+        center: [target.center.lng, target.center.lat],
+        zoom: target.zoom,
+        pitch: target.pitch,
+        duration: 800,
+        easing: (t: number) => t,
+      });
+    } catch {}
+  }, [nextTurnDistanceM, navBearing, ready]); // eslint-disable-line
 
   /* Heading changes while the rider is stopped at a junction — the centre has
      not moved, so the follow effect above never fires. Rotate on the bearing
@@ -1016,12 +1238,22 @@ function MapboxMapInner({
           }
           const arrowEl = (marker.getElement() as any)?.__gdrArrow;
           if (arrowEl && m.heading != null && Number.isFinite(m.heading)) {
-            // The rider puck centres itself with absolute positioning, so it
-            // rotates alone; the legacy chevron also needed centring.
+            /* The rider puck centres itself with absolute positioning, so it
+               rotates alone; the legacy chevron also needed centring.
+
+               The rotation is RELATIVE to the map's bearing, not absolute. The
+               marker element is positioned in screen space (mapbox-gl's default
+               `rotationAlignment: "auto"` resolves to "viewport"), so the map's
+               own bearing never turns it. In heading-up navigation the map is
+               rotated to the rider's heading, so an arrow drawn at the ABSOLUTE
+               compass heading points off to the side while the rider is
+               travelling straight up the screen. Subtracting the map bearing
+               puts the nose back on the road ahead. */
             const isPuck = (marker.getElement() as any).__gdrIsPuck;
+            const relative = m.heading - mapBearingRef.current;
             arrowEl.style.transform = isPuck
-              ? `rotate(${m.heading}deg)`
-              : `translateX(-50%) rotate(${m.heading}deg)`;
+              ? `rotate(${relative}deg)`
+              : `translateX(-50%) rotate(${relative}deg)`;
           }
         } else {
           const el = createMarkerElement(m);
@@ -1100,12 +1332,19 @@ function MapboxMapInner({
      dot. A 6 m fix looks like a point; a 200 m fix looks like a wide disc —
      which is exactly the truth the user needs before they trust the pin. */
   useEffect(() => {
-    if (!mapRef.current || !ready || !userLocation) return;
+    if (!mapRef.current || !ready || !userLocation) {
+      /* No fix, no halo. Without this the previous circle stayed on the map
+         at the last known position — a stale orange disc claiming a
+         confidence the app no longer has. The rider halo below already
+         cleared itself this way; the user halo did not. */
+      clearAccuracySource("gdr-accuracy");
+      return;
+    }
     const metres = Number(userAccuracy);
-    if (!Number.isFinite(metres) || metres <= 0) return;
+    if (!Number.isFinite(metres) || metres <= 0) { clearAccuracySource("gdr-accuracy"); return; }
     // Keep the halo honest: below ~8 m it is invisible at street zoom anyway,
     // and beyond 1.5 km it would blanket the whole view.
-    if (metres < 8 || metres > 1500) return;
+    if (metres < 8 || metres > 1500) { clearAccuracySource("gdr-accuracy"); return; }
 
     import("mapbox-gl").then((mapboxgl) => {
       const map = mapRef.current;
@@ -1115,6 +1354,7 @@ function MapboxMapInner({
       if (accuracyRef.current) {
         const src = map.getSource("gdr-accuracy") as any;
         if (src?.setData) src.setData(data);
+        else accuracyRef.current = null; // the source was destroyed by a style swap
       } else {
         if (!map.getSource("gdr-accuracy")) {
           map.addSource("gdr-accuracy", { type: "geojson", data });
@@ -1138,7 +1378,7 @@ function MapboxMapInner({
         accuracyRef.current = map.getSource("gdr-accuracy");
       }
     }).catch(() => {});
-  }, [userLocation?.lat, userLocation?.lng, userAccuracy, ready]); // eslint-disable-line
+  }, [userLocation?.lat, userLocation?.lng, userAccuracy, ready, styleGeneration]); // eslint-disable-line
 
   /* ── Rider fix-radius halo ──
      The rider pin is the one thing on this map a customer will act on, so it
@@ -1148,7 +1388,11 @@ function MapboxMapInner({
     if (!mapRef.current || !ready) return;
     const rider = markers.find((m) => m.isRider && m.position);
     const metres = Number(rider?.accuracy);
-    const hasRider = !!rider && Math.abs(rider.position.lat) > 1e-9;
+    /* Test BOTH coordinates. A point at lat 0, lng 32 is a real place (the
+       Equator) and the rider may well be on it; treating lat 0 as "no rider"
+       would silently drop the rider's accuracy halo off the map. The
+       null-is-0,0 case is caught by the lng test. */
+    const hasRider = !!rider && (Math.abs(rider.position.lat) > 1e-9 || Math.abs(rider.position.lng) > 1e-9);
     if (!hasRider || !Number.isFinite(metres) || metres <= 0 || metres < 8 || metres > 1500) {
       const src = riderAccuracyRef.current;
       if (src?.setData) src.setData({ type: "FeatureCollection", features: [] });
@@ -1162,6 +1406,7 @@ function MapboxMapInner({
       if (riderAccuracyRef.current) {
         const src = map.getSource("gdr-rider-accuracy") as any;
         if (src?.setData) src.setData(data);
+        else riderAccuracyRef.current = null; // destroyed by a style swap
       } else {
         if (!map.getSource("gdr-rider-accuracy")) {
           map.addSource("gdr-rider-accuracy", { type: "geojson", data });
@@ -1185,7 +1430,7 @@ function MapboxMapInner({
         riderAccuracyRef.current = map.getSource("gdr-rider-accuracy");
       }
     }).catch(() => {});
-  }, [markerKey, ready]); // eslint-disable-line
+  }, [markerKey, ready, styleGeneration]); // eslint-disable-line
 
   /* ── Recentre on the user ──
      Panning is never punished: the map keeps the manual view, and one tap
@@ -1201,14 +1446,30 @@ function MapboxMapInner({
     userMovedRef.current = false;
     setUserMoved(false);
     lastCenterRef.current = { lat: userLocation.lat, lng: userLocation.lng };
+    if (navBearing != null) {
+      /* Re-centring while navigating must land on the SAME view the follow
+         loop holds: aimed ahead of the rider, tilted, at the adaptive zoom.
+         Dropping the rider back to the exact centre with a flat 0° pitch is
+         what made the "Navigate" button feel like it reset the view to a
+         cramped overhead snapshot. */
+      const target = navCameraTarget({ lat: userLocation.lat, lng: userLocation.lng }, navBearing);
+      map.flyTo({
+        center: [target.center.lng, target.center.lat],
+        zoom: target.zoom,
+        pitch: target.pitch,
+        // Re-centring while navigating used to snap the map back to north, which
+        // pointed the rider's own chevron at the edge of the screen — the exact
+        // moment they most need it facing up.
+        bearing: navBearing,
+        duration: 700,
+      });
+      return;
+    }
     map.flyTo({
       center: [userLocation.lng, userLocation.lat],
-      zoom: navBearing != null ? navigationZoom : 16,
+      zoom: 16,
       pitch: 0,
-      // Re-centring while navigating used to snap the map back to north, which
-      // pointed the rider's own chevron at the edge of the screen — the exact
-      // moment they most need it facing up.
-      bearing: navBearing ?? 0,
+      bearing: 0,
       duration: 700,
     });
   }, [userLocation?.lat, userLocation?.lng, navBearing, navigationZoom]); // eslint-disable-line

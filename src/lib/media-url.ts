@@ -48,24 +48,64 @@ export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif", "gif", "s
  * points at an HTML page is a web page, not a media file, whatever its query
  * string claims.
  *
+ * ── The defect this replaces ───────────────────────────────────────────────
+ * This used to run a regex over the WHOLE URL string, host included, and take
+ * the FIRST dot-segment it found. On any real media URL the first dot-segment
+ * is the TLD, not the file extension:
+ *
+ *   • `…supabase.co/storage/v1/object/public/catalogue-images/welcome/clip.mp4`
+ *     → matched `.co/` → "co"
+ *   • `https://cdn.example.com/movies/promo.mp4` → matched `.com/` → "com"
+ *   • `https://godoor.site/brand/welcome.jpg`      → matched `.site/` → "site"
+ *
+ * "co", "com" and "site" are in none of the extension allow-lists, so EVERY
+ * file the admin uploaded was classified as "not an image, not a video" and
+ * was rejected by the server with "That link points at a document or web
+ * page, not an image." — the upload itself succeeded, and then publishing it
+ * failed. That is exactly why the welcome-page video upload and the
+ * greeting-card background upload appeared broken: the bytes were in
+ * Supabase the whole time; the URL was simply misread.
+ *
+ * The fix is to look at the PATH ONLY, and to take the LAST extension
+ * segment on it (the file name's own extension), never a dot-segment from
+ * the host.
+ *
  * Returns "" when no extension can be determined at all — the URL may still be
  * a perfectly good direct file link on a host that uses opaque paths.
  */
 export function extensionHint(url: string): string {
   const clean = url.split("#")[0].toLowerCase();
   const queryIndex = clean.indexOf("?");
-  const path = queryIndex === -1 ? clean : clean.slice(0, queryIndex);
   const query = queryIndex === -1 ? "" : clean.slice(queryIndex + 1);
+
+  // The path — and ONLY the path. A root-relative path ("/brand/x.jpg") is
+  // used as-is; an absolute URL is parsed so the host cannot contribute.
+  let path = queryIndex === -1 ? clean : clean.slice(0, queryIndex);
+  if (/^[a-z][a-z0-9+.-]*:\/\//.test(path)) {
+    try {
+      path = new URL(path).pathname;
+    } catch {
+      // Unparseable — fall back to stripping the scheme and host by hand.
+      path = path.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/, "");
+    }
+  }
 
   const fromPath = lastExtension(path);
   if (fromPath) return fromPath;
   return lastExtension(query);
 }
 
+/**
+ * The extension of the LAST dotted segment of a path.
+ *
+ * "Greedy over the extension characters, anchored by a boundary" — but
+ * anchored to the END of the path, so ".tar.gz" yields "gz" and ".html"
+ * yields "html", and a path with no extension at all yields "".
+ */
 function lastExtension(s: string): string {
-  // Greedy over the extension characters, anchored by a boundary so that
-  // ".tar.gz" yields "gz" and ".html" yields "html".
-  const m = /\.([a-z0-9]{2,5})(?=$|[?&#/])/.exec(s);
+  // Take the final path segment — that is the file name.
+  const segment = s.split("/").filter(Boolean).pop() || "";
+  const m = /\.([a-z0-9]{2,5})$/.exec(segment);
   return m ? m[1] : "";
 }
 

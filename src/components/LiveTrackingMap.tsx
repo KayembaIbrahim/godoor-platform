@@ -101,6 +101,10 @@ type Props = {
   navigationBearing?: number | null;
   /** Street-level zoom for the driving view. */
   navigationZoom?: number;
+  /** Tilt for the driving view. A pitched camera shows the road running away
+      to the horizon, which is what makes the navigation view feel open rather
+      than cramped. */
+  navigationPitch?: number;
 };
 
 export function LiveTrackingMap({
@@ -110,7 +114,7 @@ export function LiveTrackingMap({
      ride must not be told "Drive northwest…", so the banner is opt-in. */
   showNavigation = true,
   quotedFeeUgx = null, trafficAware = false, congestion = null,
-  navigationBearing = null, navigationZoom = 16.5,
+  navigationBearing = null, navigationZoom = 16.5, navigationPitch = 45,
 }: Props) {
   const UG_DEFAULT: LatLng = { lat: 0.3163, lng: 32.5822 };
   const hasCoords = (p: LatLng | null | undefined) => !!p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9);
@@ -151,10 +155,38 @@ export function LiveTrackingMap({
     // Prefer the actual road polyline when available; fall back to straight-line legs.
     if (roadRoute && roadRoute.length >= 2) return roadRoute;
     const pts: LatLng[] = [];
-    if (showPickup && validPickup) pts.push(validPickup);
-    if (hasCoords(riderLoc)) pts.push(riderLoc as LatLng);
-    else if (hasCoords(providerLoc)) pts.push(providerLoc as LatLng);
-    if (validDropoff) pts.push(validDropoff);
+    /* The straight-line fallback must follow the JOURNEY, not the display
+       order. It used to emit pickup → rider → drop-off, which on the rider's
+       own screen (while he is still riding TO the shop) drew a line starting
+       at the shop and running backwards through him to the customer — a route
+       that began somewhere the rider was not going.
+
+       The rider's own position tells us which side of the pickup he is on:
+       closer to the shop means he is still heading to it, so the journey is
+       rider → shop → customer; further away means the shop is behind him and
+       the journey is shop → rider → customer. */
+    const mover = hasCoords(riderLoc) ? (riderLoc as LatLng) : hasCoords(providerLoc) ? (providerLoc as LatLng) : null;
+    const showPickupLeg = showPickup && validPickup;
+
+    if (showPickupLeg && mover) {
+      const riderToPickup = distanceKm(mover, validPickup as LatLng);
+      const riderToDrop = validDropoff ? distanceKm(mover, validDropoff as LatLng) : Infinity;
+      if (riderToPickup < riderToDrop) {
+        // Still on the way to the shop.
+        pts.push(mover);
+        pts.push(validPickup as LatLng);
+        if (validDropoff) pts.push(validDropoff);
+      } else {
+        // Shop is behind him — the pickup is only a waypoint, not a leg.
+        if (showPickupLeg) pts.push(validPickup as LatLng);
+        pts.push(mover);
+        if (validDropoff) pts.push(validDropoff);
+      }
+    } else {
+      if (showPickupLeg) pts.push(validPickup as LatLng);
+      if (mover) pts.push(mover);
+      if (validDropoff) pts.push(validDropoff);
+    }
     return pts.length >= 2 ? pts : [];
   }, [roadRoute, riderLoc, providerLoc, validPickup, validDropoff, showPickup]);
 
@@ -228,7 +260,47 @@ export function LiveTrackingMap({
     [maneuvers],
   );
 
-  const nextTurn = maneuverMarkers[0] || null;
+  /* The big "next turn" banner should point at the rider's NEXT turn, not the
+     route's FIRST turn — which is the departure from the shop, shown for the
+     whole journey even after the rider has driven a kilometre down the road.
+
+     Each maneuver is projected onto the real road polyline, and we pick the
+     first one whose projected position sits AHEAD of the rider. Maneuvers
+     already passed are behind the rider's projection and are skipped, so the
+     banner advances as the ride proceeds instead of repeating the first
+     instruction until the end of time. */
+  const nextTurn = useMemo(() => {
+    if (!roadRoute || roadRoute.length < 2 || !maneuvers || maneuvers.length === 0) {
+      return maneuverMarkers[0] || null;
+    }
+    const riderProgress = hasCoords(riderLoc) ? progressAlongPolyline(roadRoute, riderLoc) : null;
+    if (riderProgress == null) return maneuverMarkers[0] || null;
+
+    for (const mv of maneuvers) {
+      const mvProg = progressAlongPolyline(roadRoute, { lat: mv.lat, lng: mv.lng });
+      /* A maneuver that projects to (or behind) the rider has already been
+         passed. The small margin keeps the CURRENT instruction on screen
+         right up until the rider actually turns. */
+      if (mvProg != null && mvProg > riderProgress + 0.015) {
+        return { type: mv.type, instruction: mv.instruction, position: { lat: mv.lat, lng: mv.lng } };
+      }
+    }
+    /* Every maneuver is behind the rider — he is on the final approach. The
+       last one (the arrival) is the most useful thing left to say. */
+    const last = maneuvers[maneuvers.length - 1];
+    return { type: last.type, instruction: last.instruction, position: { lat: last.lat, lng: last.lng } };
+  }, [maneuvers, roadRoute, riderLoc, maneuverMarkers]);
+
+  /* How far is the rider from the turn he is being told to take? The camera
+     uses this to pick its zoom: jammed into the rider's shoulder for a turn
+     20 m away, pulled back for a turn 800 m up the road. A fixed zoom is what
+     made the map feel cramped — either too tight to read ahead, or so wide
+     the next junction became a speck. */
+  const nextTurnDistanceM = useMemo(() => {
+    if (!nextTurn || !riderLoc || !hasCoords(riderLoc)) return null;
+    const d = distanceKm(riderLoc, nextTurn.position);
+    return isFinite(d) ? d * 1000 : null;
+  }, [nextTurn, riderLoc]);
 
   if (compact) {
     return (
@@ -271,38 +343,43 @@ export function LiveTrackingMap({
           markers={markers}
           navigationBearing={navigationBearing}
           navigationZoom={navigationZoom}
+          navigationPitch={navigationPitch}
+          nextTurnDistanceM={nextTurnDistanceM}
           fitPadding={fitPad}
         />
 
-        {/* Top-left: live status chip */}
-        {/* The chip and the turn banner both wanted top-centre/left at the same
-             offset, so on a narrow phone the banner covered the chip. The chip
-             now sits below the banner when both are present. */}
-        <div className={`absolute left-3 z-10 flex items-center gap-2 rounded-full border border-border bg-surface/85 px-3.5 py-2 shadow-lg backdrop-blur-md ${
-          showNavigation && nextTurn ? "top-[4.75rem]" : "top-3"
-        }`}>
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
-          </span>
-          <span className="text-xs font-semibold">{label || "Tracking delivery"}</span>
-          {kmAway && <span className="text-[10px] font-medium text-muted">{kmAway} away</span>}
-        </div>
-
-        {/* Next-turn banner — the one instruction the rider needs right now.
-            Sits top-centre so it never collides with the status chip or the
-            metrics card, and is the first thing a glance lands on. */}
-        {showNavigation && nextTurn && (
-          <div className="absolute left-1/2 top-3 z-10 flex max-w-[min(92%,22rem)] -translate-x-1/2 items-center gap-2.5 rounded-2xl border border-border bg-surface/95 px-3.5 py-2.5 shadow-xl backdrop-blur-md">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-go/15 text-sm font-black text-go">
-              {nextTurn.type === "arrive" ? "★" : "1"}
+        {/* ── Top overlay: status chip + next-turn banner ──
+            These used to be two absolutely-positioned elements that STACKED
+            on a phone: the banner on top, the chip pushed down to 4.75rem
+            beneath it. Between them they ate ~110px of a 440px map and the
+            road ahead — the one thing the driver needs — was squeezed into
+            what was left. They now share a single row on a phone, and only
+            split apart (chip left, banner centred) once there is room. */}
+        <div className="absolute inset-x-3 top-3 z-10 flex items-start gap-2">
+          <div className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface/85 px-3 py-1.5 shadow-lg backdrop-blur-md">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
             </span>
-            <div className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-dim">Next</p>
-              <p className="truncate text-[11px] font-semibold text-fg">{nextTurn.instruction}</p>
-            </div>
+            <span className="text-xs font-semibold">{label || "Tracking delivery"}</span>
+            {kmAway && <span className="text-[10px] font-medium text-muted">{kmAway} away</span>}
           </div>
-        )}
+
+          {/* Next-turn banner — the one instruction the rider needs right now.
+              On a phone it fills the rest of the top row; from `sm` up it
+              lifts out and centres itself over the map. */}
+          {showNavigation && nextTurn && (
+            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-border bg-surface/95 px-3 py-1.5 shadow-xl backdrop-blur-md sm:absolute sm:left-1/2 sm:top-0 sm:w-auto sm:max-w-[min(92%,22rem)] sm:flex-none sm:-translate-x-1/2 sm:px-3.5 sm:py-2.5">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-xl bg-go/15 text-sm font-black text-go">
+                {nextTurn.type === "arrive" ? "★" : "1"}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-dim">Next</p>
+                <p className="truncate text-[11px] font-semibold text-fg">{nextTurn.instruction}</p>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Bottom-left: legend */}
         <div className="absolute bottom-52 left-3 z-10 hidden items-center gap-3 rounded-xl border border-border bg-surface/85 px-3 py-2 shadow-lg backdrop-blur-md sm:flex">
@@ -314,13 +391,13 @@ export function LiveTrackingMap({
         </div>
 
         {/* Bottom: glass metrics card */}
-        <div className="absolute bottom-3 left-3 right-3 z-10 rounded-2xl border border-border bg-surface/90 p-3.5 shadow-2xl backdrop-blur-xl sm:left-auto sm:right-3 sm:w-[360px]">
+        <div className="absolute bottom-3 left-3 right-3 z-10 rounded-2xl border border-border bg-surface/90 p-2.5 shadow-2xl backdrop-blur-xl sm:left-auto sm:right-3 sm:w-[27rem]">
           {progress != null && (
-            <div className="mb-3">
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-elevated">
+            <div className="mb-2">
+              <div className="h-1.2 w-full overflow-hidden rounded-full bg-elevated">
                 <div className="h-full rounded-full bg-gradient-to-r from-go to-go-2 transition-all duration-700" style={{ width: `${Math.round(progress * 100)}%` }} />
               </div>
-              <p className="mt-1 text-right text-[9px] font-semibold uppercase tracking-wider text-dim">{Math.round(progress * 100)}% of the way</p>
+              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-dim">{Math.round(progress * 100)}% of the way</p>
             </div>
           )}
 
