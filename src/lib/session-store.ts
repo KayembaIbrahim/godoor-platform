@@ -46,6 +46,10 @@ export type OnboardingData = {
   mustChangePassword?: boolean;
   /** Morse wallet username — unique per GoDoor user, compulsory for every role. */
   morseTag?: string;
+  /** ISO string of when the Supabase auth account was created — the true
+      registration date, surfaced in the header as "Account since". Refreshed
+      from the server on every sign-in, so it is never a stale local guess. */
+  createdAt?: string;
 };
 
 type AuthResult = { error?: string; hint?: string };
@@ -175,6 +179,10 @@ export const useSession = create<SessionState>()(
                 avatarUrl: profileAvatarUrl,
                 morseTag: profileMorseTag,
                 mustChangePassword: meta.must_change_password === true,
+                // The account registration date. Supabase's `created_at` is the
+                // authoritative "when was this account made" value, so it wins
+                // over anything cached locally.
+                createdAt: user.created_at || get().profile.createdAt || "",
               },
               // The server is the only authority on role. The persisted value
               // used to win here, which meant a stale role — left behind by the
@@ -203,7 +211,7 @@ export const useSession = create<SessionState>()(
         if (!sb) {
           set({
             supabaseUser: { id: "local_" + Date.now(), email: mail },
-            profile: { email: mail, name, displayName: name, ...get().profile },
+            profile: { email: mail, name, displayName: name, createdAt: new Date().toISOString(), ...get().profile },
             role,
             onboarded: true,
           });
@@ -241,6 +249,7 @@ set({
                 name: (user.user_metadata?.name as string) || get().profile.name,
                 displayName: get().profile.displayName || (user.user_metadata?.display_name as string) || (user.user_metadata?.name as string) || get().profile.name,
                 phone: (user.user_metadata?.phone as string) || get().profile.phone || "",
+                createdAt: user.created_at || freshProfile.createdAt || new Date().toISOString(),
               },
               role: (user.user_metadata?.role as Role) || role,
               onboarded: true,
@@ -283,6 +292,7 @@ set({
               displayName: get().profile.displayName || (user.user_metadata?.display_name as string) || (user.user_metadata?.name as string) || get().profile.name,
               phone: (user.user_metadata?.phone as string) || get().profile.phone || "",
               mustChangePassword: user.user_metadata?.must_change_password === true,
+              createdAt: user.created_at || freshProfile.createdAt || "",
             },
             role: resolvedRole,
             onboarded: true,

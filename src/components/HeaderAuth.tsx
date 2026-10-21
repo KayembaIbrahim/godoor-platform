@@ -22,6 +22,22 @@ import { useHydrated } from "@/lib/use-hydrated";
  * (see `roleHomePath`). Business and rider accounts are approved by GoDoor,
  * so sign-up creates a customer account and points applicants at /partner.
  */
+/**
+ * The account registration date, formatted for display in the header's
+ * "Account since" chip.
+ *
+ * `profile.createdAt` is the Supabase auth `created_at` captured at sign-in;
+ * the previous implementation fell back to `profile.morseTag` — a *username* —
+ * and then called `.getFullYear()` on it, so every account with a Morse tag
+ * showed "NaN". A guaranteed-valid parser keeps NaN out of the DOM entirely.
+ */
+function formatAccountSince(iso?: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export function HeaderAuth({ compact = false }: { compact?: boolean }) {
   const { onboarded, role, profile, supabaseUser, signOut } = useSession();
   const router = useRouter();
@@ -186,15 +202,7 @@ export function HeaderAuth({ compact = false }: { compact?: boolean }) {
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-[10px] text-muted">Account since</span>
                 <span className="text-[10px] font-medium text-muted">
-                  {(() => {
-                    try {
-                      const raw = localStorage.getItem("godoor-session");
-                      if (!raw) return "N/A";
-                      const parsed = JSON.parse(raw);
-                      const created = parsed?.state?.profile?.createdAt || parsed?.state?.profile?.morseTag || "N/A";
-                      return created !== "N/A" ? new Date(created).getFullYear() : "N/A";
-                    } catch { return "N/A"; }
-                  })()}
+                  {formatAccountSince(profile.createdAt)}
                 </span>
               </div>
             </div>

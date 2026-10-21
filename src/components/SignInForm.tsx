@@ -26,10 +26,21 @@ function resolveDestination(role: Role | null | undefined, next: string): string
   return roleHomePath(role);
 }
 
-function SignInForm({ mode: initialMode = "login", next }: { mode?: SignInMode; next?: string }) {
-  const { signIn, signUp } = useSession();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+export function SignInForm({ mode: initialMode = "login", next }: { mode?: SignInMode; next?: string }) {
+  /**
+   * The session store is deliberately NOT subscribed to here.
+   *
+   * `useSession()` subscribes the component to the whole store through
+   * `useSyncExternalStore`. The store is persisted, so on the client it
+   * rehydrates synchronously from localStorage: `getSnapshot()` then returns
+   * the rehydrated state while `getServerSnapshot()` returns the initial
+   * state. React sees the two disagree and forces a client-side re-render
+   * (and warns about the mismatch in development).
+   *
+   * Nothing this form renders depends on the session, so the subscription buys
+   * us nothing and only costs us a hydration mismatch. Instead the two
+   * actions are read straight off the store when the form is submitted.
+   */
   const [isLogin, setIsLogin] = useState(initialMode !== "signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,13 +60,12 @@ function SignInForm({ mode: initialMode = "login", next }: { mode?: SignInMode; 
     setEmail(""); setPassword(""); setName(""); setError(""); setSuccess(""); setLoading(false); setCooldown(0);
   }, [initialMode]);
 
-  if (!mounted) return null;
-
   const handleAuth = async () => {
     if (!email || !password || cooldown > 0) return;
     setError(""); setSuccess(""); setLoading(true);
 
     if (isLogin) {
+      const { signIn } = useSession.getState();
       const res = await signIn(email, password);
       if (res.error) {
         setLoading(false);
@@ -77,6 +87,7 @@ function SignInForm({ mode: initialMode = "login", next }: { mode?: SignInMode; 
 
     if (!name.trim() || name.trim().length < 2) { setError("Enter your name."); setLoading(false); return; }
     if (password.length < 6) { setError("Password must be at least 6 characters."); setLoading(false); return; }
+    const { signUp } = useSession.getState();
     const res = await signUp(email, password, name.trim(), "customer");
     if (res.error) {
       setLoading(false);
