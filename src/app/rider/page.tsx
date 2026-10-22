@@ -956,10 +956,18 @@ export default function RiderDashboard() {
     const id = activeDelivery.id;
     setDeliveryBusy(id);
     setActiveDelivery(null);
-    updateOrder(id, { status: "delivered" }).then(() => {
-      setTab("available");
-      refresh();
-    }).finally(() => setDeliveryBusy((cur) => (cur === id ? null : cur)));
+    updateOrder(id, { status: "delivered" })
+      .then(() => {
+        setTab("available");
+        refresh();
+      })
+      .catch((e) => {
+        // If completion fails, show error and re-fetch to restore correct state
+        const message = e instanceof Error ? e.message : "Could not complete delivery";
+        setError(message);
+        refresh();
+      })
+      .finally(() => setDeliveryBusy((cur) => (cur === id ? null : cur)));
   };
 
   // Stats
@@ -1097,7 +1105,7 @@ export default function RiderDashboard() {
           {([
             { id: "available" as const, label: "Available", count: available.length },
             { id: "active" as const, label: "Active", count: activeDelivery ? 1 : 0 },
-            { id: "history" as const, label: "History", count: myOrders.length },
+            { id: "history" as const, label: "History", count: allDeliveries.length },
             { id: "earnings" as const, label: "Earnings", count: 0 },
             { id: "stores" as const, label: "Stores", count: affiliations.invites.length },
             { id: "profile" as const, label: "Profile", count: 0 },
@@ -1471,17 +1479,17 @@ export default function RiderDashboard() {
       {/* History */}
       {tab === "history" && (
         <div className="px-4 pt-4 space-y-3">
-          <h3 className="text-sm font-semibold">Your Orders ({myOrders.length})</h3>
-          {myOrders.length === 0 ? (
+          <h3 className="text-sm font-semibold">Ride history ({allDeliveries.length})</h3>
+          {allDeliveries.length === 0 ? (
             <div className="py-12 text-center animate-fade-in">
               <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-elevated ring-1 ring-border/60">
                 <Package className="h-6 w-6 text-dim" />
               </div>
-              <p className="text-sm font-medium text-fg">No orders yet</p>
-              <p className="mt-1 text-xs text-muted">Orders you accept will appear here</p>
+              <p className="text-sm font-medium text-fg">No completed deliveries yet</p>
+              <p className="mt-1 text-xs text-muted">Deliveries you complete will appear here</p>
             </div>
           ) : (
-            myOrders.map((o) => (
+            allDeliveries.map((o) => (
               <div key={o.id} className="tile shadow-xs animate-spring-in p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
