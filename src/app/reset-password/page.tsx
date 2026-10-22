@@ -7,6 +7,8 @@ import { SetNewPasswordForm } from "@/components/SetNewPasswordForm";
 import { useSession } from "@/lib/session-store";
 import { Loader2 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 /**
  * The public page for password reset.
  *
