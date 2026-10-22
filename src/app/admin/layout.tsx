@@ -219,7 +219,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       }`}
                     >
                       <Icon className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{item.label}</span>
+                      <span>{item.label}</span>
                     </Link>
                   );
                 })}

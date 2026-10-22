@@ -795,7 +795,10 @@ export default function RiderDashboard() {
     let stopped = false;
     const push = async (force = false) => {
       const last = lastSentRef.current;
-      if (!force && last && accuracy != null && accuracy > 120) return;
+      // Always broadcast — even with poor GPS accuracy. The customer's map
+      // draws an accuracy halo so they see "rider is within ~X m" rather than
+      // a frozen/stale marker or no marker at all. We only skip if we haven't
+      // moved enough since the last broadcast to avoid spamming the DB.
       if (!force && last) {
         const movedM = distanceKm(last, coords) * 1000;
         const ageMs = Date.now() - last.at;
@@ -823,7 +826,10 @@ export default function RiderDashboard() {
     let stopped = false;
     const push = async (force = false) => {
       const last = lastSentRef.current;
-      if (!force && last && accuracy != null && accuracy > 120) return;
+      // Always broadcast — even with poor GPS accuracy. The customer's map
+      // draws an accuracy halo so they see "rider is within ~X m" rather than
+      // a frozen/stale marker or no marker at all. We only skip if we haven't
+      // moved enough since the last broadcast.
       if (!force && last) {
         const movedM = distanceKm(last, coords) * 1000;
         const ageMs = Date.now() - last.at;
