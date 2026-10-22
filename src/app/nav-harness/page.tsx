@@ -33,11 +33,11 @@ export default function NavHarness() {
         ))}
       </div>
 
-      <div className="relative h-[520px] w-full overflow-hidden rounded-2xl border border-border">
+      <div className="relative h-[360px] w-full overflow-hidden rounded-2xl border border-border">
         <MapboxMapView
           center={RIDER}
           zoom={14}
-          height={520}
+          height={360}
           userLocation={RIDER}
           navigationBearing={0}
           navigationZoom={16.5}

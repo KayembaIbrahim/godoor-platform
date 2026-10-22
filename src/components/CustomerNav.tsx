@@ -10,25 +10,35 @@ import { cn } from "@/lib/utils";
 /**
  * Bottom Navigation Bar for GoDoor customers.
  *
- * Five tabs, and only five:
- *   1. Home       /app
- *   2. Categories /categories
- *   3. Orders     /orders
- *   4. Wallet     /wallet
- *   5. Account    /account
+ * THE LAYOUT: three tabs on one bar, two standing alone.
+ * ---------------------------------------------------
+ *   [ Home · Categories · Orders ]   (Wallet) (Account)
  *
- * The previous set was Home / GoRide / Pay / Activity / Account. "GoRide" put
- * a single vertical in the primary navigation while burying the directory that
- * actually answers "what can I order here" behind the home screen, and "Pay"
- * and "Wallet" were the same destination under two names — which is the sort
- * of duplication that makes an app feel like it has more surface than it needs.
- * A bottom bar is thumb-reach real estate: every extra item costs reach on the
- * one row a customer uses with the same hand as the back button.
+ * The previous bar was five equal tabs on one strip. Every one of them looked
+ * identical, so the eye had nothing to land on and the thumb had to guess.
+ * Splitting the set is a hierarchy decision, not a decoration:
+ *
+ *   • The SLAB holds the journey — where am I, what can I order, what is
+ *     happening to my order. Three tabs, one black surface, one sweep of the
+ *     thumb. The selected tab physically rises out of the slab as a lit
+ *     orange key, so "which tab am I on" is answered by the shape before
+ *     the colour is even read.
+ *
+ *   • The two FLOATING buttons are the destinations a user goes to
+ *     deliberately — money and identity. They stand outside the slab with
+ *     their own silhouette and their own shadow, because they are a
+ *     different KIND of action: not "browse here" but "go here".
+ *
+ * Five loose equal-weight tabs was the most forgettable possible version of
+ * this screen. The two-surface split gives every control a job.
  */
-const tabs = [
+const slabTabs = [
   { href: "/app", label: "Home", icon: Home },
-  { href: "/categories", label: "Categories", icon: LayoutGrid },
+  { href: "/categories", label: "Browse", icon: LayoutGrid },
   { href: "/orders", label: "Orders", icon: ShoppingBag },
+];
+
+const floatTabs = [
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/account", label: "Account", icon: User },
 ];
@@ -48,19 +58,15 @@ export function CustomerNav() {
       aria-label="Bottom Navigation"
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40"
     >
-      {/* The bar used to be full-bleed: it ran edge to edge with a flat top
-          border and no corner radius, which is why it read as a heavy strip
-          rather than a control. It is now inset from both sides and fully
-          rounded, so the glass capsule floats above the content and the
-          blurred page shows through the gap beside it.
-
-          `px-4` on the outer wrapper is the inset; `max-w-md` keeps it a
-          comfortable thumb reach on a tablet instead of stretching it across
-          the whole screen. The bottom padding collapses to 0 on a home-indicator
-          device, because the indicator itself provides that space. */}
-      <div className="mx-auto w-full max-w-md px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
-        <div className="nav-float pointer-events-auto flex items-center justify-around gap-0.5 rounded-[26px] px-1.5 py-1.5">
-          {tabs.map((t) => {
+      {/* Inset from both sides so the blurred page shows through the gap
+          beside the bar, and capped at `max-w-md` so it stays a comfortable
+          thumb reach on a tablet instead of stretching across the screen.
+          The bottom padding collapses to 0 on a home-indicator device,
+          because the indicator itself provides that space. */}
+      <div className="mx-auto flex w-full max-w-md items-end justify-between gap-2 px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
+        {/* ── The slab: three journey tabs on one black surface ─────────── */}
+        <div className="nav3d pointer-events-auto flex items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
+          {slabTabs.map((t) => {
             const Icon = t.icon;
             const isActive = isTabActive(pathname, t.href);
             const isOrders = t.href === "/orders";
@@ -70,32 +76,31 @@ export function CustomerNav() {
                 key={t.href}
                 href={t.href}
                 aria-current={isActive ? "page" : undefined}
-                className={cn(
-                  // min-h-11 keeps the tap target at 44px even though the
-                  // visible pill is shorter — the curve makes the control
-                  // look smaller than it is, so the hit area has to be explicit.
-                  "group relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center rounded-[20px] px-1 py-1 transition-all duration-200 active:scale-95",
-                  isActive ? "text-accent" : "text-muted hover:text-fg"
-                )}
+                aria-label={t.label}
+                className="group relative flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-[20px] active:scale-95"
               >
-                {/* Active indicator capsule */}
                 <div
                   className={cn(
-                    "flex flex-col items-center justify-center rounded-[16px] px-3 py-1 transition-all duration-200",
-                    isActive ? "nav-float-active" : "group-hover:bg-elevated"
+                    "nav3d-item flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-[17px] px-2.5 py-1.5",
+                    isActive ? "nav3d-item-active" : "group-hover:bg-white/5"
                   )}
                 >
                   <span className="relative">
                     <Icon
                       className={cn(
                         "h-5 w-5 transition-transform duration-200",
-                        isActive && "scale-105"
+                        isActive ? "scale-105" : "group-hover:scale-110"
                       )}
                     />
                     {/* Live delivery or cart indicator on the Orders tab */}
                     {isOrders && (activeOrder || cartCount > 0) && (
                       <span
-                        className="absolute -right-2 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-go px-1 text-[8px] font-bold text-white ring-2 ring-bg"
+                        className={cn(
+                          "absolute -right-2 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full px-1 text-[8px] font-bold ring-2",
+                          isActive
+                            ? "bg-white text-primary ring-primary"
+                            : "bg-go text-white ring-bg"
+                        )}
                         aria-label="Active order or cart items"
                       >
                         {activeOrder ? "!" : cartCount}
@@ -104,16 +109,43 @@ export function CustomerNav() {
                   </span>
                   <span
                     className={cn(
-                      // `truncate` rather than nothing: "Categories" is the
-                      // longest label on the bar, and without it the text
-                      // overflows its 20%-width cell on a 320px phone and
-                      // collides with the neighbouring tab's label.
-                      "mt-0.5 max-w-full truncate text-[10px] font-medium leading-none tracking-tight transition-colors",
-                      isActive ? "font-bold text-accent" : "text-muted group-hover:text-fg"
+                      // `truncate` rather than nothing: without it the label
+                      // overflows its cell on a 320px phone and collides with
+                      // the neighbouring tab's label.
+                      "max-w-full truncate text-[10px] font-medium leading-none tracking-tight",
+                      isActive ? "font-bold" : "text-white/70"
                     )}
                   >
                     {t.label}
                   </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* ── The two standalone buttons: outside the slab, on their own ── */}
+        <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+          {floatTabs.map((t) => {
+            const Icon = t.icon;
+            const isActive = isTabActive(pathname, t.href);
+            return (
+              <Link
+                key={t.href}
+                href={t.href}
+                aria-current={isActive ? "page" : undefined}
+                aria-label={t.label}
+                title={t.label}
+                className="group relative flex min-h-11 min-w-11 items-center justify-center"
+              >
+                <div
+                  className={cn(
+                    "nav3d-float flex h-11 w-11 items-center justify-center rounded-full",
+                    isActive && "nav3d-float-active"
+                  )}
+                >
+                  <Icon className="h-[18px] w-[18px]" />
+                  {isActive && <span className="nav3d-pip" />}
                 </div>
               </Link>
             );

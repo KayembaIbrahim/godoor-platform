@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Navigation, MapPin, ShoppingBag } from "lucide-react";
 import { type LatLng, distanceKm } from "@/lib/location";
 import { calcDeliveryFee, ugandaFareTier, formatUgx } from "@/lib/utils";
+import { maneuverGlyph } from "@/lib/routing";
 import dynamic from "next/dynamic";
 
 const MapboxMapView = dynamic(() => import("@/components/MapboxMap"), { ssr: false,
@@ -306,7 +307,7 @@ export function LiveTrackingMap({
     return (
       <div className="space-y-2">
         <div className="relative h-[38vh] min-h-[260px] w-full overflow-hidden rounded-2xl border border-border shadow-lg shadow-black/10">
-          <MapboxMapView center={center} zoom={14} userLocation={userLocation || undefined} userAccuracy={userAccuracy ?? null} height={400} route={route} maneuvers={maneuverMarkers} congestion={congestion} fitBounds={fitBounds} markers={markers} fitPadding={{ top: 56, bottom: 56, left: 48, right: 48 }} />
+          <MapboxMapView center={center} zoom={14} userLocation={userLocation || undefined} userAccuracy={userAccuracy ?? null} height={400} route={route} maneuvers={maneuverMarkers} congestion={congestion} fitBounds={fitBounds} markers={markers} progress={progress} fitPadding={{ top: 56, bottom: 56, left: 48, right: 48 }} />
           <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full border border-border bg-surface/85 px-3 py-1.5 shadow-lg backdrop-blur-md">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-60" />
@@ -345,6 +346,7 @@ export function LiveTrackingMap({
           navigationZoom={navigationZoom}
           navigationPitch={navigationPitch}
           nextTurnDistanceM={nextTurnDistanceM}
+          progress={progress}
           fitPadding={fitPad}
         />
 
@@ -366,17 +368,25 @@ export function LiveTrackingMap({
           </div>
 
           {/* Next-turn banner — the one instruction the rider needs right now.
-              On a phone it fills the rest of the top row; from `sm` up it
-              lifts out and centres itself over the map. */}
+              This is the whole "satisfying navigation" piece: an Uber-style
+              directional glyph, the street name, and a distance that counts
+              down so the rider sees progress before they get there. */}
           {showNavigation && nextTurn && (
             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-border bg-surface/95 px-3 py-1.5 shadow-xl backdrop-blur-md sm:absolute sm:left-1/2 sm:top-0 sm:w-auto sm:max-w-[min(92%,22rem)] sm:flex-none sm:-translate-x-1/2 sm:px-3.5 sm:py-2.5">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-xl bg-go/15 text-sm font-black text-go">
-                {nextTurn.type === "arrive" ? "★" : "1"}
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-2xl bg-go/15 text-base font-black leading-none text-go">
+                {maneuverGlyph(nextTurn.type)}
               </span>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-dim">Next</p>
                 <p className="truncate text-[11px] font-semibold text-fg">{nextTurn.instruction}</p>
               </div>
+              {nextTurnDistanceM != null && (
+                <span className="num shrink-0 rounded-lg bg-go/12 px-2 py-1 text-[11px] font-bold text-go">
+                  {nextTurnDistanceM < 950
+                    ? `${Math.round(nextTurnDistanceM / 10) * 10} m`
+                    : `${(nextTurnDistanceM / 1000).toFixed(1)} km`}
+                </span>
+              )}
             </div>
           )}
         </div>

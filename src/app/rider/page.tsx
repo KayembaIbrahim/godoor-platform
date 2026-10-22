@@ -16,7 +16,7 @@ import { useGeolocation, formatAccuracy, distanceKm, type LatLng } from "@/lib/l
 import { useRoadRoute, summarizeTraffic } from "@/lib/routing";
 import { dispatchScore } from "@/lib/dispatch";
 import { useRideAlert } from "@/lib/ride-alert";
-import { formatUgx, cn } from "@/lib/utils";
+import { formatUgx, cn, storedDeliveryFee } from "@/lib/utils";
 import { Price } from "@/components/Price";
 import { StopoverControl } from "@/components/StopoverControl";
 import dynamic from "next/dynamic";
@@ -561,7 +561,7 @@ export default function RiderDashboard() {
         return {
           order: o,
           distanceKm: score.totalKm,
-          fareUgx: o.delivery_fee_ugx || 3000,
+          fareUgx: storedDeliveryFee(o.delivery_fee_ugx),
           etaMin: score.etaMin,
           pickupMin: coords && score.pickupKm > 0 ? Math.round((score.pickupKm / 25) * 60) : 0,
           pickupKm: score.pickupKm,
@@ -640,7 +640,7 @@ export default function RiderDashboard() {
             known.add(updated.id);
             addNotification({
               title: "new_delivery",
-              body: `${updated.merchant_name || "Pickup"} → ${updated.delivery_address || "customer"} · ${updated.items || "items"} · ${formatUgx(updated.delivery_fee_ugx || 3000)} fare${dist != null ? ` · ${dist.toFixed(1)} km away` : ""}`,
+              body: `${updated.merchant_name || "Pickup"} → ${updated.delivery_address || "customer"} · ${updated.items || "items"} · ${formatUgx(storedDeliveryFee(updated.delivery_fee_ugx))} fare${dist != null ? ` · ${dist.toFixed(1)} km away` : ""}`,
               orderId: updated.id,
               role: "rider",
             });
@@ -888,10 +888,18 @@ export default function RiderDashboard() {
   const serviceArea = riderRecord?.service_area || profile.serviceArea || "Your area";
 
   const acceptDelivery = async (order: DBOrder) => {
-    const riderId = supabaseUser?.id || profile.email || "rider";
-    if (!riderId) return;
+    // Only allow accept if rider is properly signed in with a valid UUID
+    const riderId = supabaseUser?.id;
+    if (!riderId) {
+      setAcceptError("Sign in as a rider to accept this delivery");
+      setAcceptingId(null);
+      return;
+    }
     setAcceptingId(order.id);
     setAcceptError(null);
+    // Defer touching local state until the API settles, so a race — another rider
+    // wins the claim between our pre-check and this write — does not leave us
+    // holding an order we never actually took.
     try {
       const res = await fetch("/api/rider/accept-order", {
         method: "POST",
@@ -900,7 +908,19 @@ export default function RiderDashboard() {
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        setAcceptError(json.error || "Failed to accept order");
+        // The order was taken by someone else in the meantime. That is not a
+        // failure — it is expected behaviour while riders are live. Surface the
+        // server's own message rather than a generic "verify your account".
+        setAcceptError(json.error || "This order was taken by another rider");
+        if (res.status === 409) {
+          // Revert any premature local claim so the rider stays in the
+          // Available tab with nothing assigned.
+          setTab("available");
+          setActiveDelivery(null);
+          setAllDeliveries((cur) => cur.filter((o) => o.id !== order.id));
+          setMyOrders((cur) => cur.filter((o) => o.id !== order.id));
+          void refresh();
+        }
         setAcceptingId(null);
         return;
       }
@@ -938,8 +958,8 @@ export default function RiderDashboard() {
 
   // Stats
   const todayDeliveries = allDeliveries.filter((o) => Date.now() - o.updated_at < 86400000);
-  const todayEarnings = todayDeliveries.reduce((s, o) => s + (o.delivery_fee_ugx || 3000), 0);
-  const totalEarnings = allDeliveries.reduce((s, o) => s + (o.delivery_fee_ugx || 3000), 0);
+  const todayEarnings = todayDeliveries.reduce((s, o) => s + (storedDeliveryFee(o.delivery_fee_ugx)), 0);
+  const totalEarnings = allDeliveries.reduce((s, o) => s + (storedDeliveryFee(o.delivery_fee_ugx)), 0);
 
   // Riders issued a one-time password must set their own before using the app.
   if (profile.mustChangePassword) {
@@ -1124,6 +1144,29 @@ export default function RiderDashboard() {
               <p className="text-[10px] text-muted mt-1">Go online to see available deliveries</p>
             </div>
           )}
+          {/* A rider carries one delivery at a time. When one is already in
+              hand the board is not hidden — the rider still sees the market
+              and can prepare for the next job — but the claim is blocked and
+              the reason is stated, instead of the rider tapping "Accept" and
+              being told they are signed out. */}
+          {activeDelivery && available.length > 0 && (
+            <div className="rounded-2xl border border-primary/25 bg-primary/5 p-3.5 flex items-start gap-2.5 animate-spring-in">
+              <Truck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-fg">You&apos;re carrying a delivery</p>
+                <p className="text-[10px] text-muted mt-0.5">
+                  Finish the active delivery before claiming another one.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTab("active")}
+                className="shrink-0 rounded-lg bg-primary/15 px-2.5 py-1.5 text-[10px] font-semibold text-primary"
+              >
+                View
+              </button>
+            </div>
+          )}
           {loading ? (
             <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="skeleton h-32 w-full rounded-2xl" />)}</div>
           ) : available.length === 0 ? (
@@ -1182,10 +1225,12 @@ export default function RiderDashboard() {
                   )}
                 </div>
                 <button type="button" onClick={() => acceptDelivery(d.order)}
-                  disabled={acceptingId === d.order.id}
-                  className="mt-3 w-full btn bg-primary text-white hover:bg-primary-2 shadow-glow active:scale-[0.97]">
+                  disabled={acceptingId === d.order.id || Boolean(activeDelivery)}
+                  className="mt-3 w-full btn bg-primary text-white hover:bg-primary-2 shadow-glow active:scale-[0.97] disabled:opacity-55 disabled:shadow-none">
                   {acceptingId === d.order.id ? (
                     <><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> Verifying…</>
+                  ) : activeDelivery ? (
+                    <><Truck className="h-3.5 w-3.5" /> Finish your active delivery first</>
                   ) : (
                     <>Accept delivery <ChevronRight className="h-3.5 w-3.5" /></>
                   )}
@@ -1213,7 +1258,7 @@ export default function RiderDashboard() {
                     <p className="mt-0.5 text-xs leading-snug text-muted line-clamp-2 break-words">{activeDelivery.items}</p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <Price amount={activeDelivery.delivery_fee_ugx || 3000} className="num text-lg font-bold text-primary" />
+                    <Price amount={storedDeliveryFee(activeDelivery.delivery_fee_ugx)} className="num text-lg font-bold text-primary" />
                     <p className="num text-[10px] text-dim">#{activeDelivery.id.slice(-6)}</p>
                   </div>
                 </div>
@@ -1439,7 +1484,7 @@ export default function RiderDashboard() {
                     <p className="num mt-0.5 text-[10px] text-dim break-words">#{o.id.slice(-6)} · {o.customer_name || "Customer"}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <div><Price amount={o.delivery_fee_ugx || 3000} className="num text-sm font-bold text-primary" /></div>
+                    <div><Price amount={storedDeliveryFee(o.delivery_fee_ugx)} className="num text-sm font-bold text-primary" /></div>
                     <span className={`chip mt-1.5 ${
                       o.status === "rider_assigned" ? "bg-primary/15 text-primary" :
                       o.status === "delivering" ? "bg-go/15 text-go" :
@@ -1591,7 +1636,7 @@ export default function RiderDashboard() {
                 {allDeliveries.slice(0, 5).map((o) => (
                   <div key={o.id} className="flex items-center justify-between rounded-xl bg-bg px-3 py-2.5">
                     <div><p className="text-xs font-medium">{o.merchant_name}</p><p className="num text-[10px] text-dim">#{o.id.slice(-6)}</p></div>
-                    <p className="num text-xs font-bold text-success">{formatUgx(o.delivery_fee_ugx || 3000)}</p>
+                    <p className="num text-xs font-bold text-success">{formatUgx(storedDeliveryFee(o.delivery_fee_ugx))}</p>
                   </div>
                 ))}
               </div>

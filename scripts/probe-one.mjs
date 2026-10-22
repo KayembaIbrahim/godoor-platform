@@ -17,11 +17,18 @@ const browser = await chromium.launch({
     "--single-process",
     "--disable-features=IsolateOrigins,site-per-process",
     "--renderer-process-limit=1",
-    "--js-flags=--max-old-space-size=384",
+    "--js-flags=--max-old-space-size=320",
     "--enable-unsafe-swiftshader",
+    "--disable-accelerated-2d-canvas",
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding",
+    "--disable-features=CalculateNativeWinOcclusion",
   ],
 });
-const ctx = await browser.newContext({ viewport: { width: 412, height: 900 } });
+const ctx = await browser.newContext({
+  viewport: { width: 390, height: 760 },
+  deviceScaleFactor: 1,
+});
 const page = await ctx.newPage();
 
 const errs = [];

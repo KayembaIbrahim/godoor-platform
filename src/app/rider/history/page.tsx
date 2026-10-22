@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Package, MapPin, CheckCircle2 } from "lucide-react";
 import { useSession } from "@/lib/session-store";
 import { fetchOrders, type DBOrder } from "@/lib/db";
-import { formatUgx } from "@/lib/utils";
+import { formatUgx, storedDeliveryFee } from "@/lib/utils";
 
 export default function RiderHistoryPage() {
     const { profile, supabaseUser } = useSession();
@@ -33,7 +33,7 @@ export default function RiderHistoryPage() {
                   <div className="mt-1 flex items-center gap-1 text-[10px] text-dim"><MapPin className="h-3 w-3" />{o.delivery_address || "Uganda"}</div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-success tabular-nums">{formatUgx(o.delivery_fee_ugx || 3000)}</p>
+                  <p className="text-sm font-bold text-success tabular-nums">{formatUgx(storedDeliveryFee(o.delivery_fee_ugx))}</p>
                   <span className={`mt-1 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[9px] font-semibold ${o.status === "delivered" ? "bg-success/15 text-success" : "bg-elevated text-muted"}`}>
                     <CheckCircle2 className="h-2.5 w-2.5" /> {o.status}
                   </span>

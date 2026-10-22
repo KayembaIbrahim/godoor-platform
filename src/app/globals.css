@@ -1832,6 +1832,169 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
     color: #fff;
     background: linear-gradient(180deg, #FB923C 0%, #EA580C 100%);
   }
+
+  /* ─── 3D bottom navigation ────────────────────────────────────────────
+     The bottom bar is the app's primary navigation, so it gets the full 3D
+     treatment: a real slab that sits ABOVE the content with a cast shadow,
+     a lit top edge, and a selected tab that physically rises out of the
+     surface like a key on a keyboard.
+
+     THE LAYOUT
+     ----------
+     Three tabs share ONE black slab (Home · Categories · Orders) and two
+     float OUTSIDE it as independent raised buttons (Wallet · Account).
+
+     The reason is reach and hierarchy. The slab is a single surface you
+     sweep a thumb across; the two floating buttons are the destinations a
+     user goes to deliberately, so they get their own silhouette and their
+     own tap target. Five loose equal-width tabs made every one of them
+     equally forgettable — the eye had nothing to land on. */
+  .nav3d {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.3rem;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #1E1E23 0%, #0B0B0D 100%);
+    border: 1px solid rgb(255 255 255 / 0.1);
+    box-shadow:
+      /* the lit top edge — this is what makes it read as a raised object */
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
+      inset 0 -1px 0 rgb(0 0 0 / 0.6),
+      /* the slab's own cast shadow onto the page */
+      0 2px 4px -1px rgb(0 0 0 / 0.4),
+      0 12px 28px -12px rgb(0 0 0 / 0.65);
+  }
+  .dark .nav3d {
+    background: linear-gradient(180deg, #1A1A1E 0%, #000000 100%);
+    border-color: rgb(255 255 255 / 0.13);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.12),
+      inset 0 -1px 0 rgb(0 0 0 / 0.8),
+      0 2px 5px -2px rgb(0 0 0 / 0.7),
+      0 16px 34px -14px rgb(0 0 0 / 0.95);
+  }
+
+  /* A tab inside the slab. Idle it is a flat slot; selected it is a raised
+     orange key that physically stands proud of the black surface. */
+  .nav3d-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: rgb(255 255 255 / 0.62);
+    transition:
+      color 0.22s ease,
+      background-color 0.22s ease,
+      box-shadow 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+      transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .nav3d-item:hover {
+    color: rgb(255 255 255 / 0.9);
+  }
+  /* THE SELECTED TAB. A lit orange face with a real bevel and a glow that
+     spills onto the black slab around it — the "this one is pressed in"
+     signal. */
+  .nav3d-item-active {
+    color: #fff;
+    background: linear-gradient(180deg, #FB923C 0%, #EA580C 100%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.4),
+      inset 0 -2px 4px rgb(180 60 6 / 0.5),
+      0 2px 6px -1px rgb(234 88 12 / 0.6),
+      0 8px 20px -8px rgb(249 115 22 / 0.85);
+    transform: translateY(-1px);
+  }
+  .nav3d-item-active:hover {
+    color: #fff;
+  }
+
+  /* A floating button that stands OUTSIDE the slab — its own silhouette, its
+     own surface, its own shadow. It is a different KIND of control from the
+     tabs in the slab, and it looks like one. */
+  .nav3d-float {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: rgb(255 255 255 / 0.85);
+    background: linear-gradient(180deg, #23232A 0%, #101013 100%);
+    border: 1px solid rgb(255 255 255 / 0.12);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.18),
+      inset 0 -1px 0 rgb(0 0 0 / 0.7),
+      0 2px 5px -1px rgb(0 0 0 / 0.5),
+      0 10px 22px -10px rgb(0 0 0 / 0.7);
+    transition:
+      transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.24s ease,
+      color 0.2s ease,
+      border-color 0.2s ease;
+  }
+  .nav3d-float:hover {
+    transform: translateY(-2px);
+    color: var(--accent-orange);
+    border-color: color-mix(in srgb, var(--accent-orange) 50%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.24),
+      0 3px 7px -2px rgb(0 0 0 / 0.55),
+      0 16px 30px -12px rgb(0 0 0 / 0.8);
+  }
+  .nav3d-float:active {
+    transform: translateY(0) scale(0.94);
+    box-shadow:
+      inset 0 2px 5px rgb(0 0 0 / 0.65),
+      0 1px 2px rgb(0 0 0 / 0.5);
+  }
+  /* The floating button that is the CURRENT page — same orange face as the
+     selected tab, so "where am I" is answered identically in both places. */
+  .nav3d-float-active {
+    color: #fff;
+    background: linear-gradient(180deg, #FB923C 0%, #EA580C 100%);
+    border-color: color-mix(in srgb, #EA580C 55%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.4),
+      inset 0 -2px 4px rgb(180 60 6 / 0.5),
+      0 2px 6px -1px rgb(234 88 12 / 0.6),
+      0 10px 22px -8px rgb(249 115 22 / 0.85);
+  }
+  .nav3d-float-active:hover {
+    color: #fff;
+    transform: translateY(-1px);
+  }
+  .dark .nav3d-float {
+    background: linear-gradient(180deg, #1C1C21 0%, #000000 100%);
+    border-color: rgb(255 255 255 / 0.14);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      inset 0 -1px 0 rgb(0 0 0 / 0.85),
+      0 2px 6px -2px rgb(0 0 0 / 0.75),
+      0 12px 26px -12px rgb(0 0 0 / 0.95);
+  }
+
+  /* The little orange pip that marks an active tab when the label is
+     hidden — a soft, breathing dot under the raised key. */
+  .nav3d-pip {
+    position: absolute;
+    bottom: -0.4rem;
+    left: 50%;
+    width: 0.25rem;
+    height: 0.25rem;
+    margin-left: -0.125rem;
+    border-radius: 999px;
+    background: var(--accent-orange);
+    box-shadow: 0 0 8px 1px rgb(249 115 22 / 0.85);
+    animation: nav3d-pip-pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes nav3d-pip-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(0.82); }
+  }
 }
 
 /* Skeleton loaders — a soft sweep across placeholder blocks while real

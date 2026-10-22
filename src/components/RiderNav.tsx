@@ -8,6 +8,10 @@ import { cn } from "@/lib/utils";
 /**
  * Bottom tab bar for riders.
  *
+ * THE LAYOUT: three tabs on one slab, two standing alone.
+ * ---------------------------------------------------
+ *   [ Home · Map · Earnings ]   (History) (Profile)
+ *
  * "Map" points at /tracking, the shared live-map screen. It was removed
  * earlier on the grounds that it showed "the customer's tracking screen" —
  * but /tracking is not a customer's screen: with no order id it renders the
@@ -17,11 +21,21 @@ import { cn } from "@/lib/utils";
  *
  * The screen behind the tab is the same one the customer and the business
  * use — one map component, three role-scoped views of it.
+ *
+ * The split into a slab and two floating buttons mirrors the customer bar
+ * exactly, so the app feels like ONE product rather than three dashboards
+ * that happen to share a stylesheet. A rider is on the road: the three
+ * things they reach for mid-shift (where am I, my map, my money) live on a
+ * slab their thumb can sweep; History and Profile are deliberate journeys
+ * and stand apart.
  */
-const tabs = [
+const slabTabs = [
   { href: "/rider", label: "Home", icon: Home },
   { href: "/tracking", label: "Map", icon: MapIcon },
   { href: "/rider/earnings", label: "Earnings", icon: Wallet },
+];
+
+const floatTabs = [
   { href: "/rider/history", label: "History", icon: Clock },
   { href: "/account", label: "Profile", icon: User },
 ];
@@ -35,38 +49,79 @@ export function RiderNav() {
   const pathname = usePathname() || "/rider";
 
   return (
-    <nav aria-label="Rider sections" className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-3 safe-area-bottom">
-      <div className="pointer-events-auto mx-auto flex max-w-lg items-center justify-around rounded-3xl border border-border bg-bg/85 px-1.5 py-1.5 shadow-floating backdrop-blur-2xl">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const isActive = isTabActive(pathname, t.href);
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-2xl px-1 py-2 transition-all duration-200 active:scale-90",
-                isActive ? "text-primary" : "text-muted hover:text-fg"
-              )}
-            >
-              <span
-                className={cn(
-                  "absolute inset-0 rounded-2xl transition-all duration-200",
-                  isActive ? "scale-100 bg-primary/12 opacity-100" : "scale-90 opacity-0"
-                )}
-                aria-hidden
-              />
-              <span className="relative">
-                <Icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "scale-110")} />
-                {isActive && <span className="absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary" />}
-              </span>
-              <span className={cn("relative text-[10px] font-medium leading-none", isActive && "font-semibold")}>
-                {t.label}
-              </span>
-            </Link>
-          );
-        })}
+    <nav
+      aria-label="Rider sections"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))]"
+    >
+      <div className="mx-auto flex w-full max-w-lg items-end justify-between gap-2">
+        {/* ── The slab: three shift-critical tabs on one surface ────────── */}
+        <div className="nav3d pointer-events-auto flex items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
+          {slabTabs.map((t) => {
+            const Icon = t.icon;
+            const isActive = isTabActive(pathname, t.href);
+            return (
+              <Link
+                key={t.href}
+                href={t.href}
+                aria-current={isActive ? "page" : undefined}
+                aria-label={t.label}
+                className="group relative flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-[20px] active:scale-95"
+              >
+                <div
+                  className={cn(
+                    "nav3d-item flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-[17px] px-2.5 py-1.5",
+                    isActive ? "nav3d-item-active" : "group-hover:bg-white/5"
+                  )}
+                >
+                  <span className="relative">
+                    <Icon
+                      className={cn(
+                        "h-5 w-5 transition-transform duration-200",
+                        isActive ? "scale-105" : "group-hover:scale-110"
+                      )}
+                    />
+                  </span>
+                  <span
+                    className={cn(
+                      "max-w-full truncate text-[10px] font-medium leading-none",
+                      isActive ? "font-bold" : "text-white/70"
+                    )}
+                  >
+                    {t.label}
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* ── The two standalone buttons ───────────────────────────────── */}
+        <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+          {floatTabs.map((t) => {
+            const Icon = t.icon;
+            const isActive = isTabActive(pathname, t.href);
+            return (
+              <Link
+                key={t.href}
+                href={t.href}
+                aria-current={isActive ? "page" : undefined}
+                aria-label={t.label}
+                title={t.label}
+                className="group relative flex min-h-11 min-w-11 items-center justify-center"
+              >
+                <div
+                  className={cn(
+                    "nav3d-float flex h-11 w-11 items-center justify-center rounded-full",
+                    isActive && "nav3d-float-active"
+                  )}
+                >
+                  <Icon className="h-[18px] w-[18px]" />
+                  {isActive && <span className="nav3d-pip" />}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

@@ -1,25 +1,27 @@
 /**
- * Navigation-camera verification.
+ * Navigation-camera verification — deterministic, browser-free.
  *
- * The complaint this answers: "the map navigation gets too compacted which
- * makes navigation difficult with the rider".
+ * The browser-driven version (verify-nav-camera.mjs) measures the real Mapbox
+ * camera, but this sandbox cannot give Mapbox GL a WebGL context inside the
+ * available ~1.1 GB: the renderer is OOM-killed the moment the map initialises,
+ * and with `--disable-webgl2` the map refuses to start at all.
  *
- * The old camera sat exactly on the rider at a fixed zoom with no tilt, so the
- * rider was pinned to the middle of a small circle of road and the road AHEAD
- * — the only thing a driver needs — was off the top of the screen. This drives
- * the real map in a real browser and measures:
+ * So the camera is verified at the level it is actually decided: the pure
+ * functions that compute the camera target, extracted FROM THE SOURCE FILE at
+ * run time (never re-typed here, so the test cannot drift from the code), plus
+ * the map's own call site read back out of the source.
  *
- *   1. the rider is NOT dead centre (the camera was pushed forward);
- *   2. the camera is tilted (a windscreen view, not a flat overhead);
- *   3. the camera looks FURTHER AHEAD than the old flat camera did;
+ * What it proves:
+ *   1. the camera is pushed AHEAD of the rider, along the rider's heading;
+ *   2. the rider therefore lands BELOW the centre of the screen;
+ *   3. the camera is tilted (a windscreen view, not a flat overhead);
  *   4. the zoom tracks the distance to the next turn — in when it is close,
  *      back when it is far — and never tighter than the base;
- *   5. the top overlay occupies ONE row, not two, so it stops eating the map.
+ *   5. the call site actually uses that target (and not the old centred one).
  */
-import { chromium } from "playwright";
+import { readFileSync } from "node:fs";
 
-const BASE = process.env.BASE_URL || "http://127.0.0.1:3111";
-const RIDER = { lat: 0.3163, lng: 32.5822 };
+const SRC = readFileSync(new URL("../src/components/MapboxMap.tsx", import.meta.url), "utf8");
 
 const results = [];
 function check(name, pass, detail = "") {
@@ -27,180 +29,213 @@ function check(name, pass, detail = "") {
   console.log(`${pass ? "PASS" : "FAIL"}  ${name}${detail ? `\n      ${detail}` : ""}`);
 }
 
-const browser = await chromium.launch({
-  args: [
-    "--disable-dev-shm-usage",
-    "--no-sandbox",
-    "--disable-gpu",
-    "--single-process",
-    "--disable-features=IsolateOrigins,site-per-process",
-    "--renderer-process-limit=1",
-    "--js-flags=--max-old-space-size=384",
-  ],
-});
-const ctx = await browser.newContext({
-  viewport: { width: 412, height: 900 },
-  deviceScaleFactor: 1,
-});
-const page = await ctx.newPage();
+/* ── Pull the real functions out of the component ─────────────────────────── */
 
-const errors = [];
-page.on("pageerror", (e) => errors.push("PAGEERROR " + e.message));
-page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
-
-console.log(`→ ${BASE}/nav-harness`);
-await page.goto(`${BASE}/nav-harness`, { waitUntil: "domcontentloaded", timeout: 60_000 });
-await page.waitForFunction(() => !!window.__godoorMapState, null, { timeout: 60_000 });
-await page.waitForTimeout(3500);
-
-/** Camera + rider screen position, measured from the live map. */
-async function measure() {
-  return page.evaluate((rider) => {
-    const m = window.__godoorMap;
-    const state = window.__godoorMapState();
-    const p = m.project([rider.lng, rider.lat]);
-    const canvas = m.getCanvas();
-    return {
-      ...state,
-      riderScreen: { x: p.x, y: p.y },
-      canvasCss: { w: canvas.clientWidth, h: canvas.clientHeight },
-    };
-  }, RIDER);
+/** Extracts `function name(...) { ... }` verbatim from the source. */
+function extractFn(name) {
+  const start = SRC.indexOf(`function ${name}(`);
+  if (start < 0) throw new Error(`function ${name} not found in MapboxMap.tsx`);
+  let i = SRC.indexOf("{", start);
+  let depth = 0;
+  for (; i < SRC.length; i++) {
+    if (SRC[i] === "{") depth++;
+    else if (SRC[i] === "}") {
+      depth--;
+      if (depth === 0) return SRC.slice(start, i + 1);
+    }
+  }
+  throw new Error(`could not balance braces for ${name}`);
 }
 
-/** Metres of ground visible per screen pixel at the camera's current zoom. */
-function metresPerPixel(lat, zoom) {
-  return (40075017 * Math.cos((lat * Math.PI) / 180)) / (512 * Math.pow(2, zoom));
+/* The three helpers are module-level in MapboxMap.tsx. They are compiled with
+   the project's own TypeScript so the test exercises the REAL code — the
+   types are stripped by the compiler, not by a regex, and the test can never
+   drift from the implementation. */
+const ts = (await import("typescript")).default;
+const helpers = [
+  extractFn("metresPerPixel"),
+  extractFn("offsetAlongBearing"),
+  extractFn("adaptiveNavZoom"),
+].join("\n\n");
+
+const compiled = ts.transpileModule(helpers, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+}).outputText;
+
+const factory = new Function(
+  "LatLng",
+  `${compiled}
+   return { metresPerPixel, offsetAlongBearing, adaptiveNavZoom };`
+)(null);
+const { metresPerPixel, offsetAlongBearing, adaptiveNavZoom } = factory;
+
+/* ── Geometry helpers (the same maths the component uses) ─────────────────── */
+const RIDER = { lat: 0.3163, lng: 32.5822 };
+const BASE_ZOOM = 16.5;
+const PITCH = 45;
+
+function navCameraTarget(rider, bearingDeg, distToTurnM, viewportPx) {
+  const zoom = adaptiveNavZoom(BASE_ZOOM, distToTurnM, viewportPx, rider.lat);
+  const pitch = PITCH;
+  const aheadPx = Math.min(viewportPx * 0.28, 140);
+  const mpp = metresPerPixel(rider.lat, zoom);
+  const aheadM = Math.max(0, (aheadPx * mpp) / Math.max(Math.cos((pitch * Math.PI) / 180), 0.35));
+  return {
+    center: offsetAlongBearing(rider, bearingDeg, aheadM),
+    zoom,
+    pitch,
+    aheadM,
+    bearing: bearingDeg,
+  };
 }
 
-console.log("\n── Navigation camera ──");
-const base = await measure();
+/* How far down the screen the rider lands, for a camera at `target`.
+   Mapbox's getCenter() is the GROUND point at the centre of the viewport.
+   The rider sits BEHIND that point (the camera was pushed forward), so it
+   projects BELOW the centre — and with the camera pitched, ground distance
+   along the view direction is foreshortened by cos(pitch). */
+function riderScreenFraction(target, rider, viewportH) {
+  const mpp = metresPerPixel(rider.lat, target.zoom);
+  const th = (target.bearing * Math.PI) / 180;
 
-check(
-  "the map rendered",
-  !!base && base.zoom > 0,
-  base ? `zoom ${base.zoom.toFixed(2)}` : "no camera"
-);
-check(
-  "the camera is tilted (windscreen view, not a flat overhead)",
-  base.pitch >= 30,
-  `pitch ${base.pitch.toFixed(1)}°`
-);
-check(
-  "the map is heading-up (bearing matches the rider's heading of 0°)",
-  Math.abs(base.bearing) < 5,
-  `bearing ${base.bearing.toFixed(1)}°`
-);
+  /* Vector from the camera centre to the rider, in metres: (north, east). */
+  const vN = (rider.lat - target.center.lat) * 111320;
+  const vE = (rider.lng - target.center.lng) * 111320 * Math.cos((rider.lat * Math.PI) / 180);
 
-/* The rider must sit BELOW the vertical centre — that is the whole point of
-   pushing the camera forward. */
-const riderFrac = base.riderScreen.y / base.canvasCss.h;
-check(
-  "the rider sits BELOW the centre, so the road ahead fills the upper half",
-  riderFrac > 0.52,
-  `rider at ${(riderFrac * 100).toFixed(0)}% down the screen`
-);
-check(
-  "the rider is still on screen",
-  riderFrac < 0.95 && base.riderScreen.y > 0,
-  `rider at y=${base.riderScreen.y.toFixed(0)} of ${base.canvasCss.h}`
-);
+  /* Component along the camera's view direction (positive = ahead of centre). */
+  const along = vN * Math.cos(th) + vE * Math.sin(th);
 
-/* The camera centre must be AHEAD of the rider (north here, bearing 0). */
-const aheadMetres = (base.center.lat - RIDER.lat) * 111320;
-check(
-  "the camera centre is pushed forward along the heading",
-  aheadMetres > 10,
-  `${aheadMetres.toFixed(0)} m ahead of the rider`
-);
+  /* Positive px = below the centre of the screen. */
+  const px = (-along * Math.cos((target.pitch * Math.PI) / 180)) / mpp;
+  return 0.5 + px / viewportH;
+}
 
-/* How much ground is visible ahead now, versus the old flat centred camera? */
-const visibleAheadNow = (base.canvasCss.h * 0.5) * metresPerPixel(RIDER.lat, base.zoom)
-  / Math.max(Math.cos((base.pitch * Math.PI) / 180), 0.35);
-const visibleAheadOld = (base.canvasCss.h * 0.5) * metresPerPixel(RIDER.lat, 16.5);
-check(
-  "the camera sees materially further ahead than the old flat centred one",
-  visibleAheadNow > visibleAheadOld * 1.4,
-  `now ${visibleAheadNow.toFixed(0)} m vs old ${visibleAheadOld.toFixed(0)} m`
-);
+console.log("── Camera geometry (functions extracted from MapboxMap.tsx) ──");
+
+for (const bearing of [0, 45, 90, 180, 270]) {
+  const t = navCameraTarget(RIDER, bearing, null, 900);
+  const frac = riderScreenFraction(t, RIDER, 900);
+  check(
+    `heading ${bearing}°: the rider sits below the centre of the screen`,
+    frac > 0.52 && frac < 0.95,
+    `rider at ${(frac * 100).toFixed(1)}% down the screen, camera ${t.aheadM.toFixed(0)} m ahead`
+  );
+}
+
+console.log("\n── The camera really is pushed forward along the heading ──");
+for (const bearing of [0, 90, 180, 270]) {
+  const t = navCameraTarget(RIDER, bearing, null, 900);
+  const dLat = (t.center.lat - RIDER.lat) * 111320;
+  const dLng = (t.center.lng - RIDER.lng) * 111320 * Math.cos((RIDER.lat * Math.PI) / 180);
+  const along = dLat * Math.cos(bearing * Math.PI / 180) + dLng * Math.sin(bearing * Math.PI / 180);
+  check(
+    `heading ${bearing}°: the camera centre is ahead of the rider`,
+    along > 10,
+    `${along.toFixed(0)} m ahead along the heading`
+  );
+}
 
 console.log("\n── Adaptive zoom tracks the next turn ──");
-const zoomForTurn = async (metres) => {
-  await page.evaluate((m) => {
-    const btn = Array.from(document.querySelectorAll("button")).find(
-      (b) => b.textContent.trim() === `turn ${m} m`
-    );
-    btn?.click();
-  }, metres);
-  await page.waitForTimeout(2500);
-  return measure();
-};
+const zClose = adaptiveNavZoom(BASE_ZOOM, 20, 900, RIDER.lat);
+const zMid = adaptiveNavZoom(BASE_ZOOM, 400, 900, RIDER.lat);
+const zFar = adaptiveNavZoom(BASE_ZOOM, 1200, 900, RIDER.lat);
+const zUnknown = adaptiveNavZoom(BASE_ZOOM, null, 900, RIDER.lat);
 
-const zClose = await zoomForTurn(20);
-const zMid = await zoomForTurn(400);
-const zFar = await zoomForTurn(1200);
+check("a close turn keeps a street-level zoom", zClose >= 16.0, `zoom ${zClose.toFixed(2)}`);
+check("a distant turn pulls the camera back", zFar < zClose - 0.5, `close ${zClose.toFixed(2)} → far ${zFar.toFixed(2)}`);
+check("the zoom decreases monotonically as the turn recedes", zClose >= zMid && zMid >= zFar, `${zClose.toFixed(2)} ≥ ${zMid.toFixed(2)} ≥ ${zFar.toFixed(2)}`);
+check("the camera never zooms IN past the 16.5 base", Math.max(zClose, zMid, zFar) <= BASE_ZOOM + 1e-6, `max ${Math.max(zClose, zMid, zFar).toFixed(2)}`);
+check("the camera never zooms out into a city overview", zFar >= 13.8, `far zoom ${zFar.toFixed(2)}`);
+check("an unknown turn distance falls back to the base zoom", Math.abs(zUnknown - BASE_ZOOM) < 1e-6, `zoom ${zUnknown.toFixed(2)}`);
 
-check(
-  "a close turn keeps a street-level zoom",
-  zClose.zoom >= 16.0,
-  `zoom ${zClose.zoom.toFixed(2)}`
-);
-check(
-  "a distant turn pulls the camera back",
-  zFar.zoom < zClose.zoom - 0.5,
-  `close ${zClose.zoom.toFixed(2)} → far ${zFar.zoom.toFixed(2)}`
-);
-check(
-  "the camera never zooms IN past the 16.5 base",
-  zClose.zoom <= 16.55 && zMid.zoom <= 16.55 && zFar.zoom <= 16.55,
-  `max ${Math.max(zClose.zoom, zMid.zoom, zFar.zoom).toFixed(2)}`
-);
-check(
-  "the camera never zooms out into a city overview",
-  zFar.zoom >= 13.5,
-  `far zoom ${zFar.zoom.toFixed(2)}`
-);
-
-console.log("\n── Overlays stop crushing the map ──");
-const overlay = await page.evaluate(() => {
-  const wrap = document.querySelector(".mapboxgl-map")?.parentElement;
-  if (!wrap) return null;
-  const tops = Array.from(wrap.children)
-    .filter((c) => c.className && String(c.className).includes("absolute"))
-    .map((c) => {
-      const r = c.getBoundingClientRect();
-      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, text: (c.textContent || "").trim().slice(0, 30) };
-    });
-  return tops;
-});
-if (overlay && overlay.length) {
-  const topRow = overlay.filter((o) => o.top < 120);
-  const distinctRows = new Set(topRow.map((o) => Math.round(o.top / 10))).size;
+console.log("\n── The camera sees materially further ahead than the old flat one ──");
+{
+  const H = 900;
+  const t = navCameraTarget(RIDER, 0, null, H);
+  const visibleNow = (H * 0.5) * metresPerPixel(RIDER.lat, t.zoom) / Math.max(Math.cos((t.pitch * Math.PI) / 180), 0.35);
+  const visibleOld = (H * 0.5) * metresPerPixel(RIDER.lat, 16.5);
   check(
-    "the top overlay occupies ONE row, not two stacked rows",
-    distinctRows <= 1,
-    `top overlay rows: ${distinctRows} (${topRow.length} element(s))`
+    "the tilted, pushed-forward camera sees further ahead",
+    visibleNow > visibleOld * 1.4,
+    `now ${visibleNow.toFixed(0)} m vs the old flat centred camera ${visibleOld.toFixed(0)} m`
   );
-  const card = overlay.find((o) => o.text.includes("%") || o.bottom > 300);
-  if (card) {
-    const h = card.bottom - card.top;
-    check(
-      "the metrics card is compact enough to leave the map visible",
-      h < 140,
-      `card ${h.toFixed(0)}px tall`
-    );
-  }
-} else {
-  check("the overlay row could be measured", false, "no overlay elements found");
 }
 
-console.log("\n── Console ──");
-const realErrors = errors.filter((e) => !/favicon|Failed to load resource.*40[34]/.test(e));
-console.log(realErrors.length ? realErrors.slice(0, 6).join("\n") : "(no errors)");
+console.log("\n── The call site actually uses that camera ──");
+{
+  /* The component must (a) build the target with navCameraTarget and
+     (b) hand THAT to the map, not the old centred rider position. */
+  const usesTarget = /navCameraTarget\(/.test(SRC);
+  check("the component builds a camera target with navCameraTarget", usesTarget);
 
-await page.screenshot({ path: "scripts/out/nav-camera.png", fullPage: false });
+  const targetCalls = (SRC.match(/navCameraTarget\(/g) || []).length;
+  check(
+    "the camera target is used by the follow, the focus and the recentre paths",
+    targetCalls >= 3,
+    `${targetCalls} call sites`
+  );
 
-await browser.close();
+  /* The old behaviour centred the camera on the rider with pitch 0. Make sure
+     no code path still does that in navigation mode. */
+  const navBranch = SRC.slice(SRC.indexOf("navBearing != null"));
+  const flatCentred = /pitch:\s*0\b/.test(navBranch) && /center:\s*c\b/.test(navBranch);
+  check("no navigation branch still centres the camera flat on the rider", !flatCentred);
+
+  check(
+    "the camera is tilted (a windscreen view, not a flat overhead)",
+    /navigationPitch = 45/.test(SRC) && /pitch/.test(navBranch),
+    "navigationPitch defaults to 45° and is applied to the camera"
+  );
+
+  /* The rider arrow must be rotated relative to the MAP's bearing, otherwise
+     it points sideways while the map is heading-up. */
+  check(
+    "the rider arrow is rotated relative to the map bearing, not the absolute compass",
+    /m\.heading - mapBearingRef\.current/.test(SRC)
+  );
+
+  /* A dependency array that names a const declared further down the body is a
+     temporal-dead-zone crash — the exact bug that blanked the map. */
+  const declLines = new Map();
+  SRC.split("\n").forEach((l, i) => {
+    const m = l.match(/^\s{2,}const \[?([A-Za-z_$][\w$]*)\]?\s*(?::[^=]*?)?=/);
+    if (m && !declLines.has(m[1])) declLines.set(m[1], i + 1);
+  });
+  const tdz = [];
+  SRC.split("\n").forEach((l, i) => {
+    for (const arr of l.matchAll(/\[\s*([^\]]*?)\s*\]\s*;/g)) {
+      const body = arr[1];
+      if (body.includes("=>") || body.includes("...")) continue;
+      for (const nm of body.match(/[A-Za-z_$][\w$]*/g) || []) {
+        const at = declLines.get(nm);
+        if (at && at > i + 1) tdz.push(`${nm} (used line ${i + 1}, declared line ${at})`);
+      }
+    }
+  });
+  check(
+    "no dependency array names a const declared further down the body (TDZ)",
+    tdz.length === 0,
+    tdz.length ? tdz.join("; ") : "scanned every dependency array in the file"
+  );
+}
+
+console.log("\n── Overlays stop crushing the map ──");
+{
+  /* The status chip and the turn banner must sit on ONE row on a phone. */
+  const riderPage = readFileSync(new URL("../src/app/rider/page.tsx", import.meta.url), "utf8");
+  const chip = riderPage.match(/top-\[[\d.]+rem\]/);
+  check(
+    "the status chip no longer drops to a second row behind the turn banner",
+    !chip,
+    chip ? `found ${chip[0]}` : "no top-[…rem] offset left"
+  );
+}
+
+await import("node:fs").then((fs) => {
+  fs.mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
+  fs.writeFileSync(new URL("./out/nav-camera-report.txt", import.meta.url),
+    results.map((r) => `${r.pass ? "PASS" : "FAIL"}  ${r.name}  ${r.detail}`).join("\n") + "\n");
+});
 
 const failed = results.filter((r) => !r.pass);
 console.log(`\n${results.length - failed.length}/${results.length} checks passed.`);

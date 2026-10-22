@@ -163,6 +163,13 @@ type Props = {
   /** Radius (metres) of the reported GPS fix — drawn as a halo around the
       user dot so people can see how precise "you are here" really is. */
   userAccuracy?: number | null;
+  /** Trip progress 0..1 along the route.
+      Drives the LIVE part of the route drawing: the travelled portion is drawn
+      solid and the untravelled portion is drawn as a dimmed "still to go"
+      trail with a travelling shimmer. Without it the route is one flat line
+      that never changes, and a live-tracking screen has nothing that moves
+      except the pin — which is why the motion reads as unsatisfying. */
+  progress?: number | null;
 };
 
 /* ─── Branded GoDoor pin markers ──────────────────────────────
@@ -516,7 +523,7 @@ function MapboxMapInner({
   center, markers = [], onMapClick, zoom = 14, height = 300, fillHeight = false,
   className, userLocation, userAccuracy, onError, fitBounds, fitPadding: outerPadding, route, maneuvers,
   congestion = null, navigationBearing = null, navigationZoom = 16.5,
-  navigationPitch = 45, nextTurnDistanceM = null,
+  navigationPitch = 45, nextTurnDistanceM = null, progress = null,
 }: Props & { onError?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -623,10 +630,33 @@ function MapboxMapInner({
     try {
       if (!map.getSource("gdr-route")) {
         map.addSource("gdr-route", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        /* The part of the route still to travel. Drawn UNDER the solid travelled
+           line as a dimmed, shimmering trail, so the route visibly shortens as
+           the rider advances. This is the difference between a live-tracking
+           screen that moves and one that only has a pin sliding along a static
+           drawing. */
+        map.addSource("gdr-route-remaining", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
         // Arrows get their own copy of the plain LineString: the traffic-coloured
         // line is split per segment, and spacing a symbol along 2-point features
         // would leave most of the route bare.
         map.addSource("gdr-route-arrows-src", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        map.addLayer({
+          id: "gdr-route-remaining-line",
+          type: "line",
+          source: "gdr-route-remaining",
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-width": ["interpolate", ["linear"], ["zoom"], 11, 5, 16, 8.5],
+            "line-color": "#F97316",
+            /* Dimmed so the travelled line — the solid one — reads as the part
+               already done. */
+            "line-opacity": 0.42,
+            /* A dashed trail whose dashes crawl towards the destination. The
+               "travelling shimmer" is what tells the eye the rider is making
+               ground, even when the GPS fix is a minute old. */
+            "line-dasharray": [1, 1.6],
+          },
+        });
         map.addLayer({
           id: "gdr-route-line",
           type: "line",
@@ -693,28 +723,101 @@ function MapboxMapInner({
            is drawn in the neutral brand colour, which is honest. */
         const nothingFiltered = (route || []).length === pts.length;
         const useCongestion = nothingFiltered && !!congestion && congestion.length >= pts.length - 1;
-        const features = useCongestion
-          ? pts.slice(0, -1).map((p, i) => ({
+        /* How far along the filtered route the rider has travelled. Split here
+           so the solid line stops where he did, and the remaining trail
+           starts there and grows toward the destination. The rider's live GPS
+           fix is the progress input — even when it lands seconds late, the
+           split still tracks roughly where the manuver markers are. */
+        const traveledFrac = progress == null ? 1 : Math.max(0, Math.min(1, progress));
+        const cutIndex = Math.floor((pts.length - 1) * traveledFrac);
+
+        // The TRAVELED line — solid brand orange, full opacity. This is what
+        // the rider already covered.
+        const traveledFeatures = useCongestion
+          ? pts.slice(0, cutIndex).map((p, i) => ({
               type: "Feature" as const,
               properties: { congestion: congestion[i] ?? 0 },
               geometry: { type: "LineString" as const, coordinates: [[p.lng, p.lat], [pts[i + 1].lng, pts[i + 1].lat]] },
             }))
-          : [{ type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: pts.map((p) => [p.lng, p.lat]) } }];
-        map.getSource("gdr-route").setData({ type: "FeatureCollection", features });
+          : [{ type: "Feature" as const, properties: {}, geometry: { type: "LineString" as const, coordinates: pts.slice(0, cutIndex + 1).map((p) => [p.lng, p.lat]) } }];
+        map.getSource("gdr-route").setData({ type: "FeatureCollection", features: traveledFeatures });
+
+        // The REMAINING trail — dimmed, dashed, crawling toward destination.
+        const remainingCoords: [number, number][] = [];
+        if (cutIndex > 0) remainingCoords.push([pts[cutIndex - 1].lng, pts[cutIndex - 1].lat]); // a valid point before the cut
+        for (let i = cutIndex; i < pts.length; i++) remainingCoords.push([pts[i].lng, pts[i].lat]);
+        map.getSource("gdr-route-remaining").setData({
+          type: "FeatureCollection",
+          features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: remainingCoords } }],
+        });
+
+        // Arrows live ON the traveled portion only: symbols placed along a
+        // 2-point feature of the remaining route would scatter every few
+        // metres along the untouched half, which is visually noisy for little
+        // payoff.
         map.getSource("gdr-route-arrows-src").setData({
           type: "FeatureCollection",
-          features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: pts.map((p) => [p.lng, p.lat]) } }],
+          features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: traveledFeatures[0]?.geometry.coordinates ?? [] } }],
         });
         try { map.moveLayer("gdr-route-glow"); } catch {}
         map.moveLayer("gdr-route-casing");
         map.moveLayer("gdr-route-line");
+        try { map.moveLayer("gdr-route-remaining-line"); } catch {}
         try { map.moveLayer("gdr-route-arrows"); } catch {}
       } else {
         map.getSource("gdr-route").setData({ type: "FeatureCollection", features: [] });
+        map.getSource("gdr-route-remaining").setData({
+          type: "FeatureCollection",
+          features: [],
+        });
         map.getSource("gdr-route-arrows-src").setData({ type: "FeatureCollection", features: [] });
       }
     } catch {}
-  }, [ready, route, congestion, styleGeneration]);
+  }, [ready, route, congestion, styleGeneration, progress]);
+
+  /* ── The travelling shimmer on the remaining route ───────────────────
+     The trail ahead of the rider is dashed, and the dashes CRAWL towards the
+     destination. A static dashed line reads as "a route that exists"; a
+     crawling one reads as "a route you are actively eating through", which
+     is the whole difference between a live-tracking screen and a static
+     drawing with a moving dot on it.
+
+     Driven from requestAnimationFrame rather than a CSS animation because the
+     dash offset is a Mapbox paint property, not a DOM style. The loop is
+     stopped as soon as the map is torn down, and it never runs when there is
+     no route to draw. */
+  const shimmerRef = useRef<number | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    let cancelled = false;
+    /* The dash offset is expressed in multiples of the line width, so the
+       visual speed has to be divided by the width to keep the crawl rate
+       constant as the map zooms. */
+    let last = performance.now();
+    const step = (now: number) => {
+      if (cancelled) return;
+      try {
+        const dt = Math.min(64, now - last);
+        last = now;
+        const layer = map.getLayer("gdr-route-remaining-line");
+        if (layer) {
+          const zoom = map.getZoom();
+          const width = zoom >= 16 ? 8.5 : 5;
+          const phase = ((now / 1000) * 0.55) % 1;
+          map.setPaintProperty("gdr-route-remaining-line", "line-dasharray", [0.08, 0.14]);
+          map.setPaintProperty("gdr-route-remaining-line", "line-dashoffset", phase * (width * 1.0));
+        }
+      } catch {}
+      if (!cancelled) shimmerRef.current = requestAnimationFrame(step);
+    };
+    shimmerRef.current = requestAnimationFrame(step);
+    return () => {
+      cancelled = true;
+      if (shimmerRef.current != null) cancelAnimationFrame(shimmerRef.current);
+      shimmerRef.current = null;
+    };
+  }, [ready, styleGeneration]);
 
   /* ── Turn-by-turn navigation badges ──
      Numbered discs at each maneuver, sitting above the route line but below

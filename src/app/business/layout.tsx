@@ -22,6 +22,14 @@ const MOBILE_NAV = [
   { href: "/account", label: "Profile", icon: User },
 ];
 
+/* The mobile bar is split the same way the customer and rider bars are: the
+   three things a business does all day (watch orders, take bookings, watch
+   its riders) share ONE black slab, and the rest stand alone as raised
+   buttons. Seven equal tabs on one strip was unreadable on a 360px phone —
+   every label was truncated and none of them had any visual weight. */
+const MOBILE_SLAB = MOBILE_NAV.slice(0, 3);
+const MOBILE_FLOAT = MOBILE_NAV.slice(3);
+
 const DESKTOP_NAV = [
   ...MOBILE_NAV,
   { href: "/business/earnings", label: "Earnings", icon: TrendingUp },
@@ -70,28 +78,68 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
       {/* Content */}
       <div className="md:pl-56">{children}</div>
 
-      {/* Mobile bottom tab bar — always visible */}
-      <nav className="fixed bottom-0 inset-x-0 z-30 border-t border-primary/20 bg-bg/95 backdrop-blur-xl md:hidden safe-area-bottom">
-        <div className="mx-auto flex max-w-lg items-center justify-around py-1.5 px-2">
-          {MOBILE_NAV.map((item) => {
-            const Icon = item.icon;
-            const active = pathname === item.href || (item.href !== "/business" && pathname.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`relative flex flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 transition-all ${
-                  active ? "text-primary" : "text-muted hover:text-fg"
-                }`}
-              >
-                {active && (
-                  <span className="absolute -top-1 left-1/2 -translate-x-1/2 h-1 w-5 rounded-full bg-primary" />
-                )}
-                <Icon className="h-5 w-5" />
-                <span className="text-[10px] font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
+      {/* Mobile bottom tab bar — always visible.
+          Three tabs on one black slab, the rest as raised standalone buttons.
+          The bar floats above the content instead of being a full-bleed strip
+          with a hairline border, so it reads as an object sitting on the page
+          rather than a seam across it. */}
+      <nav
+        aria-label="Business sections"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:hidden"
+      >
+        <div className="mx-auto flex w-full max-w-lg items-end justify-between gap-2">
+          <div className="nav3d pointer-events-auto flex items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
+            {MOBILE_SLAB.map((item) => {
+              const Icon = item.icon;
+              const active = pathname === item.href || (item.href !== "/business" && pathname.startsWith(item.href));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  aria-label={item.label}
+                  className="group relative flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-[20px] active:scale-95"
+                >
+                  <div
+                    className={`nav3d-item flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-[17px] px-2.5 py-1.5 ${
+                      active ? "nav3d-item-active" : "group-hover:bg-white/5"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className={`max-w-full truncate text-[10px] font-medium leading-none ${active ? "font-bold" : "text-white/70"}`}>
+                      {item.label}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+            {MOBILE_FLOAT.map((item) => {
+              const Icon = item.icon;
+              const active = pathname === item.href || (item.href !== "/business" && pathname.startsWith(item.href));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  aria-label={item.label}
+                  title={item.label}
+                  className="group relative flex min-h-11 min-w-11 items-center justify-center"
+                >
+                  <div
+                    className={`nav3d-float flex h-11 w-11 items-center justify-center rounded-full ${
+                      active ? "nav3d-float-active" : ""
+                    }`}
+                  >
+                    <Icon className="h-[18px] w-[18px]" />
+                    {active && <span className="nav3d-pip" />}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </nav>
     </div>
