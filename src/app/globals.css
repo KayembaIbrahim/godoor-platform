@@ -1851,7 +1851,7 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
      equally forgettable — the eye had nothing to land on. */
   .nav3d {
     position: relative;
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 0.125rem;
     padding: 0.3rem;

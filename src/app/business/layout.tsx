@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
-  LayoutDashboard, Package, ShoppingBag, Settings,
+  LayoutDashboard, Package,
   Map as MapIcon, BadgeCheck, User, DollarSign, TrendingUp, CalendarCheck
 } from "lucide-react";
 import { useSession, roleHomePath } from "@/lib/session-store";
@@ -17,8 +17,6 @@ const MOBILE_NAV = [
      the mobile bar too — it used to live only in the desktop sidebar, which
      meant a business on a phone had no way to watch its riders at all. */
   { href: "/tracking", label: "Live Map", icon: MapIcon },
-  { href: "/business/products", label: "Products", icon: ShoppingBag },
-  { href: "/business/store", label: "Store", icon: Settings },
   { href: "/account", label: "Profile", icon: User },
 ];
 
@@ -26,7 +24,19 @@ const MOBILE_NAV = [
    three things a business does all day (watch orders, take bookings, watch
    its riders) share ONE black slab, and the rest stand alone as raised
    buttons. Seven equal tabs on one strip was unreadable on a 360px phone —
-   every label was truncated and none of them had any visual weight. */
+   every label was truncated and none of them had any visual weight.
+
+   WHY ONLY TWO FLOATING BUTTONS
+   ----------------------------
+   Every floating button is 44px plus an 8px gap, and those pixels come
+   straight out of the slab. Three of them left "Bookings" 10px wider than
+   the slot it had to fit in, so it overlapped its neighbour on a 360px phone.
+
+   "Store" and "Products" were the two that had to go. Both are still one tap
+   away — the dashboard has a tile for each, and the header menu lists them —
+   but neither is something a business opens every few minutes, while orders
+   and bookings are. What is left is the pair a business genuinely reaches
+   for: the live map (their riders, right now) and their own profile. */
 const MOBILE_SLAB = MOBILE_NAV.slice(0, 3);
 const MOBILE_FLOAT = MOBILE_NAV.slice(3);
 
@@ -88,7 +98,10 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
         className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:hidden"
       >
         <div className="mx-auto flex w-full max-w-lg items-end justify-between gap-2">
-          <div className="nav3d pointer-events-auto flex items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
+          {/* flex-1 so the slab GROWS to fill the row instead of sizing itself
+              to its content. The old content-sized slab gave each of the
+              three tabs ~30 px, which is why "Bookings" was always clipped. */}
+          <div className="nav3d pointer-events-auto flex flex-1 min-w-0 items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
             {MOBILE_SLAB.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || (item.href !== "/business" && pathname.startsWith(item.href));
@@ -101,12 +114,18 @@ export default function BusinessLayout({ children }: { children: React.ReactNode
                   className="group relative flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-[20px] active:scale-95"
                 >
                   <div
-                    className={`nav3d-item flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-[17px] px-2.5 py-1.5 ${
+                    className={`nav3d-item flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-[17px] px-1 py-1.5 ${
                       active ? "nav3d-item-active" : "group-hover:bg-white/5"
                     }`}
                   >
                     <Icon className="h-5 w-5" />
-                    <span className={`max-w-full truncate text-[10px] font-medium leading-none ${active ? "font-bold" : "text-white/70"}`}>
+                    {/* Never truncated — a clipped word reads as a broken
+                        screen. The slab now fills the row, so the full label
+                        always has room. 10px is the floor: it is the smallest
+                        that stays legible on a phone, and it is what lets
+                        "Bookings" — the longest label in the app — fit its
+                        slot on a 320px screen. */}
+                    <span className={`whitespace-nowrap text-[10px] font-semibold leading-tight sm:text-[11px] ${active ? "font-bold" : "text-white/70"}`}>
                       {item.label}
                     </span>
                   </div>

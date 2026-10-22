@@ -54,8 +54,13 @@ export function RiderNav() {
       className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))]"
     >
       <div className="mx-auto flex w-full max-w-lg items-end justify-between gap-2">
-        {/* ── The slab: three shift-critical tabs on one surface ────────── */}
-        <div className="nav3d pointer-events-auto flex items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
+        {/* ── The slab: three shift-critical tabs on one surface ──────────
+            flex-1 so the slab GROWS to fill the space left by the two floating
+            buttons — the old inline-flex slab sized itself to its content and
+            every tab shrank to ~33 px, which is what truncated "Earnings" on
+            a 320 px phone. The slab is also min-w-0 so it can shrink on the
+            narrowest device instead of pushing the floats off the screen. */}
+        <div className="nav3d pointer-events-auto flex flex-1 min-w-0 items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
           {slabTabs.map((t) => {
             const Icon = t.icon;
             const isActive = isTabActive(pathname, t.href);
@@ -69,7 +74,7 @@ export function RiderNav() {
               >
                 <div
                   className={cn(
-                    "nav3d-item flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-[17px] px-2.5 py-1.5",
+                    "nav3d-item flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-[17px] px-1 py-1.5",
                     isActive ? "nav3d-item-active" : "group-hover:bg-white/5"
                   )}
                 >
@@ -83,7 +88,15 @@ export function RiderNav() {
                   </span>
                   <span
                     className={cn(
-                      "max-w-full truncate text-[10px] font-medium leading-none",
+                      // Never truncated — a cut-off word reads as a broken
+                      // screen. The slab grows to fill the row, so there is
+                      // always room for the full label.
+                      //
+                      // 10px is the floor because "Earnings" is the longest
+                      // label in the app and it has to fit a 320px phone: at
+                      // 11px it cleared its slot by only 0.3px, which is one
+                      // rounding difference from overlapping its neighbour.
+                      "whitespace-nowrap text-[10px] font-semibold leading-tight sm:text-[11px] lg:text-xs",
                       isActive ? "font-bold" : "text-white/70"
                     )}
                   >

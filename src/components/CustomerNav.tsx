@@ -64,8 +64,14 @@ export function CustomerNav() {
           The bottom padding collapses to 0 on a home-indicator device,
           because the indicator itself provides that space. */}
       <div className="mx-auto flex w-full max-w-md items-end justify-between gap-2 px-4 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
-        {/* ── The slab: three journey tabs on one black surface ─────────── */}
-        <div className="nav3d pointer-events-auto flex items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
+        {/* ── The slab: three journey tabs on one black surface ───────────
+            flex-1 so the slab GROWS to fill the space left by the two floating
+            buttons — the old inline-flex slab sized itself to its content and
+            every tab shrank to ~33 px, which is what truncated "Browse" and
+            "Earnings" on a 320 px phone. The slab is also min-w-0 so it can
+            shrink on the narrowest device instead of pushing the floats off
+            the screen. */}
+        <div className="nav3d pointer-events-auto flex flex-1 min-w-0 items-center gap-0.5 rounded-[26px] px-1.5 py-1.5">
           {slabTabs.map((t) => {
             const Icon = t.icon;
             const isActive = isTabActive(pathname, t.href);
@@ -81,7 +87,7 @@ export function CustomerNav() {
               >
                 <div
                   className={cn(
-                    "nav3d-item flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-[17px] px-2.5 py-1.5",
+                    "nav3d-item flex min-h-10 w-full flex-col items-center justify-center gap-0.5 rounded-[17px] px-1 py-1.5",
                     isActive ? "nav3d-item-active" : "group-hover:bg-white/5"
                   )}
                 >
@@ -109,10 +115,15 @@ export function CustomerNav() {
                   </span>
                   <span
                     className={cn(
-                      // `truncate` rather than nothing: without it the label
-                      // overflows its cell on a 320px phone and collides with
-                      // the neighbouring tab's label.
-                      "max-w-full truncate text-[10px] font-medium leading-none tracking-tight",
+                      // The label is NEVER truncated. A cut-off word reads as a
+                      // broken screen, and the slab now grows to fill the row
+                      // so there is always room for it. `whitespace-nowrap`
+                      // keeps a two-word label on one line.
+                      //
+                      // 10px is the floor because "Browse" has to fit a 320px
+                      // phone alongside two floating buttons; it clears its
+                      // slot by 7px at 11px, and 10px buys back more.
+                      "whitespace-nowrap text-[10px] font-semibold leading-tight tracking-normal sm:text-[11px] lg:text-xs",
                       isActive ? "font-bold" : "text-white/70"
                     )}
                   >
