@@ -17,6 +17,7 @@
  */
 
 import { matchCategory, categoryMatches, type CategoryInfo } from "@/lib/categories";
+import { RAIL_LABELS } from "@/lib/service-tiles";
 
 export type ServiceSlug = "food" | "mart" | "pharma";
 
@@ -138,7 +139,12 @@ export function browseMeta(
   const direct = serviceMeta(slug);
   if (direct) return direct;
   if (!canonical) return null;
-  const label = RAIL_LABEL_FALLBACK[canonical] ?? canonical;
+  /* `RAIL_LABELS` is the live, complete map — it is the one the category
+     directory renders, so the browse page and the directory cannot disagree
+     about a category's short name. The local fallback below is a stale copy
+     of an older taxonomy and is only consulted for ids the live map does not
+     know. */
+  const label = RAIL_LABELS[canonical] ?? RAIL_LABEL_FALLBACK[canonical] ?? canonical;
   return {
     title: label,
     // Honest rather than invented: we know the category, not the businesses in
@@ -169,6 +175,7 @@ const RAIL_LABEL_FALLBACK: Record<string, string> = {
   "Laundry & Cleaning": "Laundry",
   "Repairs & Services": "Repairs",
   "Gifts & Flowers": "Gifts",
+  "House Helpers": "Helpers",
 };
 
 /**

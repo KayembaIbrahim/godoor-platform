@@ -113,6 +113,11 @@ export const CORE_RAIL_CATEGORIES: readonly string[] = [
   "Car & Auto Parts",
   "Baby & Kids",
   "Sports & Fitness",
+  /* Trusted people sent to the door. It sits high because unlike the other
+     verticals it is a service people come back for every week, and it is the
+     one category a customer looks for when they need someone to clean, cook,
+     garden or mind a child. */
+  "House Helpers",
 ];
 
 /**
@@ -153,4 +158,5 @@ export const RAIL_LABELS: Readonly<Record<string, string>> = {
   "Transport & Vehicle Hire": "Transport",
   "Events & Hire Services": "Events",
   "Computers & Accessories": "Computers",
+  "House Helpers": "Helpers",
 };

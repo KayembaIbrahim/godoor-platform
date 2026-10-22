@@ -14,6 +14,7 @@
     "deploy:vinext": "vinext deploy --config dist/server/wrangler.json",
     "qa:places": "esbuild tools/qa/uganda-places.test.ts --bundle --platform=node --format=esm --outfile=.tmp/qa/uganda-places.test.mjs --alias:@=./src --log-level=warning && node .tmp/qa/uganda-places.test.mjs",
     "qa:orderpricing": "esbuild tools/qa/order-pricing.test.ts --bundle --platform=node --format=esm --outfile=.tmp/qa/order-pricing.test.mjs --alias:@=./src --log-level=warning && node .tmp/qa/order-pricing.test.mjs",
+    "qa:categories": "esbuild tools/qa/category-completeness.test.ts --bundle --platform=node --format=esm --outfile=.tmp/qa/category-completeness.test.mjs --alias:@=./src --log-level=warning && node .tmp/qa/category-completeness.test.mjs",
     "qa:live": "node tools/qa/final-check.mjs"
   },
   "dependencies": {

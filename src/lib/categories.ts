@@ -5,7 +5,7 @@ import {
   Building2, Beef, Coffee, Pizza, Apple, HeartPulse, Droplets, Bike,
   HandPlatter, Flame, CookingPot, Nut, Cookie, ShoppingBag, Truck,
   Armchair, BedDouble, Lamp, Sofa, Table, WashingMachine, Refrigerator,
-  Headphones, Laptop, Monitor, CarFront, Bus, Landmark
+  Headphones, Laptop, Monitor, CarFront, Bus, Landmark, BrushCleaning
 } from "lucide-react";
 
 export type CategoryInfo = {
@@ -429,6 +429,26 @@ export const CATEGORIES: CategoryInfo[] = [
       { name: "Event Planner (day)", price: 150000 },
       { name: "MC Services", price: 100000 },
       { name: "Catering (per head)", price: 20000 },
+    ],
+  },
+  {
+    id: "House Helpers",
+    label: "House Helpers",
+    icon: BrushCleaning,
+    color: { bg: "bg-teal-500/10", text: "text-teal-600" },
+    products: [
+      { name: "House Cleaner (per visit)", price: 25000 },
+      { name: "House Cleaner (half day)", price: 45000 },
+      { name: "Deep Cleaning (full day)", price: 90000 },
+      { name: "Kitchen Deep Clean", price: 35000 },
+      { name: "Bathroom Deep Clean", price: 25000 },
+      { name: "Window Cleaning (per floor)", price: 15000 },
+      { name: "Laundry & Ironing (per load)", price: 15000 },
+      { name: "Cook / House Chef (per day)", price: 60000 },
+      { name: "Gardener (per visit)", price: 30000 },
+      { name: "Handyman / Repair (per hour)", price: 20000 },
+      { name: "Elderly Care (per day)", price: 50000 },
+      { name: "Child Minder (per hour)", price: 15000 },
     ],
   },
   {
