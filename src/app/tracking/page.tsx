@@ -11,7 +11,7 @@ import {
 import { LiveTrackingMap } from "@/components/LiveTrackingMap";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { subscribeToOrder, subscribeToRiderLocation, fetchRiderLocation, fetchProviderLocation, subscribeToProviderLocation, fetchOrderById, fetchOrders, type DBOrder } from "@/lib/db";
+import { subscribeToOrder, subscribeToRiderLocation, fetchRiderLocation, fetchRiderVehicles, fetchProviderLocation, subscribeToProviderLocation, fetchOrderById, fetchOrders, type DBOrder } from "@/lib/db";
 import { useSession } from "@/lib/session-store";
 import { formatUgx } from "@/lib/utils";
 import { useGeolocation, distanceKm, formatDistance, type LatLng } from "@/lib/location";
@@ -731,6 +731,7 @@ function OrderTracker({ order }: { order: DBOrder }) {
                     : "Waiting for rider..."}
                   merchantName={order.merchant_name}
                   customerName={dropoffIsLiveGps ? "You (live GPS)" : order.customer_name || "Customer"}
+                  riderVehicleType={riderVehicle}
                 />
               ) : (
                 <div className="h-full md:overflow-hidden md:rounded-2xl">
@@ -935,6 +936,10 @@ function RoleOverview() {
      wrong place" looks like from the outside. One realtime subscription per
      active rider keeps the puck on the road. */
   const [riderPos, setRiderPos] = useState<Record<string, { lat: number; lng: number; heading?: number | null; accuracy?: number | null }>>({});
+  /* Vehicle per rider, so each puck on the overview map is drawn as the
+     machine that rider is actually on — a motorbike for one, a car for the
+     next — instead of every rider wearing the same generic puck. */
+  const [riderVehicles, setRiderVehicles] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -1027,6 +1032,13 @@ function RoleOverview() {
       }
     }, 10000);
 
+    /* Pull each rider's vehicle so every puck on the overview map carries its
+      own silhouette instead of everyone wearing the same generic puck. */
+    fetchRiderVehicles(riderIds).then((v) => {
+      if (cancelled) return;
+      setRiderVehicles(v);
+    }).catch(() => {});
+
     return () => {
       cancelled = true;
       window.clearInterval(poll);
@@ -1076,14 +1088,19 @@ function RoleOverview() {
      whose drop-off pin is on screen. Falls back to any active rider so the
      map is never missing the one marker the customer is watching for. */
   const overviewRider = useMemo(() => {
-    const forOrder = orderWithLoc?.rider_id ? riderPos[orderWithLoc.rider_id] : undefined;
-    if (forOrder) return { loc: forOrder };
-    for (const o of active) {
-      const p = o.rider_id ? riderPos[o.rider_id] : undefined;
-      if (p) return { loc: p };
+    /* Prefer the rider on the order whose drop-off pin is on screen, then
+       fall back to the first active rider that has a live fix. */
+    const candidates = [
+      orderWithLoc?.rider_id,
+      ...active.map((o) => o.rider_id),
+    ].filter((id): id is string => !!id);
+
+    for (const id of candidates) {
+      const p = riderPos[id];
+      if (p) return { loc: p, vehicleType: riderVehicles[id] ?? null };
     }
     return null;
-  }, [orderWithLoc?.rider_id, active, riderPos]);
+  }, [orderWithLoc?.rider_id, active, riderPos, riderVehicles]);
 
   if (loading) {
     return (
@@ -1112,6 +1129,7 @@ function RoleOverview() {
             riderLoc={overviewRider?.loc ?? null}
             riderHeading={overviewRider?.loc.heading ?? null}
             riderAccuracy={overviewRider?.loc.accuracy ?? null}
+            riderVehicleType={overviewRider?.vehicleType ?? null}
             dropoffLoc={dropLoc}
             pickupLoc={shop}
             showPickup={!!shop}

@@ -106,6 +106,12 @@ type Props = {
       to the horizon, which is what makes the navigation view feel open rather
       than cramped. */
   navigationPitch?: number;
+  /**
+   * The rider's vehicle, as stored on the `riders` table. It selects which
+   * silhouette is drawn on the map, so a customer can see at a glance whether
+   * the person coming to them is on a motorbike or in a car.
+   */
+  riderVehicleType?: string | null;
 };
 
 export function LiveTrackingMap({
@@ -116,6 +122,7 @@ export function LiveTrackingMap({
   showNavigation = true,
   quotedFeeUgx = null, trafficAware = false, congestion = null,
   navigationBearing = null, navigationZoom = 16.5, navigationPitch = 45,
+  riderVehicleType = null,
 }: Props) {
   const UG_DEFAULT: LatLng = { lat: 0.3163, lng: 32.5822 };
   const hasCoords = (p: LatLng | null | undefined) => !!p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9);
@@ -240,13 +247,13 @@ export function LiveTrackingMap({
     }
 
     if (hasCoords(riderLoc)) {
-      m.push({ id: "rider-live", position: riderLoc as LatLng, isRider: true, label: "Rider", heading: riderHeading || null, accuracy: riderAccuracy ?? null });
+      m.push({ id: "rider-live", position: riderLoc as LatLng, isRider: true, label: "Rider", heading: riderHeading || null, accuracy: riderAccuracy ?? null, vehicleType: riderVehicleType ?? null });
     } else if (hasCoords(providerLoc)) {
-      m.push({ id: "provider-live", position: providerLoc as LatLng, isRider: true, label: providerName || "Provider", heading: null });
+      m.push({ id: "provider-live", position: providerLoc as LatLng, isRider: true, label: providerName || "Provider", heading: null, vehicleType: riderVehicleType ?? null });
     }
 
     return m;
-  }, [showPickup, validPickup, validDropoff, riderLoc, riderHeading, riderAccuracy, providerLoc, providerName, merchantName, customerName, userLocation]);
+  }, [showPickup, validPickup, validDropoff, riderLoc, riderHeading, riderAccuracy, providerLoc, providerName, merchantName, customerName, userLocation, riderVehicleType]);
 
   const kmAway = dist != null && (dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)} km`);
 

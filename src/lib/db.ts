@@ -872,6 +872,38 @@ export async function fetchRiderLocation(riderId: string): Promise<{ lat: number
   return null;
 }
 
+/**
+ * Vehicle type per rider id, for the map markers.
+ *
+ * The marker needs the vehicle to draw the right silhouette (motorbike, car,
+ * bicycle…). Fetching every rider to read one column is wasteful when a
+ * dashboard only shows the handful of riders on its live orders, so this takes
+ * the ids it actually cares about.
+ *
+ * Returns `{}` rather than throwing when Supabase is unavailable: a missing
+ * vehicle must never stop the map from drawing its markers.
+ */
+export async function fetchRiderVehicles(riderIds: string[]): Promise<Record<string, string>> {
+  const ids = [...new Set(riderIds.filter(Boolean))];
+  if (!ids.length) return {};
+  const out: Record<string, string> = {};
+  // Local cache first — the app is usable offline, and riders loaded locally
+  // already know their vehicle.
+  for (const r of loadLocal().riders) {
+    if (ids.includes(r.id)) out[r.id] = r.vehicle_type || "motorbike";
+  }
+  try {
+    const sb = getSupabase();
+    if (sb) {
+      const { data } = await sb.from("riders").select("id, vehicle_type").in("id", ids);
+      for (const r of data || []) {
+        if (r?.id) out[r.id] = r.vehicle_type || "motorbike";
+      }
+    }
+  } catch {}
+  return out;
+}
+
 // ── Realtime subscriptions ──────────────────────────────────
 
 // One realtime channel per topic, shared by every subscriber. Subscribing to a

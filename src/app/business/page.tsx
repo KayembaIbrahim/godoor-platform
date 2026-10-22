@@ -19,7 +19,7 @@ const StoryComposer = dynamic(
   () => import("@/components/StoriesViewer").then((m) => ({ default: m.StoryComposer })),
   { ssr: false, loading: () => <div className="h-10 rounded-2xl bg-surface animate-pulse" /> }
 );
-import { fetchRiderLocation, subscribeToRiderLocation } from "@/lib/db";
+import { fetchRiderLocation, subscribeToRiderLocation, fetchRiderVehicles } from "@/lib/db";
 import { useGeolocation, type LatLng } from "@/lib/location";
 
 
@@ -81,6 +81,9 @@ function BusinessDashboardInner() {
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [verified, setVerified] = useState<"none" | "pending" | "approved" | "rejected">("none");
   const [liveRiderLocs, setLiveRiderLocs] = useState<Record<string, LatLng & { heading?: number | null }>>({});
+  /* Vehicle per rider, so the merchant can tell at a glance which of their
+     riders is on a motorbike and which is in a car. */
+  const [riderVehicles, setRiderVehicles] = useState<Record<string, string>>({});
   const [followerCount, setFollowerCount] = useState(0);
   const [merchantRecord, setMerchantRecord] = useState<{name: string; momo_number: string; district: string; area: string; lat: number; lng: number; live_location_enabled: boolean} | null>(null);
   const [liveSharing, setLiveSharing] = useState(false);
@@ -272,7 +275,11 @@ function BusinessDashboardInner() {
       }
     };
     const pollId = activeRiderIds.length > 0 ? setInterval(poll, 6000) : null;
-
+    /* Vehicle per rider, so each pin draws the silhouette that matches the
+       bike actually on the road (motorbike vs car vs bicycle). */
+    fetchRiderVehicles(activeRiderIds).then((v) => {
+      if (Object.keys(v).length) setRiderVehicles(v);
+    });
     return () => {
       subs.forEach((unsub) => unsub());
       if (pollId) clearInterval(pollId);
@@ -605,6 +612,7 @@ function BusinessDashboardInner() {
                     label: "Rider",
                     isRider: true,
                     heading: (loc as { heading?: number | null }).heading ?? null,
+                    vehicleType: riderVehicles[riderId],
                   })),
                   /* Own moving marker — only while live sharing is switched on.
                      It is suppressed when it would sit on top of the "You" dot:

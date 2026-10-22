@@ -27,6 +27,8 @@ type Props = {
   dropoff: LatLng | null;
   riderLoc?: LatLng | null;
   riderHeading?: number | null;
+  /** The rider's vehicle, so the map draws their actual machine. */
+  riderVehicleType?: string | null;
   pickupLabel?: string;
   dropoffLabel?: string;
   showRouteInfo?: boolean;
@@ -44,6 +46,7 @@ export function RoadRouteMap({
   dropoff,
   riderLoc = null,
   riderHeading = null,
+  riderVehicleType = null,
   pickupLabel = "Pickup",
   dropoffLabel = "Delivery",
   showRouteInfo = true,
@@ -59,7 +62,7 @@ export function RoadRouteMap({
   const markers = [
     ...(pickup ? [{ id: "pickup", position: pickup, isPickup: true, label: pickupLabel }] : []),
     ...(dropoff ? [{ id: "dropoff", position: dropoff, isDestination: true, label: dropoffLabel }] : []),
-    ...(riderLoc ? [{ id: "rider-live", position: riderLoc, isRider: true, label: "Rider", heading: riderHeading }] : []),
+    ...(riderLoc ? [{ id: "rider-live", position: riderLoc, isRider: true, label: "Rider", heading: riderHeading, vehicleType: riderVehicleType }] : []),
   ];
   const fit = [pickup, dropoff, riderLoc].filter(Boolean) as LatLng[];
   const center = fit.length

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import type { LatLng } from "@/lib/location";
 import { useThemeStore } from "@/lib/theme-store";
 import { maneuverGlyph } from "@/lib/routing";
+import { vehicleSvg } from "@/components/maps/vehicle-marks";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -87,6 +88,12 @@ export type MarkerData = {
   heading?: number | null;
   /** Reported GPS fix radius in metres. Only the rider marker draws a halo. */
   accuracy?: number | null;
+  /**
+   * The rider's vehicle, as stored on the `riders` table. It selects the
+   * silhouette drawn on the map, so a customer can tell a motorbike from a
+   * car at a glance instead of guessing from a generic puck.
+   */
+  vehicleType?: string | null;
 };
 
 /** A turn-by-turn instruction pinned to a point on the route. */
@@ -274,7 +281,7 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
      transform, so the pin lands exactly on its coordinate and stays there. */
 
   if (isRider) {
-    const size = 44;
+    const size = 48;
 
     /* The element is inert: no position, no transform, no animation. */
     el.style.cssText = `
@@ -306,11 +313,18 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
     `;
     hover.appendChild(bounce);
 
-    /* The rider is a puck, not a pin. It is the one thing on this map a
-       customer acts on, so it gets the treatment an app like Uber's driver
-       puck gets: a solid disc that rotates to the bearing and carries a
-       directional nose, so "which way are they going" is answerable at a
-       glance. A teardrop pin for the rider made heading ambiguous. */
+    /* THE RIDER IS A VEHICLE, NOT A PUCK.
+       The old marker was a rectangle on two circles with a triangle on top,
+       which read at map scale as a shopping trolley. A customer watching a
+       delivery could not tell a motorbike from a car, and the shape matched
+       nothing they had seen in Uber, SafeBoda or Glovo.
+
+       So the marker now draws the rider's ACTUAL vehicle — a shaded,
+       top-down silhouette with a grounded contact shadow — and rotates it to
+       the bearing, which is the only projection that can be turned by a
+       heading without looking wrong. The vehicle comes from the rider's own
+       `vehicle_type`, so a car rider is drawn as a car and a motorbike rider
+       as a motorbike, everywhere the map is shown. */
     const pulse = document.createElement("div");
     pulse.style.cssText = `
       position: absolute;
@@ -323,7 +337,7 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
     `;
     bounce.appendChild(pulse);
 
-    /* Rotating body: holds the nose so the arrow always points down-road. */
+    /* Rotating body: holds the vehicle so it always points down-road. */
     const rot = document.createElement("div");
     rot.style.cssText = `
       position: absolute;
@@ -331,12 +345,19 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
       transform: ${m.heading != null && Number.isFinite(m.heading) ? `rotate(${m.heading}deg)` : "rotate(0deg)"};
       transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
     `;
-    rot.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 44 44" fill="none" style="display:block;filter:drop-shadow(0 3px 5px rgba(0,0,0,0.4))">
-      <circle cx="22" cy="22" r="13" fill="#EA580C" stroke="#ffffff" stroke-width="3"/>
-      <path d="M22 12.5 L26.4 20.2 L22 18.4 L17.6 20.2 Z" fill="#ffffff"/>
-    </svg>`;
+    rot.innerHTML = vehicleSvg({
+      type: m.vehicleType,
+      size,
+      from: "#FDBA74",
+      to: "#EA580C",
+      uid: nextPinId(),
+    });
     bounce.appendChild(rot);
     (el as any).__gdrArrow = rot;
+    /* The rotating body fills its parent with `inset: 0`, so it is already
+       centred on the coordinate. That means it must be rotated ALONE —
+       adding the `translateX(-50%)` that the off-centre chevron needs would
+       slide the vehicle 24 px to the left of the rider's true GPS point. */
     (el as any).__gdrIsPuck = true;
 
     /* Name/ETA chip below the puck. Placed under the disc rather than over it
@@ -1316,7 +1337,11 @@ function MapboxMapInner({
   }, []);
 
   const markerKey = useMemo(
-    () => markers.map((m) => `${m.id}:${m.position?.lat?.toFixed(5) ?? "x"}:${m.position?.lng?.toFixed(5) ?? "x"}:${m.isRider}:${m.isPickup}:${m.isDestination}:${m.heading ?? "h"}:${m.accuracy ?? "a"}`).join("|"),
+    /* `vehicleType` is part of the key because the vehicle decides which
+       silhouette is drawn. Without it, a rider whose vehicle_type was
+       corrected mid-trip would keep the old silhouette until the next
+       unrelated change re-created the marker. */
+    () => markers.map((m) => `${m.id}:${m.position?.lat?.toFixed(5) ?? "x"}:${m.position?.lng?.toFixed(5) ?? "x"}:${m.isRider}:${m.isPickup}:${m.isDestination}:${m.heading ?? "h"}:${m.accuracy ?? "a"}:${m.vehicleType ?? "v"}`).join("|"),
     [markers]
   );
 
