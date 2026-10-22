@@ -173,15 +173,16 @@ export function SignInForm({ mode: initialMode = "login", next }: { mode?: SignI
             </div>
             {isLogin && (
               /*
-                GoDoor has no outbound mail provider, so there is no
-                "email me a reset link" flow to send people to. What there IS
-                is a support desk that issues a one-time code and a link — so
-                this entry point explains that, and points at the page that
-                redeems it, rather than dead-ending the user.
+                GoDoor has no outbound mail provider configured, so the server
+                cannot automatically send an email reset link right now — the
+                request route calls Supabase's generateLink which will send via
+                its SMTP when it is configured. For now this entry point points
+                at the self-service email-reset flow, which asks for an email
+                and issues a one-time reset code + link via the support desk.
               */
               <div className="mt-1.5 text-right">
                 <Link
-                  href="/reset-password"
+                  href="/forgot-password"
                   className="inline-flex items-center gap-1 text-[11px] text-dim underline decoration-dim/50 underline-offset-2 transition hover:text-go hover:decoration-go/60"
                 >
                   <KeyRound className="h-3 w-3" /> Forgot your password?
