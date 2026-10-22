@@ -186,13 +186,17 @@ check("the rail scrolls natively", scrollable.after > scrollable.before,
 check("the rail keeps a horizontal overflow", scrollable.overflowX.includes("auto") || scrollable.overflowX.includes("scroll"),
   `overflow-x: ${scrollable.overflowX}`);
 
-/* And it scrolls back to the start, so a swiped rail is not a stuck rail. */
+/* And it scrolls back to the start, so a swiped rail is not a stuck rail.
+   The rail carries px-4 padding and snap-start items, so the browser's first
+   snap point is one padding step in (16px), not a hard zero. Anything near the
+   left edge counts as "back at the start". */
 const returned = await rail.evaluate((el) => {
   el.scrollLeft = el.scrollWidth;
   el.scrollLeft = 0;
   return el.scrollLeft;
 });
-check("the rail returns to the start", returned === 0, `scrollLeft ${returned}`);
+const leftPad = await rail.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft) || 0);
+check("the rail returns to the start", returned <= leftPad + 1, `scrollLeft ${returned} (pad ${leftPad})`);
 
 await browser.close();
 if (server) server.kill("SIGTERM");
