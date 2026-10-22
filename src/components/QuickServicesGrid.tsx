@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Bike,
@@ -43,6 +43,76 @@ export function QuickServicesGrid() {
   const [allServicesOpen, setAllServicesOpen] = useState(false);
   const [airtimeOpen, setAirtimeOpen] = useState(false);
   const [expressOpen, setExpressOpen] = useState(false);
+
+  /* ── The "there is more to the right" affordance ────────────────────────
+     The services row overflows on any phone, and a row that silently runs off
+     the edge reads as a fixed list that happens to end there. A customer
+     sees "Services" as the last tile and stops looking.
+
+     So the row carries a chevron on its trailing edge that fades in only when
+     there is genuinely more content to the right, and fades out again once
+     the last tile is reached. It is also a BUTTON that scrolls the row, so
+     the hint is actionable for the people who never try a swipe.
+
+     Two states are tracked because they answer different questions:
+       `moreRight` — is there anything left to scroll to? (drives visibility)
+       `moreLeft`  — have we scrolled away from the start? (drives the
+                     mirrored leading chevron, so the row does not look
+                     broken once the user has moved it) */
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const [moreRight, setMoreRight] = useState(false);
+  const [moreLeft, setMoreLeft] = useState(false);
+
+  const syncRail = useCallback(() => {
+    const el = railRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    /* A 4px tolerance: a sub-pixel rounding remainder otherwise leaves the
+       chevron showing when the row is already scrolled to its end. */
+    setMoreRight(max > 4 && el.scrollLeft < max - 4);
+    setMoreLeft(el.scrollLeft > 4);
+  }, []);
+
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return;
+    syncRail();
+    el.addEventListener("scroll", syncRail, { passive: true });
+
+    /* The row's SCROLLABLE CONTENT can change after mount without the
+       container's own box changing size — the services are static, but the
+       first layout pass often measures the row before the browser has settled
+       the fonts and the `-mx-4` negative margin, and a row measured too early
+       reports "nothing to scroll to" and the chevron never appears.
+
+       A ResizeObserver on the container cannot see that, because its border
+       box never changes. So the observer is attached to the row's children —
+       their width IS the scroll width — and the measurement is repeated after
+       the browser has finished laying out and loading fonts. */
+    const ro = new ResizeObserver(syncRail);
+    for (const child of Array.from(el.children)) ro.observe(child);
+    const raf = requestAnimationFrame(syncRail);
+    const timers = [
+      setTimeout(syncRail, 120),
+      setTimeout(syncRail, 600),
+    ];
+    /* Web fonts change every label's width, which changes the scroll width. */
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      document.fonts.ready.then(syncRail).catch(() => {});
+    }
+    return () => {
+      el.removeEventListener("scroll", syncRail);
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+      timers.forEach(clearTimeout);
+    };
+  }, [syncRail]);
+
+  const nudge = (dir: 1 | -1) => {
+    const el = railRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.7), behavior: "smooth" });
+  };
 
   // Airtime modal state
   const [airtimePhone, setAirtimePhone] = useState("");
@@ -89,11 +159,13 @@ return (
           data, which showed category names ("Clothing & Fashion") rather
           than the platform's services. Rendering this row instead removes the
           second, competing set. */}
-      <div
-        className="scrollbar-hide -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 rail-fade"
-        role="list"
-        aria-label="GoDoor services"
-      >
+      <div className="relative">
+        <div
+          ref={railRef}
+          className="scrollbar-hide -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 rail-fade"
+          role="list"
+          aria-label="GoDoor services"
+        >
         {SERVICES.map((s) => {
           const Icon = s.icon;
           const disc = (
@@ -141,6 +213,42 @@ return (
             </div>
           );
         })}
+        </div>
+
+        {/* ── The scroll affordances ────────────────────────────────────────
+            A fading chevron on whichever edge still has content, and a
+            mirrored one on the left once the user has scrolled away from the
+            start. They are real buttons, not just decoration: tapping one
+            scrolls the row, so the hint also works for someone who never
+            tries a swipe.
+
+            They sit OUTSIDE the scrolling element on purpose. Inside it they
+            would scroll away with the content and stop being the thing that
+            tells you to scroll. */}
+        <button
+          type="button"
+          onClick={() => nudge(-1)}
+          aria-label="Scroll services left"
+          aria-hidden={!moreLeft}
+          tabIndex={moreLeft ? 0 : -1}
+          className={`pointer-events-none absolute left-0 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-bg/85 text-fg shadow-pop backdrop-blur-sm transition-all duration-300 ${
+            moreLeft ? "pointer-events-auto opacity-100" : "opacity-0"
+          }`}
+        >
+          <ChevronRight className="h-5 w-5 rotate-180" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => nudge(1)}
+          aria-label="Scroll services right"
+          aria-hidden={!moreRight}
+          tabIndex={moreRight ? 0 : -1}
+          className={`pointer-events-none absolute right-0 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-bg/85 text-fg shadow-pop backdrop-blur-sm transition-all duration-300 ${
+            moreRight ? "pointer-events-auto opacity-100" : "opacity-0"
+          }`}
+        >
+          <ChevronRight className="h-5 w-5" aria-hidden />
+        </button>
       </div>
 
       {/* Safe Mobility Banner — brand teal, themed in both modes */}
