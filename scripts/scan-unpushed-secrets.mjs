@@ -25,6 +25,12 @@ const PATTERNS = [
   ["mapbox-secret", /\bsk\.eyJ[A-Za-z0-9_\-]{20,}/g],
   ["supabase-jwt", /\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{20,}/g],
   ["pg-url", /\bpostgres(?:ql)?:\/\/[^\s"']*:[^\s"'@]+@[^\s"']+/g],
+  // Passwords and admin path secrets do not carry a vendor prefix, so a
+  // prefix-based scan alone misses them. These are matched on the shape they
+  // take in this repo's own scripts. `KayembaIbrahim` is a GitHub username
+  // and is deliberately not matched.
+  ["script-password", /\b[Kk]ayemba(?: [@b]?[A-Za-z0-9]{1,12}|@256)\b/g],
+  ["admin-path-secret", /\bgdr-[a-f0-9]{32}\b/g],
 ];
 
 const objects = execFileSync("git", ["rev-list", "--objects", range], {
