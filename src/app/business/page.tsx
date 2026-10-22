@@ -374,9 +374,10 @@ function BusinessDashboardInner() {
         setMyLiveLoc(loc);
         const now = Date.now();
         if (!streamingRef.current) return;
-        // Accuracy gate (>80m skipped unless first fix) + 10m / 15s cadence.
-        const acc = pos.coords.accuracy ?? 999;
-        if (lastSent && acc > 80) return;
+        // Always broadcast — even with poor GPS accuracy. The customer's map
+        // draws an accuracy halo so they see "provider is within ~X m" rather
+        // than a frozen/stale marker or no marker at all. We only skip if we
+        // haven't moved enough since the last broadcast to avoid spamming.
         if (lastSent) {
           const movedM = Math.hypot((loc.lat - lastSent.lat) * 111000, (loc.lng - lastSent.lng) * 111000 * Math.cos((loc.lat * Math.PI) / 180));
           if (movedM < 10 && now - streamingRef.current.lastSend < 15000) return;
