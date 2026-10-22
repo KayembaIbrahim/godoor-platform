@@ -51,7 +51,12 @@ async function ensureLoggedIn(page, goto) {
   await page.locator('input[type="email"]').pressSequentially("verifymap+test@example.com", { delay: 10 });
   await page.locator('input[type="password"]').click();
   await page.locator('input[type="password"]').pressSequentially("TestPass123", { delay: 10 });
-  await page.locator('div[role="dialog"] button:has-text("Sign in")').last().click();
+  /* The sign-in form is rendered INLINE by the header, not inside a modal, so
+     there is no `div[role="dialog"]` to scope the submit button to. Scoping to
+     a dialog that does not exist is why this section had been failing with a
+     30s click timeout — the button was there the whole time. */
+  const submit = page.locator('button:has-text("Sign in")').last();
+  await submit.click();
   await page.waitForTimeout(5000);
   return await signedIn();
 }
