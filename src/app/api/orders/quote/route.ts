@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { priceOrder } from "@/lib/order-pricing-server";
-import { isMerchantId } from "@/lib/api-auth";
+import { isMerchantId, isMalformedIdError } from "@/lib/api-auth";
 export const runtime = "nodejs";
 
 /**
@@ -43,8 +43,9 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const merchantId = typeof body.merchant_id === "string" ? body.merchant_id : "";
-  /* `merchants.id` is TEXT — the seeded stores are `mch_…` slugs, not uuids,
-     so this must not be `isUuid()`. See `isMerchantId`. */
+  /* Both id shapes are legitimate — the seeded `mch_…` slugs exist in the
+     development project, uuids everywhere else — so this must not be
+     `isUuid()`. See `isMerchantId` for the whole story. */
   if (!isMerchantId(merchantId)) {
     return NextResponse.json({ error: "A business is required to price delivery" }, { status: 400 });
   }
@@ -54,7 +55,15 @@ export async function POST(req: NextRequest) {
     .select("id, name, status, delivery_fee_ugx, lat, lng")
     .eq("id", merchantId)
     .maybeSingle();
-  if (merErr) return NextResponse.json({ error: merErr.message }, { status: 500 });
+  /* A `mch_…` id against a uuid-typed column is a business that does not
+     exist here, not a broken request. 400, never a 500 with a Postgres
+     error in it. */
+  if (merErr) {
+    if (isMalformedIdError(merErr)) {
+      return NextResponse.json({ error: "This business is no longer available" }, { status: 400 });
+    }
+    return NextResponse.json({ error: merErr.message }, { status: 500 });
+  }
   if (!merchant) {
     return NextResponse.json({ error: "This business is no longer available" }, { status: 400 });
   }

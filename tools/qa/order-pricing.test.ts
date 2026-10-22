@@ -24,6 +24,7 @@
 
 import { priceOrder, validCoord, haversineKm } from "@/lib/order-pricing-server";
 import { invalidatePromos } from "@/lib/promo-server";
+import { isMerchantId, isMalformedIdError } from "@/lib/api-auth";
 import { BULKY_WEIGHT_KG_PER_ITEM } from "@/lib/utils";
 
 let failures = 0;
@@ -396,6 +397,30 @@ async function main() {
     Math.round(haversineKm(0, 0, 0.3533, 32.5822)),
     3623,
   );
+
+  console.log("\n── merchant ids ──");
+  /* Both id shapes are legitimate: the development project still holds the
+     seeded `mch_…` slugs in a TEXT column, while production was migrated to
+     uuid-typed columns throughout. The code accepts both. */
+  truthy("a uuid merchant id is accepted", isMerchantId("9d9d65af-faf8-41ff-adad-472d82a883c7"));
+  truthy("a seeded slug merchant id is accepted", isMerchantId("mch_kampala_kitchen"));
+  truthy("an empty id is rejected", !isMerchantId(""));
+  truthy("a null id is rejected", !isMerchantId(null));
+  truthy("an id with a quote is rejected", !isMerchantId("mch_k'; drop table merchants; --"));
+  truthy("an id with a space is rejected", !isMerchantId("mch k 1"));
+
+  /* A slug against a uuid-typed column fails the CAST, not the request. It
+     must be recognised as a bad id and answered with a 400 — never a 500
+     carrying a Postgres error to the customer. */
+  truthy(
+    "a uuid cast failure is recognised as a malformed id",
+    isMalformedIdError({ message: 'invalid input syntax for type uuid: "mch_kampala_kitchen"' }),
+  );
+  truthy(
+    "a missing table is NOT a malformed id",
+    !isMalformedIdError({ message: 'relation "public.merchants" does not exist' }),
+  );
+  truthy("a null error is not a malformed id", !isMalformedIdError(null));
 
   console.log(
     failures === 0

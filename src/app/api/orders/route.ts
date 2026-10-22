@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import {
   authorize, canTransition, getMerchantForUser, isKnownStatus, isUuid, isMerchantId,
+  isMalformedIdError,
 } from "@/lib/api-auth";
 import { splitOrderAmounts } from "@/lib/fees";
 import { priceOrder, validCoord } from "@/lib/order-pricing-server";
@@ -88,7 +89,11 @@ export async function GET(req: NextRequest) {
   // Merchant dashboard scoping — caller must own the requested store (legacy
   // un-owned stores remain accessible to any editor until claimed on first write)
   if (merchantId) {
-    if (!isUuid(merchantId)) return NextResponse.json({ orders: [] });
+    /* Both id shapes are accepted here — the seeded `mch_…` slugs exist in the
+       development project, uuids everywhere else. Which one the COLUMN takes is
+       the database's business, and a shape it refuses is handled below rather
+       than treated as a broken request. */
+    if (!isMerchantId(merchantId)) return NextResponse.json({ orders: [] });
     const { data: merchant, error: merErr } = await sb.from("merchants").select("owner_id").eq("id", merchantId).maybeSingle();
     if (merErr) return NextResponse.json({ orders: [] });
     if (!merchant) return NextResponse.json({ orders: [] });
@@ -150,7 +155,13 @@ export async function GET(req: NextRequest) {
   }
 
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  /* A `mch_…` id against a uuid-typed column fails the cast, not the request.
+     It is a business that does not exist in THIS database, so the answer is an
+     empty list — not a server fault with a Postgres error in it. */
+  if (error) {
+    if (isMalformedIdError(error)) return NextResponse.json({ orders: [] });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json({ orders: data || [] });
 }
 
@@ -291,9 +302,9 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const merchantId = body.merchant_id;
-  /* `merchants.id` is TEXT: the seeded stores are `mch_…` slugs and only
-     newer stores get a uuid default, so this must not be `isUuid()`. See
-     `isMerchantId` for the whole story. */
+  /* Both id shapes are legitimate — the seeded `mch_…` slugs exist in the
+     development project, uuids everywhere else — so this must not be
+     `isUuid()`. See `isMerchantId` for the whole story. */
   if (!isMerchantId(merchantId)) {
     return NextResponse.json({ error: "A valid business is required to place an order" }, { status: 400 });
   }
@@ -306,7 +317,15 @@ export async function POST(req: NextRequest) {
     .select("id, name, status, delivery_fee_ugx, lat, lng")
     .eq("id", merchantId)
     .maybeSingle();
-  if (merchantErr) return NextResponse.json({ error: merchantErr.message }, { status: 500 });
+  /* A `mch_…` id against a uuid-typed column is a business that does not
+     exist here, not a broken request. 400, never a 500 with a Postgres
+     error in it. */
+  if (merchantErr) {
+    if (isMalformedIdError(merchantErr)) {
+      return NextResponse.json({ error: "This business is no longer available" }, { status: 400 });
+    }
+    return NextResponse.json({ error: merchantErr.message }, { status: 500 });
+  }
   if (!merchant) return NextResponse.json({ error: "This business is no longer available" }, { status: 400 });
   // Allow both active and pending businesses to receive orders — pending is auto-activated on first save
   // Only suspended businesses are blocked. This fixes the lazy bug where customers submit but business sees nothing.

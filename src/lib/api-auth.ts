@@ -84,27 +84,57 @@ export function isUuid(v: string | null | undefined): boolean {
  *
  * WHY THIS IS NOT `isUuid`
  * -----------------------
- * `merchants.id` is a TEXT column, and it has always held two different kinds
- * of value:
+ * `merchants.id` has held two different kinds of value, and WHICH one depends
+ * on which database the code is talking to:
  *
- *   • the four seeded stores — `mch_masaka_food_city`, `mch_kampala_kitchen`…
- *   • a `gen_random_uuid()::text` default for every store created since
- *     SCHEMA_RECONCILIATION.sql gave the column a default.
+ *   • the DEVELOPMENT project still holds the four seeded stores —
+ *     `mch_masaka_food_city`, `mch_kampala_kitchen`… — in a TEXT column, and
+ *     SCHEMA_RECONCILIATION.sql gives new stores a `gen_random_uuid()::text`
+ *     default, so that project holds a mix of both shapes.
+ *   • the PRODUCTION project was migrated to uuid-typed columns throughout
+ *     (`merchants.id`, `products.merchant_id`, `orders.merchant_id`,
+ *     `orders.rider_id`), so every id there is a uuid.
  *
- * So a merchant id is EITHER a uuid OR one of the seeded `mch_…` slugs, and
- * gating on `isUuid()` rejects the seeded ones. That is not theoretical: it is
- * why `POST /api/orders` answered "A valid business is required to place an
- * order" for every seeded store — the customer browsed a restaurant, added
- * food, and was refused at the last step.
+ * Gating on `isUuid()` therefore rejects the seeded stores in the development
+ * project — which is why `POST /api/orders` answered "A valid business is
+ * required to place an order" for every seeded store: the customer browsed a
+ * restaurant, added food, and was refused at the last step.
  *
  * This check accepts both shapes and rejects everything else, so a merchant id
  * can never be a SQL fragment or an empty string on its way into a query.
+ *
+ * ACCEPTING BOTH IS NOT THE SAME AS THE DATABASE ACCEPTING BOTH
+ * ----------------------------------------------------------
+ * A slug is still rejected by a uuid-typed column, with a Postgres error
+ * rather than a friendly message. So the routes must not treat that as a
+ * server fault: `isMalformedIdError()` recognises the cast failure and turns
+ * it into a clean 400. The customer sees "that business is not available",
+ * not a 500.
  */
 export function isMerchantId(v: string | null | undefined): boolean {
   if (!v) return false;
   if (isUuid(v)) return true;
   /* The seeded stores: a short, lowercase, underscore-separated slug. */
   return /^[a-z][a-z0-9_]{2,63}$/.test(v);
+}
+
+/**
+ * Did the database refuse this id because it is the wrong SHAPE?
+ *
+ * A uuid-typed column given a `mch_…` slug answers:
+ *
+ *     invalid input syntax for type uuid: "mch_kampala_kitchen"
+ *
+ * That is the caller's mistake, not a server fault, so it must not become a
+ * 500. The routes turn it into a 400 with a message the customer can act on.
+ *
+ * The check is on the message rather than the code because PostgREST reports
+ * the Postgres error verbatim, and Postgres gives the same message for every
+ * uuid cast that fails — which is the only thing that needs spotting here.
+ */
+export function isMalformedIdError(error: { message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  return /invalid input syntax for type uuid/i.test(String(error.message || ""));
 }
 
 /** Merchant owned by this user (null if none). */
