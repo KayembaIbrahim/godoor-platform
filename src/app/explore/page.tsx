@@ -60,7 +60,7 @@ const FAQ_ITEMS = [
   { q: "Can I return an item?", a: "If your order is incorrect or damaged, contact the merchant via in-app chat or file a dispute. Our team will resolve within 24 hours." },
   { q: "How do I become a GoDoor merchant?", a: "Submit a quick application — our team reviews it and, once approved, sets up your shop, products and delivery so you can start taking orders." },
   { q: "How do I become a GoDoor rider?", a: "Register as a rider, upload your vehicle details and national ID, get verified, and start accepting deliveries." },
-  { q: "Is GoDoor available in my area?", a: "GoDoor is live across Uganda — Kampala, Masaka, Jinja, Mbale, Mbarara, Gulu, Fort Portal, and more. We're expanding every month." },
+  { q: "Is GoDoor available in my area?", a: "GoDoor is live across Uganda — Kampala, Masaka, Jinja, Mbale, Mbarara, Gulu, Fort Portal, and every town in between." },
 ];
 
 function FaqAccordion({ q, a }: { q: string; a: string }) {
@@ -341,7 +341,7 @@ export default function ExplorePage() {
         <div className="mx-auto flex max-w-5xl flex-wrap items-stretch justify-center gap-3 px-4 py-8">
           {[
             { value: "Growing", label: "network of local shops" },
-            { value: "Live in Masaka", label: "expanding across Uganda" },
+            { value: "Live across Uganda", label: "every town, every day" },
             { value: "Fast", label: "deliveries starting now" }
           ].map((s) => (
             <div key={s.label} className="tile flex-1 min-w-[150px] px-6 py-6 text-center transition hover:-translate-y-0.5 hover:shadow-floating">
@@ -862,7 +862,7 @@ export default function ExplorePage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
             </span>
-            Live in Masaka · Expanding across Uganda
+            Live across Uganda · Delivering everywhere
           </div>
 
           <Link

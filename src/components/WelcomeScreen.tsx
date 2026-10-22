@@ -273,7 +273,7 @@ export function WelcomeScreen({
 
         {/* ── Footer line ──────────────────────────────────────────────── */}
         <p className="mt-12 text-center text-[11px] text-dim">
-          GoDoor · Live in Masaka · Expanding across Uganda
+          GoDoor · Live across Uganda
         </p>
       </div>
     </div>

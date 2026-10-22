@@ -540,7 +540,7 @@ export default function CustomerHome() {
             </span>
             <h3 className="font-display text-sm font-semibold text-on-ink">Nothing nearby yet</h3>
             <p className="mx-auto mt-1 max-w-[28ch] text-xs leading-relaxed text-on-ink-muted">
-              GoDoor is onboarding businesses in Masaka. We&apos;re finding shops near{" "}
+              GoDoor is onboarding businesses across Uganda. We&apos;re finding shops near{" "}
               {displayAddress === "Detecting your location…" ? "you" : displayAddress.toLowerCase()} now
               — or set your address to widen the search.
             </p>

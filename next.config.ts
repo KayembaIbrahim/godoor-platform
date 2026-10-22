@@ -7,6 +7,15 @@ const nextConfig: NextConfig = {
   },
 
   /**
+   * Next 16 blocks dev-only resources from origins it does not recognise by
+   * default, and the browser suite drives the app over `http://127.0.0.1:<port>`
+   * (all its tests run locally). Without these the HMR socket comes back 403,
+   * which made the dev server look broken in the browser while pages served OK.
+   * These are development-only origins. Nothing here affects production builds.
+   */
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
+
+  /**
    * No `browserslist` here on purpose.
    *
    * A performance audit flagged a 41 KB chunk containing core-js shims and
