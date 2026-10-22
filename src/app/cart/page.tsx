@@ -7,7 +7,7 @@ import {
   Store, PackagePlus, Truck, ChevronRight,
 } from "lucide-react";
 import { fetchMerchantById, fetchProducts, type DBMerchant, type DBProduct } from "@/lib/db";
-import { formatUgx, calcServiceFee, calcDeliveryFee, BULKY_ITEM_SURCHARGE_UGX } from "@/lib/utils";
+import { formatUgx, calcServiceFee, calcDeliveryFee, BULKY_PER_KG_UGX, BULKY_WEIGHT_KG_PER_ITEM } from "@/lib/utils";
 import { distanceKm } from "@/lib/location";
 import { Price } from "@/components/Price";
 import { useCart } from "@/lib/cart-store";
@@ -50,9 +50,20 @@ export default function CartPage() {
   const totals = useMemo(() => {
     const subtotal = lines.reduce((s, l) => s + l.unitPriceUgx * l.quantity, 0);
     const bulkyCount = lines.reduce((s, l) => s + (l.bulky ? l.quantity : 0), 0);
-    const delivery = calcDeliveryFee(estDistKm, bulkyCount);
+    // Each bulky item is assumed 10 kg for surcharge calculation
+    const bulkyWeightKg = bulkyCount > 0 ? bulkyCount * BULKY_WEIGHT_KG_PER_ITEM : 0;
+    /* The free-delivery threshold applies here too. The cart used to ignore
+       it, so a basket over the threshold was quoted a delivery fee in the cart
+       and then charged without one at checkout — the same "two prices for one
+       basket" complaint, one screen earlier. */
+    const freeDelivery = subtotal >= Number(feeCfg.free_delivery_threshold_ugx ?? 25000);
+    const delivery = freeDelivery ? 0 : calcDeliveryFee(estDistKm, bulkyWeightKg);
+    const bulkySurcharge = freeDelivery ? 0 : bulkyWeightKg * BULKY_PER_KG_UGX;
     const service = calcServiceFee(subtotal, feeCfg);
-    return { subtotal, delivery, bulkyCount, service, total: subtotal + delivery + service };
+    return {
+      subtotal, delivery, bulkyCount, bulkyWeightKg, bulkySurcharge, service, freeDelivery,
+      total: subtotal + delivery + service,
+    };
   }, [lines, estDistKm, feeCfg]);
 
   if (!lines.length) {
@@ -211,7 +222,7 @@ export default function CartPage() {
         <div className="flex-1">
           <p className="font-medium">Estimated delivery</p>
           <p className="text-xs text-muted">
-            ~{estDistKm} km away · {formatUgx(calcDeliveryFee(estDistKm, totals.bulkyCount))}
+            ~{estDistKm} km away · {totals.freeDelivery ? "free delivery" : formatUgx(totals.delivery)}
             {estDistKm <= 2 && " (nearby)"}
           </p>
         </div>
@@ -241,12 +252,16 @@ export default function CartPage() {
         </div>
         <div className="flex items-center justify-between">
           <span className="text-muted">Delivery fee</span>
-          <Price amount={totals.delivery - totals.bulkyCount * BULKY_ITEM_SURCHARGE_UGX} className="tabular-nums" />
+          {totals.freeDelivery ? (
+            <span className="font-semibold text-success">Free</span>
+          ) : (
+            <Price amount={totals.delivery - totals.bulkySurcharge} className="tabular-nums" />
+          )}
         </div>
-        {totals.bulkyCount > 0 && (
+        {totals.bulkySurcharge > 0 && (
           <div className="flex items-center justify-between">
-            <span className="text-muted">Heavy item surcharge ({totals.bulkyCount} × {formatUgx(BULKY_ITEM_SURCHARGE_UGX)})</span>
-            <Price amount={totals.bulkyCount * BULKY_ITEM_SURCHARGE_UGX} className="tabular-nums" />
+            <span className="text-muted">Heavy item surcharge ({totals.bulkyWeightKg} kg × {formatUgx(BULKY_PER_KG_UGX)})</span>
+            <Price amount={totals.bulkySurcharge} className="tabular-nums" />
           </div>
         )}
         <div className="flex items-center justify-between">

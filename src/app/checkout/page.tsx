@@ -8,7 +8,7 @@ import {
   MapPin, Clock,
   CalendarDays, PartyPopper, Truck,
 } from "lucide-react";
-import { formatUgx, calcServiceFee, calcDeliveryFee, BULKY_ITEM_SURCHARGE_UGX } from "@/lib/utils";
+import { formatUgx, calcServiceFee, calcDeliveryFee, BULKY_PER_KG_UGX, BULKY_WEIGHT_KG_PER_ITEM } from "@/lib/utils";
 import { Price } from "@/components/Price";
 import { useCart } from "@/lib/cart-store";
 import { useFeeConfig } from "@/lib/use-fee-config";
@@ -193,18 +193,120 @@ export default function CheckoutPage() {
     const merchantLoc = dbMerchant?.lat && dbMerchant?.lng ? { lat: dbMerchant.lat, lng: dbMerchant.lng } : null;
     const distKm = merchantLoc && customerLoc ? distanceKm(merchantLoc, customerLoc) : 3;
     const bulkyCount = lines.reduce((s, l) => s + (l.bulky ? l.quantity : 0), 0);
-    const delivery = calcDeliveryFee(distKm, bulkyCount);
-    const bulkySurcharge = bulkyCount * BULKY_ITEM_SURCHARGE_UGX;
+    // Each bulky item is assumed 10 kg for surcharge calculation
+    const bulkyWeightKg = bulkyCount > 0 ? bulkyCount * BULKY_WEIGHT_KG_PER_ITEM : 0;
+    const delivery = calcDeliveryFee(distKm, bulkyWeightKg);
+    const bulkySurcharge = bulkyWeightKg * BULKY_PER_KG_UGX;
     const service = calcServiceFee(subtotal, feeCfg);
     const serviceLabel = `${Number(feeCfg.service_fee_percent ?? 15)}%`;
     let discount = 0;
     if (appliedPromo) {
       discount = appliedPromo.type === "percent" ? Math.round(subtotal * appliedPromo.discount / 100) : appliedPromo.discount;
-      discount = Math.min(discount, subtotal + delivery);
+      /* The clamp must match the server's, and the server discounts the GROSS
+         total (subtotal + delivery + service). Clamping to subtotal + delivery
+         instead let the client promise a discount the server would not honour
+         — a flat code of 13,000 on a 10,000 basket quoted 1,500 to the
+         customer and charged 500. */
+      discount = Math.min(discount, subtotal + delivery + service);
     }
     const total = Math.max(0, subtotal + delivery + service - discount);
-    return { subtotal, delivery, distKm, bulkyCount, bulkySurcharge, service, serviceLabel, discount, total };
+    return { subtotal, delivery, distKm, bulkyCount, bulkyWeightKg, bulkySurcharge, service, serviceLabel, discount, total };
   }, [lines, dbMerchant, appliedPromo, customerLoc, feeCfg]);
+
+  /**
+   * The server's own quote, and the one number that is actually charged.
+   *
+   * The local estimate above is a first paint: it uses whatever the browser
+   * knows (a 3 km guess when the merchant row has not loaded yet). The server
+   * recomputes from the merchant row and the real coordinates, so the two
+   * could disagree — and a customer quoted one figure and charged another is
+   * exactly the "customer and rider see different prices" complaint. The
+   * server figure wins the moment it arrives.
+   *
+   * The request carries the BASKET, not an amount. The server resolves the
+   * line-item prices itself and runs the very same `priceOrder()` that will
+   * price the order, so the quote cannot drift from the charge.
+   */
+  const [serverQuote, setServerQuote] = useState<{
+    delivery_fee_ugx: number; service_fee_ugx: number; subtotal_ugx: number;
+    discount_ugx: number; total_ugx: number;
+    distance_km: number; bulky_weight_kg: number; free_delivery: boolean;
+  } | null>(null);
+
+  const quoteLines = useMemo(
+    () => lines.map((l) => ({ productId: l.productId, quantity: l.quantity, bulky: !!l.bulky })),
+    [lines],
+  );
+  const quoteLat = savedAddr?.lat ?? coords?.lat ?? null;
+  const quoteLng = savedAddr?.lng ?? coords?.lng ?? null;
+  const quotePromoCode = appliedPromo?.code ?? null;
+
+  useEffect(() => {
+    if (!merchantId) return;
+    if (quoteLat == null || quoteLng == null) { setServerQuote(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetch("/api/orders/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchant_id: merchantId,
+          customer_lat: quoteLat,
+          customer_lng: quoteLng,
+          line_items: quoteLines,
+          promo_code: quotePromoCode,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (cancelled || !j || !j.ok) return;
+          setServerQuote({
+            delivery_fee_ugx: Number(j.delivery_fee_ugx) || 0,
+            service_fee_ugx: Number(j.service_fee_ugx) || 0,
+            subtotal_ugx: Number(j.subtotal_ugx) || 0,
+            discount_ugx: Number(j.discount_ugx) || 0,
+            total_ugx: Number(j.total_ugx) || 0,
+            distance_km: Number(j.distance_km) || 0,
+            bulky_weight_kg: Number(j.bulky_weight_kg) || 0,
+            free_delivery: !!j.free_delivery,
+          });
+        })
+        .catch(() => {});
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [merchantId, quoteLat, quoteLng, quoteLines, quotePromoCode]);
+
+  /** The figures the customer is shown and charged. The server wins. */
+  const payable = useMemo(() => {
+    if (!serverQuote) {
+      return {
+        delivery: totals.delivery, service: totals.service, discount: totals.discount,
+        total: totals.total, subtotal: totals.subtotal,
+        distKm: totals.distKm, bulkySurcharge: totals.bulkySurcharge,
+      };
+    }
+    const delivery = serverQuote.delivery_fee_ugx;
+    /* The server's subtotal is the one that will be charged: it reads the
+       prices from `products`, where the local one reads a possibly-stale cart.
+       The discount comes from the server's own promo resolution, so the
+       figure shown here is the figure the promo will actually apply. */
+    const discount = serverQuote.discount_ugx;
+    /* The server's bulky weight is the one that priced the delivery, so the
+       surcharge line adds up to the delivery line the customer was shown. */
+    const bulkyWeightKg = serverQuote.bulky_weight_kg || totals.bulkyWeightKg;
+    return {
+      delivery,
+      service: serverQuote.service_fee_ugx,
+      discount,
+      total: serverQuote.total_ugx,
+      subtotal: serverQuote.subtotal_ugx,
+      distKm: serverQuote.distance_km || totals.distKm,
+      bulkyWeightKg,
+      bulkySurcharge: serverQuote.free_delivery
+        ? 0
+        : Math.min(bulkyWeightKg * BULKY_PER_KG_UGX, delivery),
+    };
+  }, [serverQuote, totals]);
 
   /**
    * Wallet authorisation before the money moves.
@@ -253,10 +355,13 @@ export default function CheckoutPage() {
           quantity: l.quantity,
           bulky: !!l.bulky,
         })),
-        subtotal_ugx: totals.subtotal,
-        delivery_fee_ugx: totals.delivery,
-        service_fee_ugx: totals.service,
-        total_ugx: totals.total,
+        subtotal_ugx: payable.subtotal,
+        // The server recomputes every amount from the DB and ignores these —
+        // they are echoed here so a stale client can never be the source of
+        // truth. The value the customer was shown is `payable`.
+        delivery_fee_ugx: payable.delivery,
+        service_fee_ugx: payable.service,
+        total_ugx: payable.total,
         delivery_address: deliveryAddress,
         // Real location only — null when GPS/address is unknown so the server
         // stores no pin instead of a fake default pin.
@@ -349,7 +454,7 @@ export default function CheckoutPage() {
           {/* Estimated delivery */}
           <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted">
             <Clock className="h-4 w-4 text-go" />
-            <span>Estimated delivery: <span className="font-semibold text-fg">{deliveryEstimate(totals.distKm)}</span></span>
+            <span>Estimated delivery: <span className="font-semibold text-fg">{deliveryEstimate(payable.distKm)}</span></span>
           </div>
 
           {/* Action buttons */}
@@ -370,7 +475,7 @@ export default function CheckoutPage() {
 
           {/* Payment reminder */}
           <p className="mt-4 text-[11px] text-muted">
-            Your payment of {formatUgx(totals.total)} is held in GoDoor Wallet escrow until delivery is confirmed.
+            Your payment of {formatUgx(payable.total)} is held in GoDoor Wallet escrow until delivery is confirmed.
           </p>
         </div>
       </div>
@@ -438,10 +543,10 @@ export default function CheckoutPage() {
           <Clock className="h-4 w-4 text-go" />
           <div>
             <p className="text-sm font-medium text-fg">
-              Estimated delivery: {deliveryEstimate(totals.distKm)}
+              Estimated delivery: {deliveryEstimate(payable.distKm)}
             </p>
             <p className="text-[11px] text-muted">
-              {totals.distKm.toFixed(1)} km away · {scheduleMode && scheduleTime !== "asap" ? scheduleOptions.find(o => o.value === scheduleTime)?.desc : "Delivering as fast as possible"}
+              {payable.distKm.toFixed(1)} km away · {scheduleMode && scheduleTime !== "asap" ? scheduleOptions.find(o => o.value === scheduleTime)?.desc : "Delivering as fast as possible"}
             </p>
           </div>
         </div>
@@ -553,22 +658,22 @@ export default function CheckoutPage() {
                 <div className="h-2 w-2 rounded-full bg-muted" />
                 <span className="text-sm text-muted">Subtotal</span>
               </div>
-              <Price amount={totals.subtotal} className="tabular-nums text-sm" />
+              <Price amount={payable.subtotal} className="tabular-nums text-sm" />
             </div>
             <div className="flex items-center gap-2 justify-between">
               <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-go" />
-                <span className="text-sm text-muted">Delivery ({totals.distKm.toFixed(1)} km)</span>
+                <span className="text-sm text-muted">Delivery ({payable.distKm.toFixed(1)} km)</span>
               </div>
-              <Price amount={totals.delivery - totals.bulkySurcharge} className="tabular-nums text-sm" />
+              <Price amount={payable.delivery - payable.bulkySurcharge} className="tabular-nums text-sm" />
             </div>
-            {totals.bulkySurcharge > 0 && (
+            {payable.bulkySurcharge > 0 && (
               <div className="flex items-center gap-2 justify-between">
                 <div className="flex items-center gap-1.5">
                   <div className="h-2 w-2 rounded-full bg-warning" />
-                  <span className="text-sm text-muted">Heavy item surcharge ({totals.bulkyCount} {totals.bulkyCount === 1 ? "item" : "items"} · {formatUgx(BULKY_ITEM_SURCHARGE_UGX)} each)</span>
+                  <span className="text-sm text-muted">Heavy item surcharge ({payable.bulkyWeightKg} kg × {formatUgx(BULKY_PER_KG_UGX)}/kg)</span>
                 </div>
-                <Price amount={totals.bulkySurcharge} className="tabular-nums text-sm" />
+                <Price amount={payable.bulkySurcharge} className="tabular-nums text-sm" />
               </div>
             )}
             <div className="flex items-center gap-2 justify-between">
@@ -576,15 +681,15 @@ export default function CheckoutPage() {
                 <div className="h-2 w-2 rounded-full bg-primary" />
                 <span className="text-sm text-muted">Service fee ({totals.serviceLabel})</span>
               </div>
-              <Price amount={totals.service} className="tabular-nums text-sm" />
+              <Price amount={payable.service} className="tabular-nums text-sm" />
             </div>
-            {totals.discount > 0 && (
+            {payable.discount > 0 && (
               <div className="flex items-center gap-2 justify-between">
                 <div className="flex items-center gap-1.5">
                   <div className="h-2 w-2 rounded-full bg-success" />
                   <span className="text-sm text-success">Discount</span>
                 </div>
-                <Price amount={-totals.discount} className="tabular-nums text-sm text-success" />
+                <Price amount={-payable.discount} className="tabular-nums text-sm text-success" />
               </div>
             )}
           </div>
@@ -595,7 +700,7 @@ export default function CheckoutPage() {
           <div className="flex items-center justify-between">
             <span className="text-base font-bold text-fg">Total</span>
             <div className="flex items-baseline gap-2">
-              <Price amount={totals.total} className="tabular-nums text-lg font-bold text-go" />
+              <Price amount={payable.total} className="tabular-nums text-lg font-bold text-go" />
             </div>
           </div>
         </div>
@@ -615,7 +720,7 @@ export default function CheckoutPage() {
     <WalletLock
       mode={lockMode}
       open={lockOpen}
-      reason={`Pay ${formatUgx(totals.total)}`}
+      reason={`Pay ${formatUgx(payable.total)}`}
       onCancel={() => { setLockOpen(false); setPendingGrant(null); }}
       onAuthorized={(grant) => {
         setLockOpen(false);

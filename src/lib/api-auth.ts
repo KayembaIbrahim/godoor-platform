@@ -79,6 +79,34 @@ export function isUuid(v: string | null | undefined): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 }
 
+/**
+ * Is this a usable MERCHANT id?
+ *
+ * WHY THIS IS NOT `isUuid`
+ * -----------------------
+ * `merchants.id` is a TEXT column, and it has always held two different kinds
+ * of value:
+ *
+ *   • the four seeded stores — `mch_masaka_food_city`, `mch_kampala_kitchen`…
+ *   • a `gen_random_uuid()::text` default for every store created since
+ *     SCHEMA_RECONCILIATION.sql gave the column a default.
+ *
+ * So a merchant id is EITHER a uuid OR one of the seeded `mch_…` slugs, and
+ * gating on `isUuid()` rejects the seeded ones. That is not theoretical: it is
+ * why `POST /api/orders` answered "A valid business is required to place an
+ * order" for every seeded store — the customer browsed a restaurant, added
+ * food, and was refused at the last step.
+ *
+ * This check accepts both shapes and rejects everything else, so a merchant id
+ * can never be a SQL fragment or an empty string on its way into a query.
+ */
+export function isMerchantId(v: string | null | undefined): boolean {
+  if (!v) return false;
+  if (isUuid(v)) return true;
+  /* The seeded stores: a short, lowercase, underscore-separated slug. */
+  return /^[a-z][a-z0-9_]{2,63}$/.test(v);
+}
+
 /** Merchant owned by this user (null if none). */
 export async function getMerchantForUser(sb: SupabaseClient, userId: string): Promise<{ id: string } | null> {
   try {

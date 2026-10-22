@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import {
-  authorize, canTransition, getMerchantForUser, isKnownStatus, isUuid,
+  authorize, canTransition, getMerchantForUser, isKnownStatus, isUuid, isMerchantId,
 } from "@/lib/api-auth";
-import { calcDeliveryFee } from "@/lib/utils";
-import { resolveFees, serviceFeeFor, splitOrderAmounts } from "@/lib/fees";
+import { splitOrderAmounts } from "@/lib/fees";
+import { priceOrder, validCoord } from "@/lib/order-pricing-server";
 import { ensureClinicOrderSchema } from "@/lib/ensure-clinic";
 import { holdEscrow } from "@/lib/escrow";
 import { verifySpendGrant, walletSecurityEnrolled } from "@/lib/wallet-security";
 import { pushToUser } from "@/lib/web-push-server";
-import { recordPromoUse, resolvePromoServer } from "@/lib/promo-server";
+import { recordPromoUse } from "@/lib/promo-server";
 import { PROMO_REASON_TEXT } from "@/lib/promo";
 import { existingColumns } from "@/lib/schema-capabilities";
 export const runtime = "nodejs";
@@ -291,7 +291,10 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const merchantId = body.merchant_id;
-  if (!isUuid(merchantId)) {
+  /* `merchants.id` is TEXT: the seeded stores are `mch_…` slugs and only
+     newer stores get a uuid default, so this must not be `isUuid()`. See
+     `isMerchantId` for the whole story. */
+  if (!isMerchantId(merchantId)) {
     return NextResponse.json({ error: "A valid business is required to place an order" }, { status: 400 });
   }
 
@@ -323,116 +326,36 @@ export async function POST(req: NextRequest) {
   // Fees come from the fee_config row (fallback to the shared 15% model),
   // line-item prices come from the products table for THIS merchant, and
   // nothing financial is taken from the request body.
-  const { data: feeRow } = await sb.from("fee_config").select("*").eq("id", "default").maybeSingle();
-  const fees = resolveFees(feeRow as Record<string, unknown> | null);
-
-  // Parse requested line items (only productId, quantity and bulky are taken from the client).
-  const requested: Array<{ productId: string; quantity: number; bulky: boolean }> = Array.isArray(body.line_items)
-    ? body.line_items.map((li: Record<string, unknown>) => ({
-        productId: String(li.productId ?? ""),
-        quantity: Math.max(1, Math.floor(Number(li.quantity) || 1)),
-        bulky: Boolean(li.bulky),
-      }))
-    : [];
-  const productIds = requested.map((li) => li.productId).filter(Boolean);
-  if (productIds.length === 0) {
-    return NextResponse.json({ error: "Your cart is empty" }, { status: 400 });
-  }
-
-  // Resolve every line item against the products table for this merchant.
-  const prices = new Map<string, { price: number; name: string }>();
-  for (let i = 0; i < productIds.length; i += 50) {
-    const chunk = productIds.slice(i, i + 50);
-    const { data: rows } = await sb
-      .from("products")
-      .select("id, name, price, available")
-      .eq("merchant_id", merchantId)
-      .in("id", chunk);
-    for (const row of rows || []) prices.set(String(row.id), { price: Number(row.price ?? 0), name: String(row.name || "") });
-  }
-
-  const lineItems = requested.map((li) => {
-    const p = prices.get(li.productId);
-    return {
-      productId: li.productId,
-      merchantId,
-      name: p ? p.name : "Item",
-      unitPriceUgx: p ? p.price : 0,
-      quantity: li.quantity,
-      bulky: li.bulky,
-    };
+  //
+  // `priceOrder` is the SAME function the customer-facing quote calls
+  // (`POST /api/orders/quote`). That sharing is the whole point: the customer
+  // is quoted exactly what they are charged, because there is one formula
+  // rather than two that can drift apart.
+  const priced = await priceOrder(sb, {
+    merchant: merchant as { id: string },
+    lineItems: body.line_items,
+    customerLat: body.customer_lat,
+    customerLng: body.customer_lng,
+    promoCode: body.promo_code,
   });
-
-  let subtotal = 0;
-  for (const li of lineItems) subtotal += li.unitPriceUgx * li.quantity;
-
-  if (subtotal <= 0) {
-    return NextResponse.json({ error: "Your cart is empty" }, { status: 400 });
+  if (!priced.ok) {
+    return NextResponse.json({ error: priced.error }, { status: priced.status });
   }
-  if (fees.min_order_ugx > 0 && subtotal < fees.min_order_ugx) {
-    return NextResponse.json({ error: `Minimum order is UGX ${fees.min_order_ugx.toLocaleString()}` }, { status: 400 });
-  }
+  const {
+    lineItems, subtotal, deliveryFee, serviceFee, discountUgx, totalUgx, promo,
+  } = priced.order;
 
-  const deliveryFee = subtotal >= fees.free_delivery_threshold_ugx
-    ? 0
-    : (() => {
-        // Distance + time billing with day/night minimums
-        // (1,500 day · 2,000 from 7pm · 3,000 midnight) instead of a flat fee.
-        const mLat = Number((merchant as { lat?: unknown }).lat);
-        const mLng = Number((merchant as { lat?: unknown; lng?: unknown }).lng);
-        // customerLat/customerLng are parsed below; read raw body here.
-        const cLatRaw = Number(body.customer_lat);
-        const cLngRaw = Number(body.customer_lng);
-        const coordsKnown =
-          Number.isFinite(mLat) && Number.isFinite(mLng) &&
-          Number.isFinite(cLatRaw) && Number.isFinite(cLngRaw) &&
-          cLatRaw >= -1.5 && cLatRaw <= 4.5 && cLngRaw >= 28 && cLngRaw <= 36;
-        if (!coordsKnown) {
-          return Number(merchant.delivery_fee_ugx ?? fees.delivery_fee_ugx);
-        }
-        const dLat = ((cLatRaw - mLat) * Math.PI) / 180;
-        const dLng = ((cLngRaw - mLng) * Math.PI) / 180;
-        const a =
-          Math.sin(dLat / 2) ** 2 +
-          Math.cos((mLat * Math.PI) / 180) *
-            Math.cos((cLatRaw * Math.PI) / 180) *
-            Math.sin(dLng / 2) ** 2;
-        const km = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const bulkyCount = lineItems.reduce((s, li) => s + (li.bulky ? li.quantity : 0), 0);
-        return calcDeliveryFee(km, bulkyCount, (km / 25) * 60);
-      })();
-  const serviceFee = serviceFeeFor(subtotal, feeRow as Record<string, unknown> | null);
-  const grossUgx = subtotal + deliveryFee + serviceFee;
-
-  /* ── Promo resolution (server-authoritative) ─────────────────────────────────
-     The client sends a CODE, never an amount. It is looked up here against the
-     live admin table, so a tampered client can claim a different code but can
-     never invent its own discount.
-
-     This used to not exist at all: `total_ugx` was `subtotal + delivery +
-     service` and the checkout displayed a discounted figure beside it. The
-     customer saw "20% off" and was escrowed at full price. */
-  const promo = await resolvePromoServer(sb, {
-    code: body.promo_code,
-    subtotalUgx: subtotal,
-    grossUgx,
-  });
-
-  // An unusable code is never fatal. The customer keeps their order at the
-  // ordinary price rather than being blocked at the last step — and they are
-  // told why, so the banner's claim cannot fail silently.
+  /* An unusable promo code is never fatal. The customer keeps their order at
+     the ordinary price rather than being blocked at the last step — and they
+     are told why, so the banner's claim cannot fail silently. */
   const appliedPromo = promo.ok ? promo : null;
-  const discountUgx = promo.ok ? promo.discountUgx : 0;
-  const totalUgx = promo.ok ? promo.totalUgx : grossUgx;
 
   const paymentMethod = typeof body.payment_method === "string" ? body.payment_method : "momo";
 
   // Delivery coordinates must be real — anything missing/out-of-range becomes
   // null (never the (0,0) ocean point) so maps and nav links can't lie.
-  const validCoord = (v: unknown, min: number, max: number) => {
-    const n = Number(v);
-    return Number.isFinite(n) && n >= min && n <= max ? n : null;
-  };
+  // The shared `validCoord` also rejects an explicit null, which `Number()`
+  // alone would have turned into a 0 and stored as a real point at sea.
   const customerLat = validCoord(body.customer_lat, -1.5, 4.5);
   const customerLng = validCoord(body.customer_lng, 28, 36);
 

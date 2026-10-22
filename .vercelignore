@@ -144,3 +144,11 @@ scripts/_navcheck.mjs
 scripts/probe-location-timeline.mjs
 scripts/verify-home-spec.mjs
 scripts/verify-discount-live.mjs
+
+# Quote-vs-charge proof. Reads .env.local (absent on Vercel) and creates a real
+# customer plus a real order against the live database, so it must never ship.
+scripts/verify-quote-equals-charge.mjs
+
+# Browser probe for the Mapbox temporal-dead-zone fix. Dev tooling: it drives a
+# local browser and defaults to hitting production, so it is not a build input.
+scripts/verify-map-no-tdz.mjs

@@ -13,6 +13,25 @@ export function formatUgx(amount: number) {
   return `UGX ${Math.round(amount).toLocaleString("en-UG")}`;
 }
 
+/**
+ * The delivery fee as it is actually stored on an order.
+ *
+ * WHY THIS HELPER EXISTS
+ * ----------------------
+ * The rider dashboard wrote `o.delivery_fee_ugx || 3000` in six places. `||`
+ * means "fall back when the value is FALSY" — and 0 is falsy. So a free
+ * delivery (a real possibility: the merchant's own fee, or an order over the
+ * free-delivery threshold) was stored as 0, shown to the customer as Free,
+ * and shown to the rider as 3,000. Same order, two different fares, and the
+ * rider is the one who has to drive it.
+ *
+ * `??` is the correct operator: fall back only when the column is genuinely
+ * absent. A stored 0 stays 0.
+ */
+export function storedDeliveryFee(fee: number | null | undefined): number {
+  return typeof fee === "number" && Number.isFinite(fee) ? Math.trunc(fee) : 0;
+}
+
 /** Format price with USD equivalent in small text */
 export function formatPriceSplit(amount: number): { primary: string; usd: string } {
   const usd = (amount / UGX_PER_USD).toFixed(2);
@@ -28,9 +47,25 @@ export function calcServiceFee(subtotalUgx: number, cfg?: FeeConfigShape | null)
 }
 
 
-/** Surcharge per heavy/bulky item (e.g. sofas, fridges). Distance is a poor
- *  proxy for these — the extra handling/capacity cost is priced per item. */
-export const BULKY_ITEM_SURCHARGE_UGX = 5000;
+/** Surcharge per kg for heavy/bulky items (e.g. sofas, fridges).
+ *  GoDoor charges per kg for heavy deliveries — 1,000 UGX per kg — because
+ *  capacity and handling cost scale with weight, not with how many
+ *  separate boxes there are. */
+export const BULKY_PER_KG_UGX = 1000;
+
+/** Assumed mass of ONE bulky item, used to turn an item count into a weight.
+ *
+ *  WHY IT LIVES HERE
+ *  -----------------
+ *  The 10 kg figure was written out as a bare `* 10` in four separate places —
+ *  the cart, the checkout, the order route and the quote route. One of them
+ *  drifting from the others is exactly how the customer and the rider end up
+ *  looking at different numbers, so the figure is defined once, here, and
+ *  imported everywhere.
+ *
+ *  (It is an assumption, not a measurement: the catalogue has no weight field.
+ *  When products gain one, this becomes the fallback rather than the rule.) */
+export const BULKY_WEIGHT_KG_PER_ITEM = 10;
 
 /** Time-of-day billing tiers (Uganda EAT = UTC+3).
  *  Day (05:00–19:00) min 1,500 · evening (19:00–00:00) min 2,000 · midnight
@@ -57,9 +92,9 @@ export const FARE_PER_MIN_UGX = 100;
 
 /** Calculate GoDoor delivery fee from distance + time with time-of-day minimum.
  *  `durationMin` defaults to a 25 km/h urban motorbike estimate when omitted.
- *  Heavy/bulky items add a per-item surcharge on top.
- */
-export function calcDeliveryFee(distanceKm: number, bulkyItems = 0, durationMin?: number | null, at?: Date): number {
+ *  `bulkyWeightKg` adds a per-kg heavy-item surcharge (1,000 UGX/kg) for sofas,
+ *  fridges, and other items whose handling cost scales with weight. */
+export function calcDeliveryFee(distanceKm: number, bulkyWeightKg = 0, durationMin?: number | null, at?: Date): number {
   const km = Number.isFinite(distanceKm) && distanceKm > 0 ? distanceKm : 0;
   const mins = durationMin != null && Number.isFinite(durationMin) && (durationMin as number) > 0
     ? (durationMin as number)
@@ -68,7 +103,7 @@ export function calcDeliveryFee(distanceKm: number, bulkyItems = 0, durationMin?
   const raw = FARE_PER_KM_UGX * km + FARE_PER_MIN_UGX * mins;
   let fee = Math.max(FARE_MINIMUM_UGX[tier], raw);
   fee = Math.round(fee / 100) * 100;
-  if (bulkyItems > 0) fee += bulkyItems * BULKY_ITEM_SURCHARGE_UGX;
+  if (bulkyWeightKg > 0) fee += Math.round(bulkyWeightKg) * BULKY_PER_KG_UGX;
   return fee;
 }
 
