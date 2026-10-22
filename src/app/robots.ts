@@ -29,6 +29,7 @@ const DISALLOWED = [
   "/account",
   "/verification",
   "/onboarding",
+  "/reset-password", // redeems an admin-issued code; nothing here for a crawler
 ];
 
 export default function robots(): MetadataRoute.Robots {

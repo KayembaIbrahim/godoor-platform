@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { User, ShoppingBag, Mail, Lock, Loader2, AlertTriangle, CheckCircle, ArrowRight } from "lucide-react";
+import { User, ShoppingBag, Mail, Lock, Loader2, AlertTriangle, CheckCircle, ArrowRight, KeyRound } from "lucide-react";
 import { useSession, roleHomePath, type Role } from "@/lib/session-store";
 
 /**
@@ -171,6 +171,23 @@ export function SignInForm({ mode: initialMode = "login", next }: { mode?: SignI
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 6 characters"
                 className="mt-1 w-full rounded-xl border border-border bg-surface pl-9 pr-3 py-2.5 text-sm outline-none ring-go focus:ring-2 transition" />
             </div>
+            {isLogin && (
+              /*
+                GoDoor has no outbound mail provider, so there is no
+                "email me a reset link" flow to send people to. What there IS
+                is a support desk that issues a one-time code and a link — so
+                this entry point explains that, and points at the page that
+                redeems it, rather than dead-ending the user.
+              */
+              <div className="mt-1.5 text-right">
+                <Link
+                  href="/reset-password"
+                  className="inline-flex items-center gap-1 text-[11px] text-dim underline decoration-dim/50 underline-offset-2 transition hover:text-go hover:decoration-go/60"
+                >
+                  <KeyRound className="h-3 w-3" /> Forgot your password?
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 

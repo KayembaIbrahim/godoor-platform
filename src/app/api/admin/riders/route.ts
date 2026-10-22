@@ -1,9 +1,9 @@
-import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import { authorize, isUuid } from "@/lib/api-auth";
+import { issueResetCode } from "@/lib/password-reset-server";
 export const runtime = "nodejs";
 
 type RiderOut = {
@@ -45,18 +45,19 @@ function rowToRider(r: any, email = ""): RiderOut {
   };
 }
 
-/** Short unambiguous one-time password (no 0/O/1/l/I). */
-function generateTempPassword(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const bytes = randomBytes(16);
-  let out = "";
-  for (let i = 0; i < 10; i++) out += chars[bytes[i] % chars.length];
-  return out;
-}
 
+/**
+ * Every rider whose auth account exists.
+ *
+ * The rider's `auth` id is the SAME uuid as `riders.id`, so the auth user is
+ * found by id rather than by role. The old version filtered the auth list on
+ * `user_metadata.role === "rider"`, which silently dropped riders whose
+ * account role was never set to "rider" — one of the four live riders has
+ * `role: "customer"` — so their account could not be password-reset at all.
+ */
 async function listRiderUsers(sb: NonNullable<ReturnType<typeof getServiceClient>>) {
   const { data } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  return (data?.users || []).filter((u) => (u.user_metadata?.role as string) === "rider");
+  return data?.users || [];
 }
 
 export async function GET(req: NextRequest) {
@@ -69,14 +70,30 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const includeLocations = searchParams.get("include_locations") === "true";
-  let q = sb.from("riders").select("id, name, email, phone, vehicle_type, plate, service_area, lat, lng, status, verified, created_at, last_online, rating");
-  
+
+  /*
+   * ── Why there is no status filter here ──────────────────────────────────
+   * This used to read `.eq("status", "active")`. The riders table has no
+   * "active" status — the values the app actually writes are `online`,
+   * `offline`, `busy` and `suspended` — so the filter matched nothing and the
+   * admin Riders section was permanently empty. An admin console must show
+   * EVERY rider, whatever their state, because "where is my rider?" is
+   * exactly the question this screen exists to answer.
+   *
+   * The SELECT also asked for a `last_online` column that does not exist.
+   * PostgREST rejects the whole query when one column is unknown, so this
+   * route was answering 500 and the page silently fell back to the
+   * RLS-restricted client read, which is empty for an admin session.
+   */
+  let q = sb.from("riders").select(
+    "id, name, email, phone, vehicle_type, plate, service_area, lat, lng, status, verified, created_at, last_seen_at, rating, total_deliveries, job_mode, vehicle_photo_url, national_id_url",
+  );
+
   if (includeLocations) {
-    q = q.eq("status", "active");
-  } else {
-    q = q.eq("status", "active");
+    // Only a rider who is actually out on the road has a live location.
+    q = q.in("status", ["online", "busy"]);
   }
-  
+
   const { data, error } = await q.order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -154,23 +171,48 @@ export async function POST(req: Request) {
   const riderId = String(row.id);
   let status: string = row.status || "offline";
 
-  // Reset to a fresh one-time password. The plaintext is returned exactly once
-  // so the admin can relay it; the rider is forced to change it on next login.
-  if (action === "reset_password") {
-    const password = generateTempPassword();
+  // Issue a one-time reset code + link for a rider who has forgotten their
+  // password.
+  //
+  // This REPLACES the old behaviour, which overwrote the rider's password with
+  // a temporary one and asked the admin to read it out over the phone. That
+  // was a bearer secret travelling over one channel, it left a live
+  // temporary password on the account if the admin never delivered it, and it
+  // gave the rider no way to choose their own password.
+  //
+  // Now the rider receives a LINK and a CODE by two separate messages, and
+  // sets their own password at /reset-password. The account's password is
+  // not touched until that happens.
+  if (action === "reset_password" || action === "issue_reset_code") {
     const { data: authUser } = await sb.auth.admin.getUserById(riderId);
-    const meta = authUser?.user?.user_metadata || {};
-    const { error: pwErr } = await sb.auth.admin.updateUserById(riderId, {
-      password,
-      user_metadata: { ...meta, must_change_password: true },
+    if (!authUser?.user) {
+      return NextResponse.json({ error: "This rider has no login account to reset." }, { status: 404 });
+    }
+    const meta = authUser.user.user_metadata || {};
+    const email = authUser.user.email || String(row.email || "");
+    if (!email) {
+      return NextResponse.json({ error: "This rider has no email address on their account." }, { status: 400 });
+    }
+
+    const issued = await issueResetCode(sb, {
+      user_id: riderId,
+      email,
+      name: (meta.name as string) || (meta.full_name as string) || row.name || "",
+      role: (meta.role as string) || "rider",
+      issued_by: "admin",
     });
-    if (pwErr) return NextResponse.json({ error: pwErr.message }, { status: 400 });
-    await sb.from("riders").update({ status }).eq("id", riderId);
-    const { data: freshPw } = await sb.from("riders").select("*").eq("id", riderId).single();
+    if (!issued) {
+      return NextResponse.json({ error: "Could not issue a reset code. Try again." }, { status: 500 });
+    }
+
     return NextResponse.json({
       ok: true,
-      credentials: { email: user?.email || String(row.email || ""), password },
-      rider: rowToRider(freshPw || row, user?.email || ""),
+      id: issued.record.id,
+      code: issued.code,
+      email,
+      expires_at: issued.record.expires_at,
+      credentials: { email, password: issued.code },
+      rider: rowToRider(row, email),
     });
   }
 

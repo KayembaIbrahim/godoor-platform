@@ -17,7 +17,7 @@ export default function AdminRiders() {
   const [riders, setRiders] = useState<DBRider[]>([]);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
-  const [pwModal, setPwModal] = useState<{ name: string; email: string; password: string } | null>(null);
+  const [pwModal, setPwModal] = useState<{ name: string; email: string; password: string; link: string } | null>(null);
   const [resetting, setResetting] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -27,7 +27,6 @@ export default function AdminRiders() {
       .then((d) => { if (Array.isArray(d.riders)) setRiders(d.riders as any); else return fetchRiders().then(setRiders); })
       .catch(() => fetchRiders().then(setRiders));
   useEffect(() => { refresh(); }, []);
-
   const apiAction = async (id: string, action: string, verified?: boolean) => {
     try {
       const res = await fetch("/api/admin/riders", {
@@ -46,21 +45,32 @@ export default function AdminRiders() {
     }
   };
 
+  /**
+   * Issue a one-time reset code for a rider who cannot sign in.
+   *
+   * The rider's password is NOT changed here. They get a link plus a code,
+   * and choose their own password at /reset-password. The rider's account
+   * keeps working normally until they do.
+   */
   const resetPassword = async (r: DBRider) => {
     setResetting(r.id);
     try {
       const res = await fetch("/api/admin/riders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: r.id, action: "reset_password" }),
+        body: JSON.stringify({ id: r.id, action: "issue_reset_code" }),
       });
       const d = await res.json().catch(() => ({}));
-      if (res.ok && d?.ok && d?.credentials) {
+      if (res.ok && d?.ok && d?.code) {
         setCopied(false);
-        setPwModal({ name: r.name, email: d.credentials.email || r.email || "", password: d.credentials.password });
-        await refresh();
+        setPwModal({
+          name: r.name,
+          email: d.email || r.email || "",
+          password: d.code,
+          link: `${typeof window !== "undefined" ? window.location.origin : ""}/reset-password?token=${d.id}`,
+        });
       } else {
-        alert(d.error || "Could not reset password");
+        alert(d.error || "Could not issue a reset code");
       }
     } catch {
       alert("Could not reach the server");
@@ -155,8 +165,8 @@ export default function AdminRiders() {
               <button type="button" disabled={resetting === r.id || !r.email}
                 onClick={() => resetPassword(r)}
                 className="flex items-center gap-1.5 rounded-xl bg-warning/15 px-3 py-1.5 text-xs font-medium text-amber-600 hover:bg-warning/25 transition disabled:opacity-40"
-                title="Reset their password (lost password)" >
-                <KeyRound className="h-3 w-3" /> {resetting === r.id ? "Resetting…" : "New password"}
+                title="Send them a one-time code to choose their own password" >
+                <KeyRound className="h-3 w-3" /> {resetting === r.id ? "Issuing…" : "Reset password"}
               </button>
             </div>
           </div>
@@ -165,28 +175,34 @@ export default function AdminRiders() {
           <div className="py-12 text-center">
             <Truck className="mx-auto h-8 w-8 text-dim" />
             <p className="mt-2 text-sm text-muted">No riders found</p>
-            <p className="mt-1 text-xs text-dim">Riders appear here after completing onboarding.</p>
+            <p className="mt-1 text-xs text-dim">Riders appear here after completing onboarding. If a rider is missing, issue them a reset code and ask them to sign in once.</p>
           </div>
         )}
       </div>
 
-      {/* One-time password modal — shown exactly once after reset */}
+      {/* One-time reset code — shown exactly once after issuing */}
       {pwModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4" onClick={() => setPwModal(null)}>
           <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <KeyRound className="h-5 w-5 text-amber-500" />
-                <h3 className="font-display text-sm font-bold">New password for {pwModal.name}</h3>
+                <h3 className="font-display text-sm font-bold">Reset code for {pwModal.name}</h3>
               </div>
               <button type="button" onClick={() => setPwModal(null)} className="rounded-lg p-1.5 text-muted transition hover:bg-elevated hover:text-fg"><X className="h-4 w-4" /></button>
             </div>
-            <div className="mt-3 space-y-1.5 rounded-xl bg-bg p-3 text-xs">
+            <div className="mt-3 space-y-2 rounded-xl bg-bg p-3 text-xs">
               <p className="text-muted">Email: <span className="font-semibold text-fg">{pwModal.email}</span></p>
-              <p className="text-muted">One-time password: <span className="font-mono font-bold text-fg">{pwModal.password}</span></p>
+              <p className="text-muted">One-time code: <span className="font-mono font-bold tracking-wider text-fg">{pwModal.password}</span></p>
+              <p className="break-all text-muted">Reset link: <span className="text-fg">{pwModal.link}</span></p>
             </div>
             <button type="button" onClick={() => {
-              navigator.clipboard.writeText(`GoDoor login for ${pwModal.name}\n\nEmail: ${pwModal.email}\nOne-time password: ${pwModal.password}\nSign in at godoor.site, then set your own password.`).catch(() => {});
+              navigator.clipboard.writeText(
+                `GoDoor — Reset your password\n\nHi ${pwModal.name},\n\n` +
+                `Link to reset your password: ${pwModal.link}\n` +
+                `One-time code: ${pwModal.password}\n\n` +
+                `This code expires in 24 hours and can only be used once.`
+              ).catch(() => {});
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
             }}
@@ -194,7 +210,7 @@ export default function AdminRiders() {
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied" : "Copy & send to rider"}
             </button>
-            <p className="mt-2 text-center text-[10px] text-dim">Shown once. The rider will be asked to change it on login.</p>
+            <p className="mt-2 text-center text-[10px] text-dim">Valid for 24 hours, one time only. Their password is unchanged until they use it.</p>
           </div>
         </div>
       )}
