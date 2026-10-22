@@ -506,6 +506,16 @@ export async function fetchOrders(filters?: { merchant_id?: string; customer_id?
   // failure. Treating it as a failure sent every signed-out visitor into the
   // direct-Supabase fallback below, which downloaded up to 200 full order rows
   // from their phone for data RLS would refuse to return anyway.
+  //
+  // BUT a 401 can also mean "your token expired an hour ago and you are very
+  // much still signed in" — which is exactly the case for a rider mid-shift.
+  // Supabase access tokens live about an hour; the rider dashboard, the
+  // deliveries board and the accept button all sat on a token minted when the
+  // app was opened. Once it lapsed, every request 401'd and the rider was
+  // told "Sign in to continue" while being, in fact, signed in.
+  //
+  // So: refresh once and retry before believing the 401. Only a second 401 is
+  // treated as a real "not signed in" answer.
   let authFailed = false;
   try {
     const params = new URLSearchParams();
@@ -514,7 +524,14 @@ export async function fetchOrders(filters?: { merchant_id?: string; customer_id?
     if (filters?.customer_email) params.set("customer_email", filters.customer_email);
     if (filters?.status) params.set("status", filters.status);
     const qs = params.toString();
-    const res = await fetchTimed(`/api/orders${qs ? "?" + qs : ""}`, { cache: "no-store", headers: await apiAuthHeaders(false) });
+    const send = async () =>
+      fetchTimed(`/api/orders${qs ? "?" + qs : ""}`, { cache: "no-store", headers: await apiAuthHeaders(false) });
+    let res = await send();
+    if (res.status === 401 || res.status === 403) {
+      // The token may simply be stale. Refresh and try once more.
+      try { await getSupabase()?.auth.refreshSession(); } catch {}
+      res = await send();
+    }
     if (res.status === 401 || res.status === 403) authFailed = true;
     const json = await res.json().catch(() => ({}));
     if (Array.isArray(json.orders)) {
@@ -628,11 +645,22 @@ export async function createOrder(
 export async function updateOrder(id: string, patch: Partial<DBOrder>): Promise<void> {
   // Persist to server FIRST (service-role) — only update local on success so UI never shows a phantom "ready" that the server rejected and then snaps back
   try {
-    const res = await fetch("/api/orders", {
-      method: "PATCH",
-      headers: await apiAuthHeaders(true),
-      body: JSON.stringify({ id, patch }),
-    });
+    const send = async () =>
+      fetch("/api/orders", {
+        method: "PATCH",
+        headers: await apiAuthHeaders(true),
+        body: JSON.stringify({ id, patch }),
+      });
+    let res = await send();
+    /* A rider tapping "I have picked it up" or "Delivered" is often working
+       from a token minted an hour or more ago. When it lapsed the PATCH 401'd
+       and the status change was refused — the rider was standing at the door
+       with the goods and the app said they were signed out. Refresh once and
+       retry; a status transition is idempotent, so repeating it is safe. */
+    if (res.status === 401 || res.status === 403) {
+      try { await getSupabase()?.auth.refreshSession(); } catch {}
+      res = await send();
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = typeof err.error === "string" && err.error ? err.error : `Update failed (${res.status})`;

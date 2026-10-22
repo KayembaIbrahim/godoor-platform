@@ -65,6 +65,30 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  /* Step 2c: the same rule for Boda rides.
+     A rider carrying a passenger is committed to that passenger. Letting them
+     also claim a delivery meant the rider was physically in two places, and
+     the customer tracking the delivery watched a rider who was actually
+     ferrying someone else. */
+  try {
+    const { data: activeRide } = await sb
+      .from("ride_requests")
+      .select("id, status")
+      .eq("rider_id", actor.id)
+      .in("status", ["accepted", "in_progress"])
+      .limit(1)
+      .maybeSingle();
+    if (activeRide) {
+      return NextResponse.json(
+        { error: "You already have an active ride — finish it before accepting a delivery." },
+        { status: 409 },
+      );
+    }
+  } catch {
+    // The ride_requests table may not carry rider_id in every deployment.
+    // A failed probe must not block a legitimate acceptance.
+  }
+
   // Step 3: atomically claim the order (guarded status prevents double-assign)
   const { data: claimed, error: updateErr } = await sb
     .from("orders")
@@ -77,6 +101,7 @@ export async function POST(req: NextRequest) {
     })
     .eq("id", orderId)
     .eq("status", (order as { status: string }).status) // optimistic concurrency guard
+    .is("rider_id", null) // and nobody else won the race since we read it
     .select("id")
     .maybeSingle();
 
