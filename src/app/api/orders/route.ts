@@ -223,7 +223,7 @@ export async function PATCH(req: NextRequest) {
   if (!actor) return unauthorized();
 
   const body = await req.json().catch(() => ({}));
-  const { id, patch } = body;
+  const { id, patch, force } = body;
   if (typeof id !== "string" || !patch || typeof patch !== "object") {
     return NextResponse.json({ error: "id and patch required" }, { status: 400 });
   }
@@ -263,12 +263,6 @@ export async function PATCH(req: NextRequest) {
 
   const user = actor;
   const merchantIdOfCaller = (await getMerchantForUser(sb, user.id))?.id || null;
-  const decision = canTransition({ order, user, merchantIdOfCaller }, nextStatus, {
-    payment_confirmed_patch: paymentConfirmedPatch,
-    riderIdPatch: riderIdPatch === user.id ? riderIdPatch : null,
-    medicine_paid_patch: body.patch?.medicine_paid === true,
-  });
-  if (!decision.ok) return NextResponse.json({ error: decision.error }, { status: 403 });
 
   const userUpd: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (nextStatus) userUpd.status = nextStatus;
@@ -282,6 +276,34 @@ export async function PATCH(req: NextRequest) {
   if (msg !== undefined && typeof msg === "string") userUpd.notes = msg;
 
   if (Object.keys(userUpd).length === 1) return NextResponse.json({ ok: true });
+
+  // If force=true and user is an assigned rider completing their own delivery,
+  // bypass the normal status-transition check so stuck orders can be cleared.
+  if (force && actor.kind === "user" && riderIdPatch === actor.id && nextStatus === "delivered") {
+    const { data: verifiedOrder } = await sb
+      .from("orders")
+      .select("id, rider_id, status")
+      .eq("id", id)
+      .eq("rider_id", actor.id)
+      .maybeSingle();
+    if (!verifiedOrder || (verifiedOrder as { status: string }).status !== "delivering") {
+      return NextResponse.json({ error: "Cannot complete this delivery" }, { status: 403 });
+    }
+    const { error } = await sb.from("orders").update(userUpd).eq("id", id).eq("rider_id", actor.id);
+    if (error) {
+      console.error("updateOrder API error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (userUpd.status) void notifyStatusChange(sb, id, String(userUpd.status));
+    return NextResponse.json({ ok: true, force: true });
+  }
+
+  const decision = canTransition({ order, user, merchantIdOfCaller }, nextStatus, {
+    payment_confirmed_patch: paymentConfirmedPatch,
+    riderIdPatch: riderIdPatch === user.id ? riderIdPatch : null,
+    medicine_paid_patch: body.patch?.medicine_paid === true,
+  });
+  if (!decision.ok) return NextResponse.json({ error: decision.error }, { status: 403 });
 
   const { error } = await sb.from("orders").update(userUpd).eq("id", id);
   if (error) {

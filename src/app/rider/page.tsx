@@ -962,10 +962,13 @@ export default function RiderDashboard() {
         refresh();
       })
       .catch((e) => {
-        // If completion fails, show error and re-fetch to restore correct state
+        // If completion fails, show error but do NOT re-fetch from DB.
+        // The refresh() here would re-set activeDelivery from the stale DB
+        // (order still "delivering"), keeping the rider permanently blocked.
+        // Instead, keep activeDelivery as null and show an error with retry.
         const message = e instanceof Error ? e.message : "Could not complete delivery";
         setError(message);
-        refresh();
+        // Do NOT call refresh() — that would re-set activeDelivery from DB.
       })
       .finally(() => setDeliveryBusy((cur) => (cur === id ? null : cur)));
   };

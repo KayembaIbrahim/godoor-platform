@@ -644,14 +644,21 @@ export async function createOrder(
 
 export async function updateOrder(id: string, patch: Partial<DBOrder>): Promise<void> {
   // Persist to server FIRST (service-role) — only update local on success so UI never shows a phantom "ready" that the server rejected and then snaps back
-  try {
-    const send = async () =>
-      fetch("/api/orders", {
-        method: "PATCH",
-        headers: await apiAuthHeaders(true),
-        body: JSON.stringify({ id, patch }),
-      });
+  const MAX_RETRIES = 3;
+  const BASE_DELAY_MS = 500;
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  const send = async () =>
+    fetch("/api/orders", {
+      method: "PATCH",
+      headers: await apiAuthHeaders(true),
+      body: JSON.stringify({ id, patch }),
+    });
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     let res = await send();
+
     /* A rider tapping "I have picked it up" or "Delivered" is often working
        from a token minted an hour or more ago. When it lapsed the PATCH 401'd
        and the status change was refused — the rider was standing at the door
@@ -660,22 +667,35 @@ export async function updateOrder(id: string, patch: Partial<DBOrder>): Promise<
     if (res.status === 401 || res.status === 403) {
       try { await getSupabase()?.auth.refreshSession(); } catch {}
       res = await send();
+      attempt = 0; // Reset retries after successful auth refresh
     }
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const msg = typeof err.error === "string" && err.error ? err.error : `Update failed (${res.status})`;
-      console.error("updateOrder API error:", msg);
-      throw new Error(msg);
+
+    if (res.ok) {
+      // Server confirmed — now sync local cache
+      mutateLocal((s) => ({
+        ...s,
+        orders: s.orders.map((o) => (o.id === id ? { ...o, ...patch, updated_at: Date.now() } : o)),
+      }));
+      return;
     }
-    // Server confirmed — now sync local cache
-    mutateLocal((s) => ({
-      ...s,
-      orders: s.orders.map((o) => (o.id === id ? { ...o, ...patch, updated_at: Date.now() } : o)),
-    }));
-  } catch (e) {
-    console.error("updateOrder failed:", e);
-    throw e;
+
+    // Network errors or 5xx might be transient — retry with exponential backoff
+    if (res.status >= 500 || !res.ok) {
+      if (attempt < MAX_RETRIES - 1) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        console.warn(`updateOrder attempt ${attempt + 1} failed (${res.status}), retrying in ${delay}ms...`);
+        await sleep(delay);
+        continue;
+      }
+    }
+
+    // Final failure — throw error
+    const err = await res.json().catch(() => ({}));
+    const msg = typeof err.error === "string" && err.error ? err.error : `Update failed (${res.status})`;
+    console.error("updateOrder API error:", msg);
+    throw new Error(msg);
   }
+  throw new Error("Update failed after multiple retries. Please check your connection and try again.");
 }
 
 // ── Payments ───────────────────────────────────────────────
