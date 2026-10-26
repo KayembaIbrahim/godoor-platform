@@ -57,6 +57,18 @@ fi
 # https://godoor.site live in its WebView; android/web-app holds the launch page.
 npx cap sync android
 
+# The freshly-synced Capacitor gradle files come out of the installed plugin
+# packages at Java 21 (or otherwise stale), while this environment ships JDK 17
+# only. Overwrite the source/target compatibility with Java 17 BEFORE building
+# or Gradle fails with:
+#   > Execution failed for task '\''app:compileDebugJavaWithJavac'.
+#   > error: invalid source release: 21
+grep -rl "JavaVersion.VERSION_21" android --include="*.gradle" --include="*.gradle.kts" 2>/dev/null | while read -r f; do
+  sed -i 's/JavaVersion.VERSION_21/JavaVersion.VERSION_17/g' "$f"
+  echo "  -> pinned $(basename $(dirname "$f")) to Java 17"
+done
+
+
 # --- Build -----------------------------------------------------------------
 cd android || { echo "ERROR: android/ directory not found"; exit 1; }
 
