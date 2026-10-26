@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { WalletPanel } from "@/components/WalletPanel";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
 import { useSession } from "@/lib/session-store";
@@ -11,6 +12,12 @@ import WalletSecuritySection from "@/components/WalletSecuritySection";
 export default function WalletPage() {
   const { onboarded } = useSession();
   const signup = useSignupPrompt();
+
+  // Clean up orphaned escrow holds on mount (when customer has no active orders)
+  useEffect(() => {
+    if (!onboarded) return;
+    fetch("/api/wallet/cleanup-escrow", { method: "POST" }).catch(() => {});
+  }, [onboarded]);
 
   return (
     <div className="hero-wash min-h-[70vh]">

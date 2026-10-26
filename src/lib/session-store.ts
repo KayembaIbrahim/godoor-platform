@@ -74,6 +74,7 @@ export type SessionState = {
   signIn: (email: string, password: string) => Promise<AuthResult & { role?: Role }>;
   signOut: () => Promise<void>;
   loadAuthSession: () => Promise<void>;
+  signInWithGoogle: () => Promise<AuthResult>;
 };
 
 const initial: Pick<SessionState, "role" | "profile" | "onboarded" | "supabaseUser" | "authReady"> = {
@@ -311,6 +312,24 @@ set({
         // *resolved* auth state — leaving it false would stall every gated
         // fetch behind a session load that is never coming.
         set({ ...initial, authReady: true });
+      },
+
+      signInWithGoogle: async () => {
+        const sb = getSupabase();
+        if (!sb) return { error: "Supabase not configured." };
+        try {
+          const { error } = await sb.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+              redirectTo: `${window.location.origin}/app/api/auth/callback`,
+            },
+          });
+          if (error) return friendlyError(error.message);
+          // Redirect already happened — resolve role on next loadAuthSession.
+          return {};
+        } catch (e: any) {
+          return friendlyError(e?.message || "Google sign-in failed.");
+        }
       },
     }),
     { name: "godoor-session" },

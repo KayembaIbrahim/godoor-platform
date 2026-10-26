@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { User, ShoppingBag, Mail, Lock, Loader2, AlertTriangle, CheckCircle, ArrowRight, KeyRound } from "lucide-react";
+import { User, ShoppingBag, Mail, Lock, Loader2, AlertTriangle, CheckCircle, ArrowRight, KeyRound, Chrome } from "lucide-react";
 import { useSession, roleHomePath, type Role } from "@/lib/session-store";
 
 /**
@@ -48,6 +48,7 @@ export function SignInForm({ mode: initialMode = "login", next }: { mode?: SignI
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [cooldown, setCooldown] = useState(0);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => { if (cooldown <= 0) return; const t = setTimeout(() => setCooldown(cooldown - 1), 1000); return () => clearTimeout(t); }, [cooldown]);
 
@@ -192,6 +193,41 @@ export function SignInForm({ mode: initialMode = "login", next }: { mode?: SignI
           </div>
         </div>
 
+        <div className="mt-3 text-center">
+          <button
+            type="button"
+            disabled={googleLoading}
+            onClick={() => {
+              setError("");
+              useSession.getState().signInWithGoogle().catch((e) => {
+                setError(e?.message || "Google sign-in failed");
+              });
+            }}
+            className={`btn-3d btn-3d-brand flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold transition disabled:opacity-50 disabled:hover:translate-y-0`}
+          >
+            {googleLoading ? (
+              <svg
+                className="h-4 w-4 animate-spin"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+                fill="none"
+                aria-label="Loading"
+              >
+                <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                <path
+                  d="M12 2v2m0 18v2m-9-9l9 9m9-9l-9 9"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  fill="none"
+                  aria-hidden="true"
+                />
+              </svg>
+            ) : (
+              <Chrome className="h-4 w-4 me-2" />Google
+            )}
+          </button>
+        </div>
         {error && (
           <div className="mt-3 flex items-start gap-2 rounded-xl bg-danger/10 px-3 py-2">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger" />

@@ -446,6 +446,10 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
   /* Auto-advance through the steps, auto-submit once the length is reached. */
   useEffect(() => {
     if (blocked || pin.length < submitAt) return;
+    /* When in setup mode with a PIN already set but no biometric, skip the
+     * auto-submit that would create another PIN. The user clicked "Add another
+     * method" to set up biometric/FaceUnlock, not to change their PIN. */
+    if (mode === "setup" && hasPin && !hasBiometric) return;
     if (mode !== "unlock" && stage === "create") {
       setPinLen(pin.length); // the confirm step inherits the chosen length
       setStageOverride("confirm");
@@ -468,7 +472,7 @@ export default function WalletLock({ mode, open, onCancel, onAuthorized, reason 
     if (submitted.current === signature) return;
     submitted.current = signature;
     void runPin(pin, stage);
-  }, [pin, submitAt, stage, mode, blocked, runPin]);
+  }, [pin, submitAt, stage, mode, blocked, runPin, hasBiometric]);
 
   const press = (d: string) => {
     if (blocked || pin.length >= MAX_PIN) return;

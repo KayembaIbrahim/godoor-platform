@@ -317,17 +317,28 @@ export async function fetchMerchants(): Promise<DBMerchant[]> {
   const localMerchants = loadLocal().merchants;
   // Prefer the server API (service-role key) so customers see every active business
   let serverOk = false;
+  const serverNames = new Set<string>();
   try {
     const res = await fetchTimed("/api/merchants");
     const json = await res.json().catch(() => ({}));
     if (Array.isArray(json.merchants)) {
       serverOk = true;
-      for (const m of json.merchants) merged.set(m.id, merchantFromRow(m));
+      for (const m of json.merchants) {
+        // Dedup by ID first, then by name (case-insensitive) so two businesses
+        // with the same or a very similar name don't appear twice in the catalogue.
+        const existing = Array.from(merged.values()).find(
+          (e) => e.id === m.id || String(e.name ?? "").toLowerCase() === String(m.name ?? "").toLowerCase()
+        );
+        if (!existing) merged.set(m.id, merchantFromRow(m));
+      }
     }
   } catch {}
   // Add local merchants that aren't on the server yet (owner's own unsaved changes)
   for (const m of localMerchants) {
-    if (!merged.has(m.id)) merged.set(m.id, m);
+    const existing = Array.from(merged.values()).find(
+      (e) => e.id === m.id || String(e.name ?? "").toLowerCase() === String(m.name ?? "").toLowerCase()
+    );
+    if (!existing) merged.set(m.id, m);
   }
   // Direct Supabase read — ONLY when the server gave us nothing.
   //
@@ -347,7 +358,13 @@ export async function fetchMerchants(): Promise<DBMerchant[]> {
           "merchants fallback",
         );
         if (!error && data?.length) {
-          for (const m of data) merged.set(m.id, merchantFromRow(m));
+          for (const m of data) {
+            // Same dedup logic for the fallback path
+            const existing = Array.from(merged.values()).find(
+              (e) => e.id === m.id || String(e.name ?? "").toLowerCase() === String(m.name ?? "").toLowerCase()
+            );
+            if (!existing) merged.set(m.id, merchantFromRow(m));
+          }
         }
       }
     } catch {}

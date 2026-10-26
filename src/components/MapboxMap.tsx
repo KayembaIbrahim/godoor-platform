@@ -1029,7 +1029,13 @@ function MapboxMapInner({
     styleAppliedRef.current = isDark;
     try {
       map.setStyle(baseStyle);
-      setStyleGeneration((g) => g + 1);
+      // Wait for the replacement style to finish loading before bumping the
+      // generation — setStyle destroys the previous sources/layers, and bumping
+      // the generation immediately re-creates them against a style that is not
+      // ready yet, which dropped the route line until a manual refresh.
+      map.once("styledata", () => {
+        setStyleGeneration((g) => g + 1);
+      });
     } catch {}
   }, [isDark, baseStyle, ready]);
 

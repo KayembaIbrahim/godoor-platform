@@ -200,6 +200,94 @@ export async function expireOldDeposits(sb: SupabaseClient): Promise<number> {
 
 // ── Escrow ──────────────────────────────────────────────────────────
 
+/**
+ * Finds and releases orphaned escrow holds — rows in escrow_holds whose
+ * associated order does not exist (deleted, never created, or gone). Such
+ * rows slip through ordinary cancel/release flows because a handler reads the
+ * row before the order is removed, and then the order disappears without ever
+ * calling refundEscrow on the hold. Refunding them is safe-by-default (only a
+ * nullable merchant_id changes back to null — merchants that never held escrow
+ * keep their merchant_id), so a short cleanup on every signup and login sweep
+ * makes the ledger stay honest without touching a valid hold.
+ */
+export async function cleanOrphanedEscrowHolds(sb: SupabaseClient): Promise<number> {
+  try {
+    // Fetch all escrow holds with status "held"
+    const { data: holds, error: holdsError } = await sb
+      .from("escrow_holds")
+      .select("id, order_id")
+      .eq("status", "held");
+    if (holdsError || !holds || holds.length === 0) return 0;
+
+    const orderIds = [...new Set(holds.map((h) => h.order_id).filter(Boolean))];
+    if (orderIds.length === 0) return 0;
+
+    // Check which orders exist
+    const { data: orders, error: ordersError } = await sb
+      .from("orders")
+      .select("id")
+      .in("id", orderIds);
+    if (ordersError) return 0;
+
+    const existingOrderIds = new Set((orders || []).map((o) => o.id));
+    const orphanedHoldIds = holds
+      .filter((h) => !existingOrderIds.has(h.order_id))
+      .map((h) => h.id);
+
+    if (orphanedHoldIds.length === 0) return 0;
+
+    // Update orphaned holds to "refunded" status
+    const { error: updateError } = await sb
+      .from("escrow_holds")
+      .update({ status: "refunded", updated_at: new Date().toISOString() })
+      .in("id", orphanedHoldIds);
+    if (updateError) return 0;
+
+    // Also refund the wallet balance for each orphaned hold
+    for (const holdId of orphanedHoldIds) {
+      const hold = holds.find((h) => h.id === holdId);
+      if (hold) {
+        await sb.rpc("refund_escrow", { p_order_id: hold.order_id }).catch(() => {});
+      }
+    }
+
+    return orphanedHoldIds.length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Returns escrow holds whose order no longer exists — the orphan set. Use it to
+ * decide whether the customer's displayed balance over-reports and whether the
+ * wallet ledger can be updated to clear the phantom hold.
+ */
+export async function getOrphanedEscrowHolds(sb: SupabaseClient): Promise<string[]> {
+  try {
+    const { data: holds, error: holdsError } = await sb
+      .from("escrow_holds")
+      .select("id, order_id")
+      .eq("status", "held");
+    if (holdsError || !holds || holds.length === 0) return [];
+
+    const orderIds = [...new Set(holds.map((h) => h.order_id).filter(Boolean))];
+    if (orderIds.length === 0) return [];
+
+    const { data: orders, error: ordersError } = await sb
+      .from("orders")
+      .select("id")
+      .in("id", orderIds);
+    if (ordersError) return [];
+
+    const existingOrderIds = new Set((orders || []).map((o) => o.id));
+    return holds
+      .filter((h) => !existingOrderIds.has(h.order_id))
+      .map((h) => h.order_id);
+  } catch {
+    return [];
+  }
+}
+
 export async function holdEscrow(
   sb: SupabaseClient,
   userId: string,
