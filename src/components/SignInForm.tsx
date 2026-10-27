@@ -224,7 +224,7 @@ export function SignInForm({ mode: initialMode = "login", next }: { mode?: SignI
                 />
               </svg>
             ) : (
-              <Chrome className="h-4 w-4 me-2" />Google
+              <> <Chrome className="h-4 w-4 me-2" /> {"Google"} </>
             )}
           </button>
         </div>

@@ -175,12 +175,12 @@ export function AddressSearchModal({
           const { reverseGeocode } = await import("@/lib/location");
           const addr = await reverseGeocode({ lat, lng });
           const result = { place: addr, lat, lng };
-          saveLastAddress(result);
+          saveLastAddress(result, "auto");
           onSelect(result);
           onClose();
         } catch {
           const result = { place: `${lat.toFixed(4)}°, ${lng.toFixed(4)}°`, lat, lng };
-          saveLastAddress(result);
+          saveLastAddress(result, "auto");
           onSelect(result);
           onClose();
         }

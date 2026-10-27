@@ -170,8 +170,10 @@ export default function CustomerHome() {
    * customer picked by hand is never overwritten.
    */
   useEffect(() => {
-    rememberDetectedAddress(gpsPlace, gpsLoc);
-  }, [gpsPlace, gpsLoc?.lat, gpsLoc?.lng]);
+    if (gpsPlace && gpsLoc && !isDetecting(locStatus)) {
+      rememberDetectedAddress(gpsPlace, gpsLoc);
+    }
+  }, [gpsPlace, gpsLoc?.lat, gpsLoc?.lng, locStatus]);
 
   /**
    * Popular Picks — a short, curated list.
