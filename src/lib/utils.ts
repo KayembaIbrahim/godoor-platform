@@ -6,8 +6,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** 1 USD ≈ 3,750 UGX */
-const UGX_PER_USD = 3750;
+/** 1 USD ≈ 4,400 UGX (live rate fallback; API provides the live value). */
+export const UGX_PER_USD = 4400;
 
 export function formatUgx(amount: number) {
   return `UGX ${Math.round(amount).toLocaleString("en-UG")}`;
@@ -33,8 +33,9 @@ export function storedDeliveryFee(fee: number | null | undefined): number {
 }
 
 /** Format price with USD equivalent in small text */
-export function formatPriceSplit(amount: number): { primary: string; usd: string } {
-  const usd = (amount / UGX_PER_USD).toFixed(2);
+export function formatPriceSplit(amount: number, ugxPerUsd?: number): { primary: string; usd: string } {
+  const rate = ugxPerUsd ?? UGX_PER_USD;
+  const usd = (amount / rate).toFixed(2);
   return { primary: formatUgx(amount), usd: `~$${usd}` };
 }
 
