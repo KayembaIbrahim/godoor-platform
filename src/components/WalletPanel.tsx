@@ -65,7 +65,7 @@ function copyToClipboard(text: string) {
 }
 
 function usd(ugx: number, rate: number): string {
-  const r = rate > 0 ? rate : 3800;
+  const r = rate > 0 ? rate : 4400;
   return `$${(ugx / r).toFixed(2)}`;
 }
 
