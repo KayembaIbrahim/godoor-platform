@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchLiveUgxPerUsd } from "@/lib/live-rate";
+import { resolveUgxRate } from "@/lib/live-rate";
 export const runtime = "nodejs";
 
 /**
@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 
 export async function GET() {
   const { data: fees } = await (await import("@/lib/fees")).resolveFees(null);
-  const ugxPerUsd = fees.ugx_per_usd ?? await fetchLiveUgxPerUsd();
+  const ugxPerUsd = await resolveUgxRate(fees.ugx_per_usd ?? null);
   return NextResponse.json({
     ok: true,
     config: {

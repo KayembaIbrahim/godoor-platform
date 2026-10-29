@@ -210,12 +210,46 @@ export async function expireOldDeposits(sb: SupabaseClient): Promise<number> {
  * keep their merchant_id), so a short cleanup on every signup and login sweep
  * makes the ledger stay honest without touching a valid hold.
  */
+// Helper function to update wallet balance and insert ledger entry for a refunded hold
+async function updateWalletForRefundedHold(
+  sb: SupabaseClient,
+  orderId: string,
+  amount: number,
+  customerId?: string | null
+): Promise<void> {
+  if (!customerId) return;
+  
+  // Update wallet balance
+  const { error: walletError } = await sb
+    .from("wallets")
+    .update({
+      escrow_balance: `escrow_balance - ${amount}`,
+      available_balance: `available_balance + ${amount}`,
+    })
+    .eq("user_id", customerId);
+  
+  if (!walletError) {
+    // Insert refund ledger entry
+    await sb
+      .from("ledger_entries")
+      .insert({
+        user_id: customerId,
+        type: "refund",
+        amount: amount,
+        currency: "UGX",
+        ref_type: "order",
+        ref_id: orderId,
+        meta: "{}",
+      });
+  }
+}
+
 export async function cleanOrphanedEscrowHolds(sb: SupabaseClient): Promise<number> {
   try {
     // Fetch all escrow holds with status "held"
     const { data: holds, error: holdsError } = await sb
       .from("escrow_holds")
-      .select("id, order_id")
+      .select("id, order_id, amount")
       .eq("status", "held");
     if (holdsError || !holds || holds.length === 0) return 0;
 
@@ -225,33 +259,30 @@ export async function cleanOrphanedEscrowHolds(sb: SupabaseClient): Promise<numb
     // Check which orders exist
     const { data: orders, error: ordersError } = await sb
       .from("orders")
-      .select("id")
+      .select("id, customer_id")
       .in("id", orderIds);
     if (ordersError) return 0;
 
     const existingOrderIds = new Set((orders || []).map((o) => o.id));
-    const orphanedHoldIds = holds
-      .filter((h) => !existingOrderIds.has(h.order_id))
-      .map((h) => h.id);
+    const orphanedHolds = holds.filter((h) => !existingOrderIds.has(h.order_id));
 
-    if (orphanedHoldIds.length === 0) return 0;
+    if (orphanedHolds.length === 0) return 0;
 
     // Update orphaned holds to "refunded" status
+    const holdIds = orphanedHolds.map((h) => h.id);
     const { error: updateError } = await sb
       .from("escrow_holds")
       .update({ status: "refunded", updated_at: new Date().toISOString() })
-      .in("id", orphanedHoldIds);
+      .in("id", holdIds);
     if (updateError) return 0;
 
-    // Also refund the wallet balance for each orphaned hold
-    for (const holdId of orphanedHoldIds) {
-      const hold = holds.find((h) => h.id === holdId);
-      if (hold) {
-        await sb.rpc("refund_escrow", { p_order_id: hold.order_id }).catch(() => {});
-      }
+    // Refund wallet balance for each orphaned hold
+    for (const hold of orphanedHolds) {
+      const order = orders?.find((o) => o.id === hold.order_id);
+      await updateWalletForRefundedHold(sb, hold.order_id, hold.amount, order?.customer_id);
     }
 
-    return orphanedHoldIds.length;
+    return orphanedHolds.length;
   } catch {
     return 0;
   }
@@ -262,11 +293,16 @@ export async function cleanOrphanedEscrowHolds(sb: SupabaseClient): Promise<numb
  * decide whether the customer's displayed balance over-reports and whether the
  * wallet ledger can be updated to clear the phantom hold.
  */
+/**
+  * Returns escrow holds whose order no longer exists — the orphan set. Use it to
+  * decide whether the customer's displayed balance over-reports and whether the
+  * wallet ledger can be updated to clear the phantom hold.
+  */
 export async function getOrphanedEscrowHolds(sb: SupabaseClient): Promise<string[]> {
   try {
     const { data: holds, error: holdsError } = await sb
       .from("escrow_holds")
-      .select("id, order_id")
+      .select("id, order_id, amount")
       .eq("status", "held");
     if (holdsError || !holds || holds.length === 0) return [];
 
@@ -275,14 +311,25 @@ export async function getOrphanedEscrowHolds(sb: SupabaseClient): Promise<string
 
     const { data: orders, error: ordersError } = await sb
       .from("orders")
-      .select("id")
+      .select("id, customer_id")
       .in("id", orderIds);
     if (ordersError) return [];
 
     const existingOrderIds = new Set((orders || []).map((o) => o.id));
-    return holds
-      .filter((h) => !existingOrderIds.has(h.order_id))
-      .map((h) => h.order_id);
+    const orphanedHolds = holds.filter((h) => !existingOrderIds.has(h.order_id));
+
+    if (orphanedHolds.length === 0) return [];
+
+    // Return the orphan set for display logic
+    const orphanSet = orphanedHolds.map((h) => h.order_id);
+
+    // Refund wallet balance for orphaned holds (same logic as cleanOrphanedEscrowHolds)
+    for (const hold of orphanedHolds) {
+      const order = orders?.find((o) => o.id === hold.order_id);
+      await updateWalletForRefundedHold(sb, hold.order_id, hold.amount, order?.customer_id);
+    }
+
+    return orphanSet;
   } catch {
     return [];
   }
