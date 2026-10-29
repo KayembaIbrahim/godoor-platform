@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { resolveFees } from "@/lib/fees";
+import { fetchLiveUgxPerUsd } from "@/lib/live-rate";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,6 @@ export async function GET() {
     row = (data as Record<string, unknown> | null) ?? null;
   }
   const fees = resolveFees(row);
-  const ugxPerUsd = row?.ugx_per_usd ? Number(row.ugx_per_usd) : 4400;
+  const ugxPerUsd = row?.ugx_per_usd ? Number(row.ugx_per_usd) : await fetchLiveUgxPerUsd();
   return NextResponse.json({ fees, ugxPerUsd });
 }

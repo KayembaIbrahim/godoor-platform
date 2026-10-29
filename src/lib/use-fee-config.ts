@@ -13,17 +13,19 @@ import { resolveFees, type FeeConfigShape } from "@/lib/fees";
  */
 export function useFeeConfig(): FeeConfigShape {
   const [cfg, setCfg] = useState<FeeConfigShape>(() => resolveFees(null));
+  const [ugxPerUsd, setUgxPerUsd] = useState(4400);
   useEffect(() => {
     let live = true;
     fetch("/api/fees")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((body: { fees?: FeeConfigShape }) => {
+      .then((body: { fees?: FeeConfigShape; ugxPerUsd?: number }) => {
         if (live && body?.fees) setCfg(resolveFees(body.fees));
+        if (live && body?.ugxPerUsd) setUgxPerUsd(body.ugxPerUsd);
       })
       .catch(() => {});
     return () => {
       live = false;
     };
   }, []);
-  return cfg;
+  return { ...cfg, ugx_per_usd: ugxPerUsd } as FeeConfigShape;
 }
