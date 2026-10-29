@@ -98,6 +98,22 @@ export default function CustomerHome() {
     if (saved) setDeliveryAddr(saved);
   }, []);
 
+  // Sync deliveryAddr across pages when localStorage changes (e.g. user picks
+  // a new address on /account or /profile). Without this each page has its own
+  // cached copy and the home page never learns about changes made elsewhere.
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === "godoor-delivery-address") {
+        try {
+          const addr = JSON.parse(e.newValue ?? "null") as StoredCustomerAddress | null;
+          setDeliveryAddr(addr);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+
   useEffect(() => {
     fetch("/api/stories").then((r) => r.json()).then(({ stories: s }) => setStories(s || [])).catch(() => {});
   }, []);

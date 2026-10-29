@@ -21,6 +21,7 @@ const EDITABLE = {
   free_delivery_threshold_ugx: { min: 0, max: 500_000_000 },
   rider_commission_percent: { min: 0, max: 100 },
   platform_commission_percent: { min: 0, max: 100 },
+  ugx_per_usd: { min: 2000, max: 50000 },
 } as const;
 
 type EditableKey = keyof typeof EDITABLE;

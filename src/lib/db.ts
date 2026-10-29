@@ -1430,6 +1430,7 @@ export type FeeConfig = {
   free_delivery_threshold_ugx: number;
   rider_commission_percent: number;
   platform_commission_percent: number;
+  ugx_per_usd: number;
   created_at: number;
   updated_at: number;
 };
@@ -1437,6 +1438,7 @@ export type FeeConfig = {
 const DEFAULT_FEES: FeeConfig = {
   ...FALLBACK_FEE_CONFIG,
   id: "default",
+  ugx_per_usd: 4400,
   created_at: Date.now(),
   updated_at: Date.now(),
 };
