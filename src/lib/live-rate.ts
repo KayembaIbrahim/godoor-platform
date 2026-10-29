@@ -6,9 +6,8 @@
 
 const EXCHANGE_APIS = [
   "https://api.exchangerate-api.com/v4/latest/USD",
-  "https://open.er-api.com/v6/latest/USD",
   "https://api.exchangerate.host/latest?from=USD&to=UGX",
-  "https://api.frankfurter.app/latest?from=USD&to=UGX",
+  "https://frankfurter.app/latest?from=USD&to=UGX",
 ];
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache

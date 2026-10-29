@@ -9,6 +9,20 @@ export function cn(...inputs: ClassValue[]) {
 /** 1 USD ≈ 4,400 UGX (live rate fallback; API provides the live value). */
 export const UGX_PER_USD = 4400;
 
+/** Get the live USD to UGX rate from the fees API. This ensures the client always
+ *  uses the same rate the server uses for settlement.
+ */
+export async function getLiveUgxPerUsd(): Promise<number> {
+  try {
+    const res = await fetch("/api/fees", { next: { revalidate: 3600 } });
+    if (!res.ok) throw new Error(String(res.status));
+    const body = await res.json();
+    return Number(body.ugxPerUsd) || UGX_PER_USD;
+  } catch {
+    return UGX_PER_USD;
+  }
+}
+
 export function formatUgx(amount: number) {
   return `UGX ${Math.round(amount).toLocaleString("en-UG")}`;
 }

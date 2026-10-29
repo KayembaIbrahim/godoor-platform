@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { refreshRateUgx, usdtConfig } from "@/lib/wallet-store";
+import { fetchLiveUgxPerUsd } from "@/lib/live-rate";
 export const runtime = "nodejs";
 
 /**
@@ -13,15 +13,16 @@ export const runtime = "nodejs";
  */
 
 export async function GET() {
-  const cfg = usdtConfig;
+  const { data: fees } = await (await import("@/lib/fees")).resolveFees(null);
+  const ugxPerUsd = fees.ugx_per_usd ?? await fetchLiveUgxPerUsd();
   return NextResponse.json({
     ok: true,
     config: {
-      handle: cfg.handle,
-      network: cfg.network,
-      referralCode: cfg.referralCode,
-      downloadUrl: cfg.downloadUrl,
-      rateUgx: cfg.rateUgx,
+      handle: usdtConfig.handle,
+      network: usdtConfig.network,
+      referralCode: usdtConfig.referralCode,
+      downloadUrl: usdtConfig.downloadUrl,
+      rateUgx: Math.round(ugxPerUsd),
     },
   });
 }
