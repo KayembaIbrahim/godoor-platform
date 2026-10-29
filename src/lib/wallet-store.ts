@@ -177,6 +177,10 @@ function toTopupRequest(r: any): TopupRequest {
 // Configuration constants
 export const usdtConfig = {
   refreshRateUgx: 3700,
+  handle: "godoor",
+  network: "usdt",
+  referralCode: "godoor-defi",
+  downloadUrl: "https://app.morse.io/godoor",
 };
 
 export const refreshRateUgx = usdtConfig.refreshRateUgx;
