@@ -14,7 +14,7 @@ export const runtime = "nodejs";
  */
 
 export async function GET() {
-  const { data: fees } = await (await import("@/lib/fees")).resolveFees(null);
+  const fees = await (await import("@/lib/fees")).resolveFees(null);
   const ugxPerUsd = await resolveUgxRate(fees.ugx_per_usd ?? null);
   return NextResponse.json({
     ok: true,
