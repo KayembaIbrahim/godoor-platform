@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { User, ShoppingBag, Mail, Lock, Loader2, AlertTriangle, CheckCircle, ArrowRight, KeyRound, Chrome } from "lucide-react";
+import { User, ShoppingBag, Mail, Lock, Loader2, AlertTriangle, CheckCircle, ArrowRight, KeyRound, Chrome, Twitter } from "lucide-react";
 import { useSession, roleHomePath, type Role } from "@/lib/session-store";
 
 /**
@@ -225,6 +225,39 @@ export function SignInForm({ mode: initialMode = "login", next }: { mode?: SignI
               </svg>
             ) : (
               <> <Chrome className="h-4 w-4 me-2" /> {"Google"} </>
+            )}
+          </button>
+          <button
+            type="button"
+            disabled={googleLoading}
+            onClick={() => {
+              setError("");
+              useSession.getState().signInWithX().catch((e) => {
+                setError(e?.message || "X sign-in failed");
+              });
+            }}
+            className={`btn-3d flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold transition disabled:opacity-50 disabled:hover:translate-y-0`}
+          >
+            {googleLoading ? (
+              <svg
+                className="h-4 w-4 animate-spin"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+                fill="none"
+                aria-label="Loading"
+              >
+                <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                <path
+                  d="M12 2v2m0 18v2m-9-9l9 9m9-9l-9 9"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  fill="none"
+                  aria-hidden="true"
+                />
+              </svg>
+            ) : (
+              <> <Twitter className="h-4 w-4 me-2" /> {"X"} </>
             )}
           </button>
         </div>

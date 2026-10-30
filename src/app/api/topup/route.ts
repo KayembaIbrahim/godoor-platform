@@ -4,6 +4,7 @@ import { usdtConfig } from "@/lib/wallet-store";
 import { attachTopupScreenshot, createTopupRequest, findTopupRequest, snapshotWallet } from "@/lib/wallet-store";
 import { authorize } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
+import { resolveUgxRate } from "@/lib/live-rate";
 export const runtime = "nodejs";
 
 const StartSchema = z.object({
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
   }
 
   const cfg = usdtConfig;
+  const liveRateUgx = await resolveUgxRate(null);
 
   // "I've sent the money" — record nothing new, just return their pending request.
   if ("reference" in body) {
@@ -59,7 +61,7 @@ export async function POST(req: Request) {
         network: cfg.network,
         referralCode: cfg.referralCode,
         downloadUrl: cfg.downloadUrl,
-        rateUgx: cfg.rateUgx,
+        rateUgx: liveRateUgx,
         method: "morse",
         currency: "USDT",
         networkLabel: "Morse Partner Wallet",
@@ -94,7 +96,7 @@ export async function POST(req: Request) {
 
   const instructions = [
     `Open Morse and top up your Morse wallet from mobile money.`,
-    `Send ${parsed.data.amountUsdt} USD (Morse shows it as the UGX equivalent) to GoDoor on Morse (@${cfg.handle.replace("@", "")}), and put ${reference} in the note.`,
+    `Send ${parsed.data.amountUsdt} USD (at ${liveRateUgx} UGX per USD) to GoDoor on Morse (@${cfg.handle.replace("@", "")}), and put ${reference} in the note.`,
     `Then tap "I've sent the money"${cfg.address ? ` and upload the send screenshot` : ""}. Our team verifies the transfer and credits your wallet.`,
   ].join(" ");
 
@@ -108,7 +110,7 @@ export async function POST(req: Request) {
       network: cfg.network,
       referralCode: cfg.referralCode,
       downloadUrl: cfg.downloadUrl,
-      rateUgx: cfg.rateUgx,
+      rateUgx: liveRateUgx,
       method: "morse",
       currency: "USDT",
       networkLabel: "Morse Partner Wallet",

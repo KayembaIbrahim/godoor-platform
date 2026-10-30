@@ -3,9 +3,8 @@ import { z } from "zod";
 import { authorize, isUuid } from "@/lib/api-auth";
 import { getServiceClient } from "@/lib/supabase-server";
 import { usdtConfig } from "@/lib/wallet-store";
+import { resolveUgxRate } from "@/lib/live-rate";
 
-// Fallback rate if config doesn't have one
-const DEFAULT_RATE_UGX = usdtConfig.refreshRateUgx || 3700;
 export const runtime = "nodejs";
 
 /**
@@ -94,7 +93,8 @@ export async function POST(req: NextRequest) {
   }
 
   const cfg = usdtConfig;
-  const amountUsdt = Math.max(1, Math.ceil(Number(order.total_ugx || 0) / (cfg.rateUgx || DEFAULT_RATE_UGX)));
+  const liveRateUgx = await resolveUgxRate(null);
+  const amountUsdt = Math.max(1, Math.ceil(Number(order.total_ugx || 0) / (liveRateUgx || cfg.rateUgx || 3700)));
   const reference = `GD-${parsed.data.orderId.replace(/-/g, "").slice(0, 10)}`;
 
   const { data, error } = await sb
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
   const instructions = [
     `Open the Morse app and choose "Request payment".`,
     `Enter the customer's Morse tag: ${customerTag}`,
-    `Amount: ${amountUsdt} USD (Morse shows it as ≈ UGX ${Number(order.total_ugx).toLocaleString()} — the order total at ${cfg.rateUgx} UGX per USD).`,
+    `Amount: ${amountUsdt} USD (Morse shows it as ≈ UGX ${Number(order.total_ugx).toLocaleString()} — the order total at ${liveRateUgx} UGX per USD).`,
     `Put ${reference} in the note so the payment is tied to this order.`,
     `When the customer approves, the money lands on your Morse wallet @${businessTag.replace(/^@/, "")}. Then mark it received here.`,
   ].join(" ");
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     data,
     instructions,
-    rateUgx: cfg.rateUgx,
+    rateUgx: liveRateUgx,
     handle: cfg.handle,
     meta: { note: "The money arrives on your fixed business Morse tag — GoDoor never redirects it, so disputes are easy to resolve." },
   });

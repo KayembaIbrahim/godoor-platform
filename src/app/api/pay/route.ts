@@ -4,7 +4,8 @@ import { debitGasFee, snapshotWallet } from "@/lib/wallet-store";
 import { newId } from "@/lib/utils";
 import { getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid } from "@/lib/api-auth";
-import { refreshRateUgx, usdtConfig } from "@/lib/wallet-store";
+import { usdtConfig } from "@/lib/wallet-store";
+import { resolveUgxRate } from "@/lib/live-rate";
 export const runtime = "nodejs";
 
 const PaySchema = z.object({
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
   const sb = getServiceClient();
   if (!sb) return NextResponse.json({ error: "Wallet unavailable" }, { status: 503 });
 
-  const rateUgx = usdtConfig.rateUgx;
+  const rateUgx = await resolveUgxRate(null);
   const before = await snapshotWallet(sb, actor.id);
   const gasUgx = before.availableUgx + before.availableUsdt * rateUgx;
   if (gasUgx < parsed.data.amountUgx) {

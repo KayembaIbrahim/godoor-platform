@@ -177,13 +177,17 @@ function toTopupRequest(r: any): TopupRequest {
 // Configuration constants
 export const usdtConfig = {
   refreshRateUgx: 3700,
+  rateUgx: 3700,
   handle: "godoor",
   network: "usdt",
   referralCode: "godoor-defi",
   downloadUrl: "https://app.morse.io/godoor",
 };
 
-export const refreshRateUgx = usdtConfig.refreshRateUgx;
+export async function refreshRateUgx(): Promise<number> {
+  const { resolveUgxRate } = await import("@/lib/live-rate");
+  return resolveUgxRate(null);
+}
 
 export async function snapshotWallet(sb: SupabaseClient, userId: string): Promise<WalletState> {
   const [balanceUgx, balanceUsdt, { data: pendRows }, { data: rows }] = await Promise.all([

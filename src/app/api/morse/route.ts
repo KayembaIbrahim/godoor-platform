@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveUgxRate } from "@/lib/live-rate";
+import { usdtConfig } from "@/lib/wallet-store";
 export const runtime = "nodejs";
 
 /**

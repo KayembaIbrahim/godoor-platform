@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Package, ShoppingBag, Truck, ArrowRight, Store, Clock, MapPin, Play } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, Package, ShoppingBag, Truck, ArrowRight, Store, Clock, MapPin, Play, Chrome, Twitter } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useSession, type Role } from "@/lib/session-store";
 import { AppFooter } from "@/components/AppFooter";
@@ -59,6 +60,9 @@ export default function OnboardingPage() {
   const { role, onboarded } = useSession();
   const router = useRouter();
   const setRole = useSession((s) => s.setRole);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [xLoading, setXLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // If already onboarded, send them to their app
   if (onboarded && role) {
@@ -74,6 +78,24 @@ export default function OnboardingPage() {
 
   const applyCard = (c: (typeof APPLY_CARDS)[number]) => {
     router.push(c.href);
+  };
+
+  const startGoogle = () => {
+    setError("");
+    setGoogleLoading(true);
+    useSession.getState().signInWithGoogle().catch((e: any) => {
+      setError(e?.message || "Google sign-in failed");
+      setGoogleLoading(false);
+    });
+  };
+
+  const startX = () => {
+    setError("");
+    setXLoading(true);
+    useSession.getState().signInWithX().catch((e: any) => {
+      setError(e?.message || "X sign-in failed");
+      setXLoading(false);
+    });
   };
 
   return (
@@ -169,6 +191,58 @@ export default function OnboardingPage() {
             <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Takes &lt;1 minute</span>
             <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> Uganda</span>
           </div>
+        </div>
+
+        {/* Social sign-in — Google & X (Twitter) */}
+        <div className="mx-auto w-full max-w-lg px-4 pb-10">
+          <div className="mt-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-dim">or</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+          <div className="mt-3 space-y-2">
+            <button
+              type="button"
+              disabled={googleLoading}
+              onClick={startGoogle}
+              className="flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold transition disabled:opacity-50 disabled:hover:translate-y-0 rounded-xl border border-border bg-surface hover:bg-elevated"
+            >
+              {googleLoading ? (
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} fill="none" aria-label="Loading">
+                  <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                  <path d="M12 2v2m0 18v2m-9-9l9 9m9-9l-9 9" stroke="currentColor" strokeWidth={2} fill="none" aria-hidden="true" />
+                </svg>
+              ) : (
+                <>
+                  <Chrome className="h-4 w-4 me-2" />
+                  {"Google"}
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={xLoading}
+              onClick={startX}
+              className="flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold transition disabled:opacity-50 disabled:hover:translate-y-0 rounded-xl border border-border bg-surface hover:bg-elevated"
+            >
+              {xLoading ? (
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} fill="none" aria-label="Loading">
+                  <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                  <path d="M12 2v2m0 18v2m-9-9l9 9m9-9l-9 9" stroke="currentColor" strokeWidth={2} fill="none" aria-hidden="true" />
+                </svg>
+              ) : (
+                <>
+                  <Twitter className="h-4 w-4 me-2" />
+                  {"X"}
+                </>
+              )}
+            </button>
+          </div>
+          {error && (
+            <div className="mt-3 flex items-start gap-2 rounded-xl bg-danger/10 px-3 py-2">
+              <p className="text-xs text-danger">{error}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

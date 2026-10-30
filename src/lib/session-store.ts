@@ -75,6 +75,7 @@ export type SessionState = {
   signOut: () => Promise<void>;
   loadAuthSession: () => Promise<void>;
   signInWithGoogle: () => Promise<AuthResult>;
+  signInWithX: () => Promise<AuthResult>;
 };
 
 const initial: Pick<SessionState, "role" | "profile" | "onboarded" | "supabaseUser" | "authReady"> = {
@@ -325,10 +326,26 @@ set({
             },
           });
           if (error) return friendlyError(error.message);
-          // Redirect already happened — resolve role on next loadAuthSession.
           return {};
         } catch (e: any) {
           return friendlyError(e?.message || "Google sign-in failed.");
+        }
+      },
+
+      signInWithX: async () => {
+        const sb = getSupabase();
+        if (!sb) return { error: "Supabase not configured." };
+        try {
+          const { error } = await sb.auth.signInWithOAuth({
+            provider: "twitter",
+            options: {
+              redirectTo: `${window.location.origin}/app/api/auth/callback`,
+            },
+          });
+          if (error) return friendlyError(error.message);
+          return {};
+        } catch (e: any) {
+          return friendlyError(e?.message || "X sign-in failed.");
         }
       },
     }),
