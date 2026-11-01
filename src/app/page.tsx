@@ -1,42 +1,26 @@
-import { getServiceClient } from "@/lib/supabase-server";
-import { readWelcomeBackground } from "@/lib/welcome-bg-server";
-import { WelcomeScreen, type WelcomeBackground } from "@/components/WelcomeScreen";
-import { AppFooter } from "@/components/AppFooter";
-import { redirect } from "next/navigation";
+import dynamic from "next/dynamic";
 
+export const dynamic = "force-static";
 export const revalidate = 60;
 
 /**
- * Sends unauthenticated visitors straight to the onboarding role-picker
- * rather than showing them a generic welcome / sign-in page.  Authenticated
- * (onboarded) users still see the dashboard‑entry welcome screen.
+ * Customer Home page — the hub for the customer marketplace.
+ *
+ * This is now the default landing page for all users (logged in or not).
+ * Users must be onboarded to see the marketplace; otherwise they see
+ * a prompt to complete onboarding. The role guard inside CustomerHome
+ * ensures business/rider/admin accounts are redirected to their respective
+ * dashboards instead of the customer marketplace.
  */
-export default async function WelcomePage() {
-  const sb = getServiceClient();
+export default function WelcomePage() {
+  const CustomerHome = dynamic(() => import("./app/CustomerHome"), {
+    ssr: true,
+    loading: () => (
+      <div className="flex h-screen items-center justify-center bg-bg">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-go border-t-transparent" />
+      </div>
+    ),
+  });
 
-  // If the visitor isn’t signed in, redirect to the onboarding flow
-  const { data } = await sb.auth.getUser();
-  if (!data?.user) {
-    redirect("/onboarding");
-  }
-
-  const stored = await readWelcomeBackground(sb);
-
-  // Only a PUBLISHED background reaches visitors. A draft preview made in the
-  // admin portal stays in the admin portal.
-  const background: WelcomeBackground | null = stored.published
-    ? {
-        imageUrl: stored.imageUrl,
-        intensity: stored.intensity,
-        slides: stored.slides,
-        slideDurationMs: stored.slideDurationMs,
-      }
-    : null;
-
-  return (
-    <>
-      <WelcomeScreen initialBackground={background} />
-      <AppFooter />
-    </>
-  );
+  return <CustomerHome />;
 }
