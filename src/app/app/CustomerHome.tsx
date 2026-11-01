@@ -17,7 +17,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { HeroBanner } from "@/components/HeroBanner";
 import { StoriesStrip, StoryViewer, type Story } from "@/components/StoriesViewer";
-import { SignupModal, useSignupPrompt } from "@/components/SignupPrompt";
+
 import { AddressSearchModal, getLastAddress, rememberDetectedAddress } from "@/components/AddressSearchModal";
 import { CustomerNav } from "@/components/CustomerNav";
 import GreetingCard from "@/components/GreetingCard";
@@ -87,7 +87,6 @@ export default function CustomerHome() {
   const [deliveryAddr, setDeliveryAddr] = useState<StoredCustomerAddress | null>(null);
   const [detectedDistrict, setDetectedDistrict] = useState<string | null>(null);
 
-  const signup = useSignupPrompt();
   const { coords: gpsLoc, address: gpsPlace, status: locStatus } = useGeolocation();
   const activeOrder = useActiveOrder();
   const { merchantIds: favIds, toggle: toggleFav } = useFavorites();
@@ -702,7 +701,7 @@ export default function CustomerHome() {
       {storyViewerIdx !== null && (
         <StoryViewer stories={stories} initialIndex={storyViewerIdx} onClose={() => setStoryViewerIdx(null)} />
       )}
-      <SignupModal open={signup.open} onClose={() => signup.setOpen(false)} returnTo={signup.returnTo} />
+      
       <ProductSearch open={productSearchOpen} onClose={() => setProductSearchOpen(false)} />
       <AddressSearchModal
         open={addressSearchOpen}
