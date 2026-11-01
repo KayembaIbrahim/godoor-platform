@@ -2,51 +2,24 @@ import { getServiceClient } from "@/lib/supabase-server";
 import { readWelcomeBackground } from "@/lib/welcome-bg-server";
 import { WelcomeScreen, type WelcomeBackground } from "@/components/WelcomeScreen";
 import { AppFooter } from "@/components/AppFooter";
+import { redirect } from "next/navigation";
 
-/**
- * GoDoor Welcome Page — app-style entry screen (version 10.5.1).
- *
- * Replaces the long marketing landing page with a true app shell:
- *   1. the GoDoor logo and wordmark, prominent and centred;
- *   2. an admin-customisable background image, read from the database HERE,
- *      on the server, and handed to the client component as a prop — so the
- *      artwork is in the very first byte of HTML the visitor receives;
- *   3. a prominent glass-effect Explore button — the single action every
- *      unauthenticated visitor takes first;
- *   4. sign in / create account, which open the shared auth dialog
- *      (the same one the header uses, so the credential handling cannot
- *      drift out of sync).
- *
- * All previous marketing content now lives on /explore, so this screen reads
- * as the app's home rather than a story page.
- *
- * ── Why the background is read on the server ───────────────────────────────
- * The background used to be fetched from `/api/welcome-bg` inside a client
- * component, after mount. That meant the first paint showed the plain
- * gradient and the admin's artwork appeared a second or two later — on a slow
- * phone it looked as though publishing had simply not worked. Reading it here
- * puts the image URL straight into the server-rendered HTML, so it is there
- * from the first paint, and the client-side refresh is kept only as a
- * belt-and-braces update for a background published while the tab was open.
- *
- * ── Why this is ISR, not `force-dynamic` ───────────────────────────────────
- * `force-dynamic` was the obvious way to guarantee that a background published
- * after the build reaches the live site, but it also threw away the page's
- * cache: the homepage came back with `x-vercel-cache: MISS` and
- * `private, no-cache, no-store` on every request, so every visitor hit the
- * origin and the database instead of being served from the edge — which is the
- * opposite of what "the platform is slow to respond" needs.
- *
- * So the page is rendered on the server and cached for a minute
- * (`revalidate = 60`), and the admin publish/reset routes call
- * `revalidatePath("/")` — which is the only moment the cache actually needs to
- * be dropped. A published background is live immediately, and every other
- * request is served from the cache.
- */
 export const revalidate = 60;
 
+/**
+ * Sends unauthenticated visitors straight to the onboarding role-picker
+ * rather than showing them a generic welcome / sign-in page.  Authenticated
+ * (onboarded) users still see the dashboard‑entry welcome screen.
+ */
 export default async function WelcomePage() {
   const sb = getServiceClient();
+
+  // If the visitor isn’t signed in, redirect to the onboarding flow
+  const { data } = await sb.auth.getUser();
+  if (!data?.user) {
+    redirect("/onboarding");
+  }
+
   const stored = await readWelcomeBackground(sb);
 
   // Only a PUBLISHED background reaches visitors. A draft preview made in the
