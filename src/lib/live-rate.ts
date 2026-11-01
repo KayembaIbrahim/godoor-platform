@@ -19,7 +19,7 @@ const DEFAULT_FALLBACK_RATE = 4400;
 let cachedRate: number | null = null;
 let cachedAt = 0;
 
-function normalizeResponse(res: Response): number | null {
+async function normalizeResponse(res: Response): Promise<number | null> {
   try {
     const data = await res.json();
     // frankfurter.dev returns { rates: { UGX: ... } }
@@ -46,7 +46,7 @@ async function fetchFromApis(): Promise<number | null> {
     try {
       const res = await fetch(url, { headers: { Accept: "application/json" } });
       if (!res.ok) continue;
-      const rate = normalizeResponse(res);
+      const rate = await normalizeResponse(res);
       if (rate !== null) return rate;
     } catch {
       continue;
