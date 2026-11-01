@@ -1,4 +1,4 @@
-import dynamic from "next/dynamic";
+import dynamicImport from "next/dynamic";
 
 export const dynamic = "force-static";
 export const revalidate = 60;
@@ -13,7 +13,7 @@ export const revalidate = 60;
  * dashboards instead of the customer marketplace.
  */
 export default function WelcomePage() {
-  const CustomerHome = dynamic(() => import("./app/CustomerHome"), {
+  const CustomerHome = dynamicImport(() => import("./app/CustomerHome"), {
     ssr: true,
     loading: () => (
       <div className="flex h-screen items-center justify-center bg-bg">
