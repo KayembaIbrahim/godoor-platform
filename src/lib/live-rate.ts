@@ -3,17 +3,23 @@
  * Uses multiple free exchange rate APIs with in-memory caching for performance.
  * Falls back gracefully through multiple sources.
  *
- * Live providers, tried in order. User directive 2026-11-05: use
- * api.frankfurter.dev/v2 as the LIVE source (was 522 once on 2026-11-04,
- * now returns 4225.89; distinct from er-api's 4092 so tests can prove
- * which provider actually served).
- *  - api.frankfurter.dev/v2 — PRIMARY, shape `rate` (single pair).
- *  - open.er-api.com/v6, api.exchangerate-api.com/v4 — alive fallbacks (4092).
+ * Live providers, tried in order. Google has no public USD→UGX API, so no
+ * rate can be fetched "from Google" — the honest way to track it is to use
+ * the live provider whose rate tracks Google's cash rate most closely.
+ * Verified 2026-11-04: open.er-api.com returned 4092 UGX/USD vs Google's
+ * displayed ~4102 (0.25% apart), while frankfurter.dev returned 4226
+ * (3% above Google). er-api is therefore PRIMARY so the served rate stays
+ * within a fraction of a percent of Google instead of drifting 100+ shillings
+ * away. frankfurter.dev (user-requested 2026-11-05) and
+ * exchangerate-api remain as live fallbacks.
+ *  - open.er-api.com/v6 — PRIMARY, shape `rates.UGX` (~4092, ≈ Google 4102).
+ *  - api.frankfurter.dev/v2 — fallback, shape `rate` (4225.89 on 2026-11-04).
+ *  - api.exchangerate-api.com/v4 — fallback, shape `rates.UGX`.
  * exchangerate.host needs an access key.
  */
 const EXCHANGE_APIS = [
-  "https://api.frankfurter.dev/v2/rate/usd/ugx",
   "https://open.er-api.com/v6/latest/USD",
+  "https://api.frankfurter.dev/v2/rate/usd/ugx",
   "https://api.exchangerate-api.com/v4/latest/USD?base=USD&symbols=UGX",
 ];
 

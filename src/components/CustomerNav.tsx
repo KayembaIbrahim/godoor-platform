@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, LayoutGrid, ShoppingBag, Wallet, User } from "lucide-react";
-import { useCart } from "@/lib/cart-store";
 import { useActiveOrder } from "@/lib/use-active-order";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +49,6 @@ function isTabActive(pathname: string, href: string): boolean {
 
 export function CustomerNav() {
   const pathname = usePathname() || "/app";
-  const cartCount = useCart((s) => s.count());
   const activeOrder = useActiveOrder();
 
   return (
@@ -98,8 +96,13 @@ export function CustomerNav() {
                         isActive ? "scale-105" : "group-hover:scale-110"
                       )}
                     />
-                    {/* Live delivery or cart indicator on the Orders tab */}
-                    {isOrders && (activeOrder || cartCount > 0) && (
+                    {/* Live-delivery indicator on the Orders tab. This used to
+                        also show the CART item count here as a raw number —
+                        a customer with 2 items in their cart saw a "2" badge
+                        on Orders and read it as "2 stuck orders". The cart
+                        count belongs to checkout, not to Orders, so only a
+                        genuinely live order lights this badge now. */}
+                    {isOrders && activeOrder && (
                       <span
                         className={cn(
                           "absolute -right-2 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full px-1 text-[8px] font-bold ring-2",
@@ -107,9 +110,9 @@ export function CustomerNav() {
                             ? "bg-white text-primary ring-primary"
                             : "bg-go text-white ring-bg"
                         )}
-                        aria-label="Active order or cart items"
+                        aria-label="Live order in progress"
                       >
-                        {activeOrder ? "!" : cartCount}
+                        !
                       </span>
                     )}
                   </span>

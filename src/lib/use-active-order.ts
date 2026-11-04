@@ -30,10 +30,31 @@ export function isLiveStatus(status: string | undefined): boolean {
   return !!status && LIVE_STATUSES.has(status);
 }
 
-/** Newest still-moving order. `orders` is assumed newest-first. */
+/**
+ * An unfinished order that nobody has touched for 24h is not "active" — it
+ * is stuck (payment submitted, merchant went quiet, no rider ever assigned).
+ * Showing it as active forever is exactly the "Orders tab stuck, user says
+ * no active orders" bug: the row is still `pending`/`payment_submitted` in
+ * the DB, so the banner/badge never clears. A genuinely moving order
+ * (preparing/rider/delivering) is never aged out here — only the two
+ * pre-acceptance statuses are, since those are the ones that can stall
+ * with no actor left to move them.
+ */
+const STALE_PENDING_MS = 24 * 60 * 60 * 1000;
+const STALEABLE_STATUSES = new Set(["pending", "payment_submitted"]);
+
+export function isStuckOrder(o: DBOrder, now = Date.now()): boolean {
+  if (!STALEABLE_STATUSES.has(o.status)) return false;
+  const created = o.created_at ?? 0;
+  return created > 0 && now - created > STALE_PENDING_MS;
+}
+
+/** Newest still-moving order. `orders` is assumed newest-first. Stuck
+ *  pre-acceptance orders are excluded (see isStuckOrder). */
 export function pickActiveOrder(orders: DBOrder[] | null | undefined): DBOrder | null {
   if (!orders) return null;
-  return orders.find((o) => isLiveStatus(o.status)) || null;
+  const now = Date.now();
+  return orders.find((o) => isLiveStatus(o.status) && !isStuckOrder(o, now)) || null;
 }
 
 const POLL_MS = 30000;

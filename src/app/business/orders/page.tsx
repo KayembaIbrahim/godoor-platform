@@ -50,7 +50,7 @@ export default function BusinessOrdersPage() {
   const [morseTag, setMorseTag] = useState<string>("");
   const [morseModal, setMorseModal] = useState<string | null>(null);
   const [morseRequests, setMorseRequests] = useState<Record<string, any>>({});
-  const [morseRate, setMorseRate] = useState(3800);
+  const [morseRate, setMorseRate] = useState(4102);
   const [morseBusy, setMorseBusy] = useState(false);
   const [morseMsg, setMorseMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [copiedMorse, setCopiedMorse] = useState(false);

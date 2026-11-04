@@ -46,7 +46,7 @@ const RIDER_LINKS = [
  * those are still inside the customer experience. Reversible by removing one
  * string.
  */
-const SELF_HEADED_ROUTES = ["/app", "/"];
+const SELF_HEADED_ROUTES = ["/app", "/", "/categories", "/shopping-list", "/browse"];
 
 export function HeaderClient() {
   const { onboarded, role } = useSession();
@@ -54,15 +54,13 @@ export function HeaderClient() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // `usePathname` is null until hydration resolves. Rendering the header in
-  // that state shipped TWO headers in the server HTML on self-headed routes
-  // (the server cannot know the path, so it rendered, then client removed it)
-  // — users got stuck seeing both headers with both logos. Render nothing
-  // until the path is known; the next render paints it.
-  if (pathname === null) return null;
-  const ownsItsHeader = SELF_HEADED_ROUTES.some(
-    (p) => pathname === p || pathname.startsWith(p + "/"),
-  );
+  // ALL hooks must run unconditionally on every render, before any early
+  // return. The previous layout returned `null` when `pathname === null`
+  // BEFORE `useHydrated`/`useEffect` ran — a Rules-of-Hooks violation: the
+  // server render skipped those hooks, the client render called them, React
+  // threw hydration error #418 and discarded the tree, leaving the
+  // server-rendered global header stranded above the page's own header
+  // (the "double headers with both logos" users kept seeing).
   /* The session lives in localStorage, so the server has no idea whether
      anyone is signed in — it always renders the signed-out header. Zustand
      rehydrates synchronously, so the client would render the signed-in nav
@@ -96,9 +94,13 @@ export function HeaderClient() {
     }
   }, [role, onboarded]);
 
-  // Server: pathname known only after hydration. Render nothing until hydrated
-  // so prerendered / never ships this header alongside CustomerHome’s own.
-  if (!hydrated) return null;
+  // `usePathname` is null until hydration resolves. Render nothing until the
+  // path and hydration are both known, so prerendered HTML never ships this
+  // header alongside a self-headed page's own header.
+  if (!hydrated || pathname === null) return null;
+  const ownsItsHeader = SELF_HEADED_ROUTES.some(
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
   if (ownsItsHeader) return null;
 
   const dashboardHref = roleHomePath(role);

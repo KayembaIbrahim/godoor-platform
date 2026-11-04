@@ -473,7 +473,7 @@ export function WalletPanel() {
   const [loading, setLoading] = useState(true);
   const [transferOpen, setTransferOpen] = useState(false);
 
-  const rate = cfg?.rateUgx || 3800;
+  const rate = cfg?.rateUgx || 4102;
 
   const load = useCallback(async () => {
     try {
