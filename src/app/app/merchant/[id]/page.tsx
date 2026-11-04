@@ -13,7 +13,7 @@ import { MorseLogo } from "@/components/MorseLogo";
 
 type Product = { id: string; name: string; desc: string; price: number; image?: string; images?: string[]; bulky?: boolean };
 
-import { getCategoryIcon, getCategoryColor } from "@/lib/categories";
+import { getCategoryEmoji, getCategoryColor } from "@/lib/categories";
 
 
 
@@ -38,7 +38,7 @@ export default function MerchantPage() {
   }, [id]);
 
   const category = merchant?.category || "Food";
-  const CatIcon = getCategoryIcon(category);
+  const catEmoji = getCategoryEmoji(category);
   const colors = getCategoryColor(category);
 
   // Load products from Supabase
@@ -180,7 +180,7 @@ export default function MerchantPage() {
       <div className="px-4 pt-6">
         <div className="flex items-center gap-2">
           <span className={`grid h-8 w-8 place-items-center rounded-lg ${colors.bg}`}>
-            <CatIcon className={`h-4 w-4 ${colors.text}`} />
+            <span className="text-xl leading-none" aria-hidden>{catEmoji}</span>
           </span>
           <div>
             <h2 className="font-display text-base font-semibold">Menu</h2>
@@ -210,7 +210,7 @@ export default function MerchantPage() {
                   </button>
                 ) : (
                   <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${colors.bg}`}>
-                    <CatIcon className={`h-5 w-5 ${colors.text}`} />
+                    <span className="text-2xl leading-none" aria-hidden>{catEmoji}</span>
                   </span>
                 )}
                 <div className="min-w-0 flex-1">

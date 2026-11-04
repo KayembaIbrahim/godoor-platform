@@ -45,7 +45,15 @@ type Props = {
    * The best available name for this user, in priority order. The card tidies
    * it (first word only, no empty strings) and falls back to greeting without
    * a name when there is nothing usable.
+   *
+   * SIGN-IN GATE (the reported person-name leak): pass `signedIn` = whether the
+   * app's auth layer has a real identity (in GoDoor: `supabaseUser != null`).
+   * When `signedIn` is false, no name is shown even if a stale persisted profile
+   * still carries one — a signed-out visitor must NEVER see "Good evening,
+   * Ibrahim". When `signedIn` is omitted the gate is open, so callers MUST set
+   * it explicitly (all three home screens now do).
    */
+  signedIn?: boolean;
   nameCandidates?: Array<string | null | undefined>;
   /** Extra classes for the card wrapper — lets each theme tint it. */
   className?: string;
@@ -61,8 +69,9 @@ const GREETING_ICON: Record<GreetingKey, typeof Sunrise> = {
   night: Moon,
 };
 
-export default function GreetingCard({ nameCandidates = [], className = "", compact = false }: Props) {
+export default function GreetingCard({ nameCandidates = [], signedIn = true, className = "", compact = false }: Props) {
   const [greeting, setGreeting] = useState<GreetingKey>("morning");
+  const [mounted, setMounted] = useState(false);
   const [artwork, setArtwork] = useState<{
     url: string;
     isGif: boolean;
@@ -79,6 +88,7 @@ export default function GreetingCard({ nameCandidates = [], className = "", comp
   // would be served "Good evening" until a single client-side re-render
   // corrected it, which on a slow phone is long enough to look broken.
   useEffect(() => {
+    setMounted(true);
     setGreeting(currentGreeting());
     // Re-check every minute so a screen left open across a boundary (say,
     // opened at 11:59 and left running) updates itself.
@@ -116,7 +126,14 @@ export default function GreetingCard({ nameCandidates = [], className = "", comp
   // never actually hit its cache — and the work it guards (splitting a string
   // and picking the first word) is far cheaper than the re-render that would
   // be needed to memoise it properly.
-  const name = resolveGreetingName(...nameCandidates);
+  // Sign-in gate: show the name ONLY after mount (post-hydration) within a
+  // request that actually has an identity. A persisted name from a previous
+  // user on this device must not greet a signed-out visitor — `supabaseUser`
+  // is intentionally cleared on sign-out (see session-store) and the caller
+  // passes it through the `signedIn` prop; if that is false the name is
+  // suppressed even if nameCandidates still carries a stale profile name.
+  // Before mount, hide the name entirely so SSR HTML never bakes a name.
+  const name = mounted && signedIn ? resolveGreetingName(...nameCandidates) : "";
   const Icon = GREETING_ICON[greeting];
 
   return (

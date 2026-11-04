@@ -174,17 +174,19 @@ export default function CategoriesPage() {
   );
 }
 
-/** Pastel circle + category glyph, shared by every row on this page. */
+/** Pastel circle + category glyph, shared by every row on this page.
+ *  Renders the universal emoji — every user recognises these, unlike tech-
+ *  style line icons. */
 function CategoryDisc({ id }: { id: string }) {
   const meta = CATEGORIES.find((c) => c.id === id);
-  const Icon = meta?.icon ?? Store;
+  const emoji = meta?.emoji ?? "📦";
   return (
     <span
       className="hybrid-disc h-11 w-11 shrink-0"
       style={{ ["--disc-rgb" as string]: discRgb(id) }}
       aria-hidden
     >
-      <Icon className="h-5 w-5" />
+      <span className="text-2xl leading-none" aria-hidden>{emoji}</span>
     </span>
   );
 }

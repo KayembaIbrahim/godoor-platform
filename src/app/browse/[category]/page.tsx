@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 import { useMerchants } from "@/lib/hooks";
-import { getCategoryIcon } from "@/lib/categories";
+import { getCategoryEmoji } from "@/lib/categories";
 import { browseMeta, canonicalCategoryForSlug, merchantInSlug } from "@/lib/service-slugs";
 import { Price } from "@/components/Price";
 import { CustomerNav } from "@/components/CustomerNav";
@@ -107,7 +107,7 @@ export default function BrowseServicePage() {
     );
   }
 
-  const Icon = getCategoryIcon(canonical);
+  const emoji = getCategoryEmoji(canonical);
 
   return (
     <div className="mx-auto min-h-[70vh] max-w-lg bg-bg pb-24 md:max-w-3xl">
@@ -125,7 +125,7 @@ export default function BrowseServicePage() {
 
           <div className="mt-3 flex items-center gap-3">
             <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ring-1 ${meta.ring}`}>
-              <Icon className="h-6 w-6 text-fg" />
+              <span className="text-3xl leading-none" aria-hidden>{emoji}</span>
             </div>
             <div className="min-w-0">
               <h1 className="font-display text-xl font-bold leading-tight">{meta.title}</h1>
@@ -288,8 +288,7 @@ export default function BrowseServicePage() {
                 ) : (
                   <div className="flex h-full items-center justify-center">
                     {(() => {
-                      const CI = getCategoryIcon(m.category || "");
-                      return <span className="grid h-full w-full place-items-center bg-go/8"><CI className="h-10 w-10 text-go/60" /></span>;
+                      return <span className="grid h-full w-full place-items-center bg-go/8"><span className="text-5xl leading-none" aria-hidden>{getCategoryEmoji(m.category || "")}</span></span>;
                     })()}
                   </div>
                 )}

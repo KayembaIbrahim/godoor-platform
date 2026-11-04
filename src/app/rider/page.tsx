@@ -1082,6 +1082,7 @@ export default function RiderDashboard() {
             see), then the session profile name, then the display name. */}
         <div className="px-4 pt-3">
           <GreetingCard
+            signedIn={!!supabaseUser}
             nameCandidates={[
               riderRecord?.name,
               profile.name,

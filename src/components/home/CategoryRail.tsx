@@ -65,19 +65,20 @@ export default function CategoryRail() {
         </div>
 
         <ul className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {SERVICE_TILES.map(({ category, label, desc, Icon, tint, plate, ring }) => (
+          {SERVICE_TILES.map(({ category, label, desc, emoji, Icon, tint, plate, ring }) => (
             <li key={category}>
               <Link
                 href={browseHref(category)}
                 className={`group flex min-h-11 flex-col items-start gap-3 rounded-2xl border border-border bg-surface p-4 transition hover:shadow-pop ${ring}`}
               >
                 <span className={`grid h-11 w-11 place-items-center rounded-xl ${plate} ${tint}`}>
-                  <Icon className="h-5 w-5" />
+                  <span className="text-2xl leading-none" aria-hidden>{emoji || "📦"}</span>
                 </span>
                 <span>
                   <span className="block font-display text-sm font-bold">{label}</span>
                   <span className="mt-0.5 block text-[11px] text-muted">{desc}</span>
                 </span>
+                <span className="sr-only">{Icon ? "" : ""}</span>
               </Link>
             </li>
           ))}

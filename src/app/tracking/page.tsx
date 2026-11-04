@@ -34,7 +34,9 @@ function itemCount(s: string): number {
 function vehicleIcon(type?: string | null) {
   const t = (type || "motorbike").toLowerCase();
   if (t.includes("car") || t.includes("suv")) return Car;
-  return Bike;
+  // Default: map pin, NOT motorcycle silhouette — the map tab shows a
+  // location pin even when the rider is on a motorbike.
+  return MapPin;
 }
 
 // ── Delivery Rating ────────────────────────────────────────────

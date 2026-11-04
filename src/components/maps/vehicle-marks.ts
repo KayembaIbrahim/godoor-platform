@@ -50,6 +50,9 @@ export type VehicleKind = "motorbike" | "car" | "bicycle" | "van" | "walking";
  */
 export function vehicleKind(type?: string | null): VehicleKind {
   const t = (type || "").toLowerCase().trim();
+  // Unrecognised vehicle types fall through to the motorbike default below;
+  // the map marker itself is an annotation tile, not a vehicle picker, so
+  // unknown values still draw the fleet default rather than a blank marker.
   if (!t) return "motorbike";
 
   /* ORDER MATTERS — these are checked most-specific first.

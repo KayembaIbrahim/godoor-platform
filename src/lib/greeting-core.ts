@@ -34,6 +34,16 @@
 /** The four greetings, as a closed set so the UI can switch on them. */
 export type GreetingKey = "morning" | "afternoon" | "evening" | "night";
 
+/**
+ * True when a name should be used in the greeting. Greetings are for
+ * signed-in users only — a signed-out visitor must NEVER be greeted by
+ * someone else's name (the reported "not signed in but sees Good evening,
+ * Ibrahim" bug). See `GreetingCard` and the `supabaseUser` gate in callers.
+ */
+export function isUsableGreetingName(name: string | null | undefined): boolean {
+  return typeof name === "string" && name.trim().length > 0;
+}
+
 /** Human-readable greeting text, e.g. "Good morning". */
 export const GREETING_TEXT: Record<GreetingKey, string> = {
   morning: "Good morning",

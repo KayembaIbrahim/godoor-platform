@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useSession } from "@/lib/session-store";
 import { fetchMerchants, fetchProducts, saveProduct, deleteProduct, apiAuthHeaders, type DBProduct } from "@/lib/db";
-import { CATEGORIES, getCategoryIcon, getCategoryColor } from "@/lib/categories";
+import { CATEGORIES, getCategoryEmoji, getCategoryColor } from "@/lib/categories";
 import { noDeadline } from "@/lib/net";
 
 const CATEGORY_IDS = CATEGORIES.map((c) => c.id);
@@ -224,7 +224,7 @@ export default function BusinessProductsPage() {
           <div className="space-y-2">
             {/* Category — uses the business's own category (no unrelated categories shown) */}
             <div className="flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2.5">
-              {(() => { const CatIcon = getCategoryIcon(formCategory); return <CatIcon className="h-4 w-4 shrink-0 text-primary" />; })()}
+              <span className="text-xl leading-none" aria-hidden>{getCategoryEmoji(formCategory)}</span>
               <div className="flex-1">
                 <p className="text-xs font-medium text-fg">{formCategory}</p>
                 <p className="text-[9px] text-dim">Category set from your business profile</p>
@@ -235,13 +235,12 @@ export default function BusinessProductsPage() {
             {showCatPicker && (
               <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-border bg-surface p-2">
                 {CATEGORY_IDS.map((c) => {
-                  const CatIcon = getCategoryIcon(c);
                   return (
                     <button key={c} type="button" onClick={() => { setFormCategory(c); setShowCatPicker(false); }}
                       className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-medium transition ${
                         formCategory === c ? "bg-primary/15 text-primary ring-1 ring-primary/30" : "text-muted hover:bg-elevated"
                       }`}>
-                      <CatIcon className="h-3 w-3 shrink-0" />
+                      <span className="text-base leading-none" aria-hidden>{getCategoryEmoji(c)}</span>
                       <span className="truncate">{c}</span>
                     </button>
                   );
@@ -360,7 +359,7 @@ export default function BusinessProductsPage() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((p) => {
-              const CatIcon = getCategoryIcon(p.category) || Package;
+              const catEmoji = getCategoryEmoji(p.category);
               const colors = getCategoryColor(p.category);
               return (
                 <div key={p.id} className={`rounded-2xl border bg-surface p-3.5 transition ${p.available ? "border-border" : "border-border opacity-50"}`}>
@@ -369,7 +368,7 @@ export default function BusinessProductsPage() {
                       {p.image_url ? (
                         <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
                       ) : (
-                        <CatIcon className={`h-5 w-5 ${colors.text}`} />
+                        <span className="text-2xl leading-none" aria-hidden>{catEmoji}</span>
                       )}
                     </span>
                     <div className="min-w-0 flex-1">

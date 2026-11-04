@@ -116,6 +116,9 @@ export const useSession = create<SessionState>()(
       completeOnboarding: () => set({ onboarded: true }),
       reset: () => {
         set({ ...initial });
+        try {
+          localStorage.removeItem("godoor-session");
+        } catch {}
         const sb = getSupabase();
         sb?.auth.signOut();
       },
@@ -313,6 +316,12 @@ set({
         // *resolved* auth state — leaving it false would stall every gated
         // fetch behind a session load that is never coming.
         set({ ...initial, authReady: true });
+        // persist is the only thing that collapses identity — wipe it now so
+        // the next visitor on this device cannot see the previous user's
+        // profile (e.g. "Good evening, Ibrahim") while signed out.
+        try {
+          localStorage.removeItem("godoor-session");
+        } catch {}
       },
 
       signInWithGoogle: async () => {
@@ -349,7 +358,20 @@ set({
         }
       },
     }),
-    { name: "godoor-session" },
+    {
+      name: "godoor-session",
+      // A persisted snapshot without a supabaseUser is a signed-out identity.
+      // Keeping its profile/name would leak the previous user's "Good
+      // evening, Ibrahim" to the next visitor even though they are NOT
+      // signed in — strip it at rehydration time.
+      onRehydrateStorage: () => (state) => {
+        if (state && !state.supabaseUser) {
+          state.profile = {};
+          state.role = null;
+          state.onboarded = false;
+        }
+      },
+    },
   ),
 );
 

@@ -34,6 +34,9 @@ export interface ServiceTile {
   label: string;
   desc: string;
   Icon: LucideIcon;
+  /** Universal emoji shown instead of the tech line icon — recognisable
+   *  by every user without decoding, incl. older ones. */
+  emoji: string;
   /** Icon colour on the tinted plate. */
   tint: string;
   /** Plate background. */
@@ -48,6 +51,7 @@ export const SERVICE_TILES: readonly ServiceTile[] = [
     label: "Food",
     desc: "Meals & restaurants",
     Icon: UtensilsCrossed,
+    emoji: "🍽️",
     tint: "text-amber-600 dark:text-amber-400",
     plate: "bg-amber-500/12",
     ring: "hover:border-amber-500/40",
@@ -57,6 +61,7 @@ export const SERVICE_TILES: readonly ServiceTile[] = [
     label: "Groceries",
     desc: "Market & essentials",
     Icon: ShoppingBag,
+    emoji: "🛒",
     tint: "text-emerald-600 dark:text-emerald-400",
     plate: "bg-emerald-500/12",
     ring: "hover:border-emerald-500/40",
@@ -66,6 +71,7 @@ export const SERVICE_TILES: readonly ServiceTile[] = [
     label: "Pharmacy",
     desc: "Medicine & wellness",
     Icon: Pill,
+    emoji: "💊",
     tint: "text-blue-600 dark:text-blue-400",
     plate: "bg-blue-500/12",
     ring: "hover:border-blue-500/40",
@@ -78,6 +84,7 @@ export const SERVICE_TILES: readonly ServiceTile[] = [
     label: "Packages",
     desc: "Send anything",
     Icon: Package,
+    emoji: "📦",
     tint: "text-purple-600 dark:text-purple-400",
     plate: "bg-purple-500/12",
     ring: "hover:border-purple-500/40",

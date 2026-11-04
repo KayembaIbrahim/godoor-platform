@@ -516,6 +516,7 @@ function BusinessDashboardInner() {
           the identity this account operates under. */}
       <div className="px-4 pt-4">
         <GreetingCard
+          signedIn={!!supabaseUser}
           nameCandidates={[
             profile.businessName,
             merchantRecord?.name,

@@ -12,6 +12,12 @@ export type CategoryInfo = {
   id: string;
   label: string;
   icon: typeof UtensilsCrossed;
+  /**
+   * Universal emoji for this category — every older user recognises these
+   * without reading tech-style line icons (the reported person-facing bug).
+   * The Lucide `icon` above stays as a fallback for a11y/SEO only.
+   */
+  emoji: string;
   color: { bg: string; text: string };
   products: { name: string; price: number }[];
 };
@@ -21,6 +27,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Food & Restaurants",
     label: "Food & Restaurants",
     icon: UtensilsCrossed,
+    emoji: "🍽️",
     color: { bg: "bg-amber-500/10", text: "text-amber-500" },
     products: [
       { name: "Rolex", price: 3000 },
@@ -41,6 +48,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Groceries & Market",
     label: "Groceries & Market",
     icon: ShoppingCart,
+    emoji: "🛒",
     color: { bg: "bg-emerald-500/10", text: "text-emerald-500" },
     products: [
       { name: "Sugar (1kg)", price: 5000 },
@@ -61,6 +69,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Pharmacy",
     label: "Pharmacy",
     icon: Pill,
+    emoji: "💊",
     color: { bg: "bg-blue-500/10", text: "text-blue-500" },
     products: [
       { name: "Panadol (pack)", price: 3000 },
@@ -81,6 +90,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Clothing & Fashion",
     label: "Clothing & Fashion",
     icon: Shirt,
+    emoji: "👕",
     color: { bg: "bg-purple-500/10", text: "text-purple-500" },
     products: [
       { name: "T-Shirt", price: 25000 },
@@ -99,6 +109,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Electronics & Gadgets",
     label: "Electronics & Gadgets",
     icon: Smartphone,
+    emoji: "📱",
     color: { bg: "bg-sky-500/10", text: "text-sky-500" },
     products: [
       { name: "Phone Case", price: 10000 },
@@ -117,6 +128,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Beauty & Personal Care",
     label: "Beauty & Personal Care",
     icon: Sparkles,
+    emoji: "💄",
     color: { bg: "bg-pink-500/10", text: "text-pink-500" },
     products: [
       { name: "Hair Oil", price: 10000 },
@@ -135,6 +147,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Home & Kitchen",
     label: "Home & Kitchen",
     icon: Flame,
+    emoji: "🏠",
     color: { bg: "bg-orange-500/10", text: "text-orange-500" },
     products: [
       { name: "Cooking Pot", price: 30000 },
@@ -153,6 +166,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Hardware & Building",
     label: "Hardware & Building",
     icon: Wrench,
+    emoji: "🔨",
     color: { bg: "bg-stone-500/10", text: "text-stone-500" },
     products: [
       { name: "Hammer", price: 15000 },
@@ -171,6 +185,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Petrol & Fuel",
     label: "Petrol & Fuel",
     icon: Fuel,
+    emoji: "⛽",
     color: { bg: "bg-red-500/10", text: "text-red-500" },
     products: [
       { name: "Petrol (5L)", price: 30000 },
@@ -185,6 +200,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Agriculture & Garden",
     label: "Agriculture & Garden",
     icon: Sprout,
+    emoji: "🌱",
     color: { bg: "bg-lime-500/10", text: "text-lime-600" },
     products: [
       { name: "Seeds (pack)", price: 5000 },
@@ -201,6 +217,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Baby & Kids",
     label: "Baby & Kids",
     icon: Baby,
+    emoji: "👶",
     color: { bg: "bg-teal-500/10", text: "text-teal-500" },
     products: [
       { name: "Diapers (pack)", price: 25000 },
@@ -217,6 +234,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Books & Stationery",
     label: "Books & Stationery",
     icon: BookOpen,
+    emoji: "📚",
     color: { bg: "bg-indigo-500/10", text: "text-indigo-500" },
     products: [
       { name: "Exercise Book", price: 2000 },
@@ -235,6 +253,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Car & Auto Parts",
     label: "Car & Auto Parts",
     icon: Car,
+    emoji: "🚗",
     color: { bg: "bg-gray-500/10", text: "text-gray-600" },
     products: [
       { name: "Car Battery", price: 180000 },
@@ -251,6 +270,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Flowers & Gifts",
     label: "Flowers & Gifts",
     icon: Flower2,
+    emoji: "💐",
     color: { bg: "bg-rose-500/10", text: "text-rose-500" },
     products: [
       { name: "Flower Bouquet", price: 20000 },
@@ -266,6 +286,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Sports & Fitness",
     label: "Sports & Fitness",
     icon: Gift,
+    emoji: "⚽",
     color: { bg: "bg-cyan-500/10", text: "text-cyan-500" },
     products: [
       { name: "Football", price: 20000 },
@@ -282,6 +303,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Photography & Print",
     label: "Photography & Print",
     icon: Camera,
+    emoji: "📷",
     color: { bg: "bg-violet-500/10", text: "text-violet-500" },
     products: [
       { name: "Passport Photo", price: 5000 },
@@ -297,6 +319,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Salon & Barber",
     label: "Salon & Barber",
     icon: Scissors,
+    emoji: "✂️",
     color: { bg: "bg-fuchsia-500/10", text: "text-fuchsia-500" },
     products: [
       { name: "Haircut", price: 10000 },
@@ -312,6 +335,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Education & Tutoring",
     label: "Education & Tutoring",
     icon: GraduationCap,
+    emoji: "🎓",
     color: { bg: "bg-blue-400/10", text: "text-blue-400" },
     products: [
       { name: "Tutoring (1hr)", price: 15000 },
@@ -326,6 +350,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Hotel & Accommodation",
     label: "Hotel & Accommodation",
     icon: Building2,
+    emoji: "🏨",
     color: { bg: "bg-amber-600/10", text: "text-amber-600" },
     products: [
       { name: "Room (per night)", price: 80000 },
@@ -340,6 +365,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Furniture & Appliances",
     label: "Furniture & Appliances",
     icon: Sofa,
+    emoji: "🛋️",
     color: { bg: "bg-amber-700/10", text: "text-amber-700" },
     products: [
       { name: "Sofa Set", price: 350000 },
@@ -362,6 +388,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Computers & Accessories",
     label: "Computers & Accessories",
     icon: Laptop,
+    emoji: "💻",
     color: { bg: "bg-zinc-500/10", text: "text-zinc-600" },
     products: [
       { name: "Laptop Stand", price: 30000 },
@@ -379,6 +406,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Transport & Vehicle Hire",
     label: "Transport & Vehicle Hire",
     icon: CarFront,
+    emoji: "🚕",
     color: { bg: "bg-slate-600/10", text: "text-slate-600" },
     products: [
       { name: "Boda Hire (within town)", price: 3000 },
@@ -393,6 +421,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Travel & Tours",
     label: "Travel & Tours",
     icon: Bus,
+    emoji: "🚌",
     color: { bg: "bg-cyan-600/10", text: "text-cyan-700" },
     products: [
       { name: "City Tour (person)", price: 50000 },
@@ -407,6 +436,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Business Services",
     label: "Business Services",
     icon: Landmark,
+    emoji: "💼",
     color: { bg: "bg-teal-600/10", text: "text-teal-700" },
     products: [
       { name: "Website Design", price: 300000 },
@@ -421,6 +451,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Events & Hire Services",
     label: "Events & Hire Services",
     icon: Flame,
+    emoji: "🎉",
     color: { bg: "bg-orange-600/10", text: "text-orange-700" },
     products: [
       { name: "Tent Hire", price: 150000 },
@@ -435,6 +466,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "House Helpers",
     label: "House Helpers",
     icon: BrushCleaning,
+    emoji: "🧹",
     color: { bg: "bg-teal-500/10", text: "text-teal-600" },
     products: [
       { name: "House Cleaner (per visit)", price: 25000 },
@@ -455,6 +487,7 @@ export const CATEGORIES: CategoryInfo[] = [
     id: "Delivery & Courier",
     label: "Delivery & Courier",
     icon: Truck,
+    emoji: "📦",
     color: { bg: "bg-slate-400/10", text: "text-slate-500" },
     products: [
       { name: "Small Parcel (within town)", price: 3000 },
@@ -513,6 +546,14 @@ export function getCategoryProducts(categoryId: string): { name: string; price: 
 /** Get a category's icon by its ID */
 export function getCategoryIcon(categoryId: string): typeof UtensilsCrossed {
   return matchCategory(categoryId)?.icon || ShoppingBag;
+}
+
+/** Get a category's universal emoji by its ID — the element to render in
+ *  person-facing discs so every user (including older ones) recognises it
+ *  without decoding tech-style line icons. Falls back to a parcel emoji so
+ *  a newly-authored category never renders blank. */
+export function getCategoryEmoji(categoryId: string): string {
+  return matchCategory(categoryId)?.emoji || "📦";
 }
 
 /** Get a category's color by its ID */

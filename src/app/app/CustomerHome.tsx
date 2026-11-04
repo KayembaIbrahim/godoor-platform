@@ -69,7 +69,7 @@ import { CATEGORIES } from "@/lib/categories";
  */
 
 export default function CustomerHome() {
-  const { role, onboarded, profile } = useSession();
+  const { role, onboarded, profile, supabaseUser } = useSession();
 
   // Role guard: business/rider should never see the customer marketplace.
   useEffect(() => {
@@ -404,6 +404,7 @@ export default function CustomerHome() {
           part as a last resort so the card is never blank. */}
       <div className="px-4 pt-4">
         <GreetingCard
+          signedIn={!!supabaseUser}
           nameCandidates={[
             profile.displayName,
             profile.name,
