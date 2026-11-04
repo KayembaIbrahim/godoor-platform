@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Bike,
+  Sparkles,
   X,
   MapPin,
   CheckCircle2,
