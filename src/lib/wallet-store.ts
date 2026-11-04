@@ -175,18 +175,41 @@ function toTopupRequest(r: any): TopupRequest {
 }
 
 // Configuration constants
+// NOTE: `rateUgx` / `refreshRateUgx` here are a LAST-RESORT initialization
+// constant only. Every live path must fetch the rate via `resolveUgxRate()`
+// / `fetchLiveUgxPerUsd()` (see @/lib/live-rate). Nothing may persist or
+// settle using this static 3700 as if it were the live rate, and no money
+// math may read usdtConfig.rateUgx directly — grep enforcement: `usdtConfig`
+// must only be used for `handle`/`network` branding fields. See
+// `scripts/audit-live-rate.mjs`, run alongside `npx tsc --noEmit`.
 export const usdtConfig = {
-  refreshRateUgx: 3700,
+  // Deprecated static display fallback — do not use for settlement/UGX math.
+  // Kept only for backward-compat with any external reader of the shape;
+  // live paths in this repo must never read it (use resolveUgxRate instead).
   rateUgx: 3700,
   handle: "godoor",
   network: "usdt",
   referralCode: "godoor-defi",
   downloadUrl: "https://app.morse.io/godoor",
+  /**
+   * The canonical way to get a live rate from anywhere in the codebase —
+   * mirrors `resolveUgxRate(null)` from `@/lib/live-rate`. Returns a NUMBER
+   * (not an object) so existing settlement call sites that just need to
+   * compute keep working. Use `fetchLiveUgxPerUsd()`/`resolveUgxRate()`
+   * directly when you also need to know whether the rate was live or a
+   * hardcoded fallback.
+   */
+  liveRateUgx: async (): Promise<number> => {
+    const { resolveUgxRate } = await import("@/lib/live-rate");
+    const { rate } = await resolveUgxRate(null);
+    return rate;
+  },
 };
 
 export async function refreshRateUgx(): Promise<number> {
   const { resolveUgxRate } = await import("@/lib/live-rate");
-  return resolveUgxRate(null);
+  const { rate } = await resolveUgxRate(null);
+  return rate;
 }
 
 export async function snapshotWallet(sb: SupabaseClient, userId: string): Promise<WalletState> {

@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 
 export async function GET() {
   const fees = await (await import("@/lib/fees")).resolveFees(null);
-  const ugxPerUsd = await resolveUgxRate(fees.ugx_per_usd ?? null);
+  const { rate, source } = await resolveUgxRate(fees.ugx_per_usd ?? null);
   return NextResponse.json({
     ok: true,
     config: {
@@ -23,7 +23,8 @@ export async function GET() {
       network: usdtConfig.network,
       referralCode: usdtConfig.referralCode,
       downloadUrl: usdtConfig.downloadUrl,
-      rateUgx: Math.round(ugxPerUsd),
+      rateUgx: Math.round(rate),
+      rateSource: source, // "live" | "cached" | "fallback" — surface it so the UI never shows a hardcoded rate as live
     },
   });
 }

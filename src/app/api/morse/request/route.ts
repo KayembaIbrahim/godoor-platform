@@ -93,8 +93,10 @@ export async function POST(req: NextRequest) {
   }
 
   const cfg = usdtConfig;
-  const liveRateUgx = await resolveUgxRate(null);
-  const amountUsdt = Math.max(1, Math.ceil(Number(order.total_ugx || 0) / (liveRateUgx || cfg.rateUgx || 3700)));
+  const { rate: liveRateUgx } = await resolveUgxRate(null);
+  // resolveUgxRate always returns a sane rate (>0); usdtConfig.rateUgx (3700) is a
+  // dead hardcoded fallback and must never override a live rate. Dropped.
+  const amountUsdt = Math.max(1, Math.ceil(Number(order.total_ugx || 0) / liveRateUgx));
   const reference = `GD-${parsed.data.orderId.replace(/-/g, "").slice(0, 10)}`;
 
   const { data, error } = await sb

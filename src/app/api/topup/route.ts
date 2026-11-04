@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   }
 
   const cfg = usdtConfig;
-  const liveRateUgx = await resolveUgxRate(null);
+  const { rate: liveRateUgx } = await resolveUgxRate(null);
 
   // "I've sent the money" — record nothing new, just return their pending request.
   if ("reference" in body) {

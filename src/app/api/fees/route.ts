@@ -15,6 +15,6 @@ export async function GET() {
     row = (data as Record<string, unknown> | null) ?? null;
   }
   const fees = resolveFees(row);
-  const ugxPerUsd = await resolveUgxRate(row?.ugx_per_usd ? Number(row.ugx_per_usd) : null);
-  return NextResponse.json({ fees, ugxPerUsd });
+  const { rate: ugxPerUsd, source } = await resolveUgxRate(row?.ugx_per_usd ? Number(row.ugx_per_usd) : null);
+  return NextResponse.json({ fees, ugxPerUsd, rateSource: source });
 }
