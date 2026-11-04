@@ -23,8 +23,8 @@ const EXCHANGE_APIS = [
  */
 const MIN_REASONABLE_RATE = 3000; // UGX per USD — well below the real ~4092/4225 so a legit dip to 4092 is never rejected (old 4200 floor wrongly rejected it and forced the 4400 hardcoded fallback)
 
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour cache
-const DEFAULT_FALLBACK_RATE = 4400;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min cache so live moves show up quickly
+const DEFAULT_FALLBACK_RATE = 4102; // Last-resort only (matches Google ~4102); live sources win on every refresh
 
 let cachedRate: number | null = null;
 let cachedAt = 0;

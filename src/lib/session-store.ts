@@ -361,6 +361,6 @@ export function roleHomePath(role: Role | null | undefined): string {
     case "business": return "/business";
     case "rider": return "/rider";
     case "admin": return "/admin";
-    default: return "/app";
+    default: return "/";
   }
 }

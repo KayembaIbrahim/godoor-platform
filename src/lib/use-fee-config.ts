@@ -13,7 +13,7 @@ import { resolveFees, type FeeConfigShape } from "@/lib/fees";
  */
 export function useFeeConfig(): FeeConfigShape {
   const [cfg, setCfg] = useState<FeeConfigShape>(() => resolveFees(null));
-  const [ugxPerUsd, setUgxPerUsd] = useState(4400);
+  const [ugxPerUsd, setUgxPerUsd] = useState(4102);
   useEffect(() => {
     let live = true;
     fetch("/api/fees")

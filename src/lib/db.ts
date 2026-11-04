@@ -1438,7 +1438,7 @@ export type FeeConfig = {
 const DEFAULT_FEES: FeeConfig = {
   ...FALLBACK_FEE_CONFIG,
   id: "default",
-  ugx_per_usd: 4400,
+  ugx_per_usd: 4102,
   created_at: Date.now(),
   updated_at: Date.now(),
 };

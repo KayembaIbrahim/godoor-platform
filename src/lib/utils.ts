@@ -6,8 +6,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** 1 USD ≈ 4,400 UGX (live rate fallback; API provides the live value). */
-export const UGX_PER_USD = 4400;
+/** 1 USD ≈ 4,102 UGX (display fallback only; live value comes from /api/fees). */
+export const UGX_PER_USD = 4102;
 
 /** Get the live USD to UGX rate from the fees API. This ensures the client always
  *  uses the same rate the server uses for settlement.
