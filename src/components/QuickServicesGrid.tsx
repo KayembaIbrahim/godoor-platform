@@ -4,14 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Bike,
-  UtensilsCrossed,
-  ShoppingBag,
-  Package,
-  Pill,
-  Wallet,
-  Smartphone,
-  Sparkles,
-  ShieldCheck,
   X,
   MapPin,
   CheckCircle2,
@@ -28,14 +20,14 @@ import { serviceDiscRgb } from "@/lib/category-discs";
  * and an airtime purchase are not pages, they are transactions.
  */
 const SERVICES = [
-  { id: "GoRide", label: "GoRide", sub: "Boda & Car", icon: Bike, href: "/ride", action: null },
-  { id: "GoFood", label: "GoFood", sub: "Meals", icon: UtensilsCrossed, href: "/browse/food", action: null },
-  { id: "GoMart", label: "GoMart", sub: "Groceries", icon: ShoppingBag, href: "/browse/mart", action: null },
-  { id: "GoExpress", label: "GoExpress", sub: "Send parcel", icon: Package, href: null, action: "express" },
-  { id: "GoPharma", label: "GoPharma", sub: "Prescriptions", icon: Pill, href: "/browse/pharma", action: null },
-  { id: "GoPay", label: "GoPay", sub: "Wallet", icon: Wallet, href: "/wallet", action: null },
-  { id: "Airtime", label: "Airtime", sub: "MTN & Airtel", icon: Smartphone, href: null, action: "airtime" },
-  { id: "Services", label: "Services", sub: "All directory", icon: Sparkles, href: null, action: "services" },
+  { id: "GoRide", label: "GoRide", sub: "Boda & Car", emoji: "🏍️", href: "/ride", action: null },
+  { id: "GoFood", label: "GoFood", sub: "Meals", emoji: "🍽️", href: "/browse/food", action: null },
+  { id: "GoMart", label: "GoMart", sub: "Groceries", emoji: "🛒", href: "/browse/mart", action: null },
+  { id: "GoExpress", label: "GoExpress", sub: "Send parcel", emoji: "📦", href: null, action: "express" },
+  { id: "GoPharma", label: "GoPharma", sub: "Prescriptions", emoji: "💊", href: "/browse/pharma", action: null },
+  { id: "GoPay", label: "GoPay", sub: "Wallet", emoji: "💵", href: "/wallet", action: null },
+  { id: "Airtime", label: "Airtime", sub: "MTN & Airtel", emoji: "📱", href: null, action: "airtime" },
+  { id: "Services", label: "Services", sub: "All directory", emoji: "📂", href: null, action: "services" },
 ] as const;
 
 export function QuickServicesGrid() {
@@ -94,14 +86,13 @@ return (
         aria-label="GoDoor services"
       >
         {SERVICES.map((s) => {
-          const Icon = s.icon;
           const disc = (
             <span
               className="hybrid-disc h-14 w-14"
               style={{ ["--disc-rgb" as string]: serviceDiscRgb(s.id) }}
               aria-hidden="true"
             >
-              <Icon className="h-6 w-6" />
+              <span className="text-2xl leading-none" aria-hidden>{s.emoji}</span>
             </span>
           );
 
@@ -191,7 +182,7 @@ return (
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#FF5500] text-white">
-                        <Bike className="h-5 w-5" />
+                        <span className="text-xl leading-none" aria-hidden>🏍️</span>
                       </div>
                       <div>
                         <p className="text-sm font-bold">GoRide Boda</p>
@@ -209,7 +200,7 @@ return (
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#8B5CF6] text-white">
-                        <Package className="h-5 w-5" />
+                        <span className="text-xl leading-none" aria-hidden>📦</span>
                       </div>
                       <div>
                         <p className="text-sm font-bold">GoExpress Parcel</p>
@@ -231,7 +222,7 @@ return (
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#F59E0B] text-white">
-                        <UtensilsCrossed className="h-5 w-5" />
+                        <span className="text-xl leading-none" aria-hidden>🍽️</span>
                       </div>
                       <div>
                         <p className="text-sm font-bold">GoFood Restaurants</p>
@@ -246,7 +237,7 @@ return (
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#10B981] text-white">
-                        <ShoppingBag className="h-5 w-5" />
+                        <span className="text-xl leading-none" aria-hidden>🛒</span>
                       </div>
                       <div>
                         <p className="text-sm font-bold">GoMart Groceries</p>
@@ -261,7 +252,7 @@ return (
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#3B82F6] text-white">
-                        <Pill className="h-5 w-5" />
+                        <span className="text-xl leading-none" aria-hidden>💊</span>
                       </div>
                       <div>
                         <p className="text-sm font-bold">GoPharma Care</p>
@@ -283,7 +274,7 @@ return (
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#1E293B] text-white border border-white/10">
-                        <Wallet className="h-5 w-5" />
+                        <span className="text-xl leading-none" aria-hidden>💵</span>
                       </div>
                       <div>
                         <p className="text-sm font-bold">GoDoor Pay & Morse Escrow</p>
@@ -301,7 +292,7 @@ return (
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#EAB308] text-white">
-                        <Smartphone className="h-5 w-5" />
+                        <span className="text-xl leading-none" aria-hidden>📱</span>
                       </div>
                       <div>
                         <p className="text-sm font-bold">Airtime & Data Bundles</p>
@@ -359,7 +350,7 @@ return (
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#EAB308] text-white">
-                    <Smartphone className="h-5 w-5" />
+                    <span className="text-xl leading-none" aria-hidden>📱</span>
                   </div>
                   <div>
                     <h3 className="font-display text-base font-bold">Instant Airtime</h3>
@@ -486,7 +477,7 @@ return (
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#8B5CF6] text-white">
-                    <Package className="h-5 w-5" />
+                    <span className="text-xl leading-none" aria-hidden>📦</span>
                   </div>
                   <div>
                     <h3 className="font-display text-base font-bold">GoExpress Parcel</h3>
