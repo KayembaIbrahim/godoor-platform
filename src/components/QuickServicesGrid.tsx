@@ -81,54 +81,53 @@ return (
           data, which showed category names ("Clothing & Fashion") rather
           than the platform's services. Rendering this row instead removes the
           second, competing set. */}
-      <div
-        className="scrollbar-hide -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 rail-fade"
-        role="list"
-        aria-label="GoDoor services"
-      >
+      {/* Same format as "See all" (/categories): a bordered card per service,
+          44px pastel disc on the left, label + sub to its right. The old
+          56px vertical stack (disc on top, label underneath) did not match
+          the See All page users already like. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4" role="list" aria-label="GoDoor services">
         {SERVICES.map((s) => {
           const disc = (
             <span
-              className="hybrid-disc h-14 w-14"
+              className="hybrid-disc h-11 w-11 shrink-0"
               style={{ ["--disc-rgb" as string]: serviceDiscRgb(s.id) }}
               aria-hidden="true"
             >
               <span className="text-2xl leading-none" aria-hidden>{s.emoji}</span>
             </span>
           );
+          const body = (
+            <>
+              {disc}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-fg">{s.label}</span>
+                <span className="block truncate text-[11px] text-muted">{s.sub}</span>
+              </span>
+            </>
+          );
 
           return (
-            <div
-              key={s.id}
-              role="listitem"
-              className="flex w-[68px] shrink-0 snap-start flex-col items-center gap-1.5"
-            >
+            <div key={s.id} role="listitem" className="min-w-0">
               {s.href ? (
                 <Link
                   href={s.href}
-                  className="transition-transform duration-200 active:scale-95"
+                  className="group flex items-center gap-3 rounded-2xl border border-border bg-surface p-3 transition-all duration-200 hover:border-go/40 hover:shadow-[0_10px_24px_-8px_rgb(0_0_0/0.22)] active:scale-[0.98] active:shadow-none"
                   aria-label={`${s.label} — ${s.sub}`}
                   title={`${s.label} — ${s.sub}`}
                 >
-                  {disc}
+                  {body}
                 </Link>
               ) : (
                 <button
                   type="button"
                   onClick={() => handleServiceClick(s.action!)}
-                  className="transition-transform duration-200 active:scale-95"
+                  className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-surface p-3 text-left transition-all duration-200 hover:border-go/40 hover:shadow-[0_10px_24px_-8px_rgb(0_0_0/0.22)] active:scale-[0.98] active:shadow-none"
                   aria-label={`${s.label} — ${s.sub}`}
                   title={`${s.label} — ${s.sub}`}
                 >
-                  {disc}
+                  {body}
                 </button>
               )}
-              <span className="w-full truncate text-center text-[11px] font-bold leading-tight text-fg">
-                {s.label}
-              </span>
-              <span className="w-full truncate text-center text-[10px] leading-tight text-muted">
-                {s.sub}
-              </span>
             </div>
           );
         })}
