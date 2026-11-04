@@ -52,10 +52,12 @@ export function HeaderClient() {
   const { onboarded, role } = useSession();
   const pathname = usePathname();
 
-  // `usePathname` returns null on the very first render during hydration on
-  // some navigations. Rendering nothing for that frame is correct — a second
-  // header appearing and vanishing is worse than a one-frame gap — and the
-  // next render paints it.
+  // `usePathname` is null until hydration resolves. Rendering the header in
+  // that state shipped TWO headers in the server HTML on self-headed routes
+  // (the server cannot know the path, so it rendered, then client removed it)
+  // — users got stuck seeing both headers with both logos. Render nothing
+  // until the path is known; the next render paints it.
+  if (pathname === null) return null;
   const ownsItsHeader = SELF_HEADED_ROUTES.some(
     (p) => pathname === p || pathname.startsWith(p + "/"),
   );
