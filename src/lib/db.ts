@@ -581,11 +581,11 @@ export async function fetchOrders(filters?: { merchant_id?: string; customer_id?
 
   if (!dbOk) {
     for (const o of emptyOrders()) merged.set(o.id, o);
-  } else {
-    for (const o of emptyOrders()) {
-      if (!isUuid(o.id) && !merged.has(o.id)) merged.set(o.id, o);
-    }
   }
+  // Local-only orders from a previous device/session must never merge into a
+  // successful DB read. They have fake ids — the DB is the source of truth.
+  // Merging them here made the Orders tab show phantom "active" orders when
+  // the server actually returned none.
 
   let result = [...merged.values()].sort((a, b) => b.created_at - a.created_at);
   // Client-side filtering for local-only data
