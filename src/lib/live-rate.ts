@@ -3,18 +3,18 @@
  * Uses multiple free exchange rate APIs with in-memory caching for performance.
  * Falls back gracefully through multiple sources.
  *
- * Live providers, tried in order (verified 2026-11-05):
- *  - open.er-api.com/v6 — alive, UGX=4092, shape `rates.UGX`  → PRIMARY (fastest/most reliable)
- *  - api.exchangerate-api.com/v4 — alive, UGX=4092, shape `rates.UGX`
- *  - api.frankfurter.dev — alive but occasionally flaky (was 522 on 2026-11-04,
- *    returned 4225 on 2026-11-05). Put last so a flaky source can't short-circuit
- *    the two reliable ones. Shape `rate` (single pair) — handled by normalizeResponse.
+ * Live providers, tried in order. User directive 2026-11-05: use
+ * api.frankfurter.dev/v2 as the LIVE source (was 522 once on 2026-11-04,
+ * now returns 4225.89; distinct from er-api's 4092 so tests can prove
+ * which provider actually served).
+ *  - api.frankfurter.dev/v2 — PRIMARY, shape `rate` (single pair).
+ *  - open.er-api.com/v6, api.exchangerate-api.com/v4 — alive fallbacks (4092).
  * exchangerate.host needs an access key.
  */
 const EXCHANGE_APIS = [
+  "https://api.frankfurter.dev/v2/rate/usd/ugx",
   "https://open.er-api.com/v6/latest/USD",
   "https://api.exchangerate-api.com/v4/latest/USD?base=USD&symbols=UGX",
-  "https://api.frankfurter.dev/v2/rate/usd/ugx",
 ];
 
 /**

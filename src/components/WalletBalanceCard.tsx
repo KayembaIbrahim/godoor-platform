@@ -116,6 +116,15 @@ export default function WalletBalanceCard({ className = "" }: { className?: stri
     } catch {}
   }, [signedIn]);
 
+  // Escrow-cleanup (POST /api/wallet/cleanup-escrow from wallet page) now runs
+  // with a real Bearer token; when it finishes it fires this event so the card
+  // re-reads the reconciled escrow_balance instead of showing a phantom figure.
+  useEffect(() => {
+    const onCleaned = () => { void refresh(); };
+    window.addEventListener("wallet:escrow-cleaned", onCleaned);
+    return () => window.removeEventListener("wallet:escrow-cleaned", onCleaned);
+  }, [refresh]);
+
   // Themed panel. The old shell was hardcoded #131F38 with white and slate
   // text, so light mode rendered a dark card floating on a white page.
   const shell = `gd-panel rounded-3xl border p-4 shadow-lg transition-all ${className}`;

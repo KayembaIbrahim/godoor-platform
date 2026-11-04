@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { apiAuthHeaders } from "@/lib/db";
 import { WalletPanel } from "@/components/WalletPanel";
 import WalletBalanceCard from "@/components/WalletBalanceCard";
 import { useSession } from "@/lib/session-store";
@@ -16,7 +17,16 @@ export default function WalletPage() {
   // Clean up orphaned escrow holds on mount (when customer has no active orders)
   useEffect(() => {
     if (!onboarded) return;
-    fetch("/api/wallet/cleanup-escrow", { method: "POST" }).catch(() => {});
+    // authorize() requires the Bearer token; without it this was always 401
+    // and the escrow phantom-cleanup never ran (User stuck seeing "money in active escrow").
+    apiAuthHeaders(true)
+      .then((headers) => fetch("/api/wallet/cleanup-escrow", { method: "POST", headers }))
+      .then(() => {
+        // WalletBalanceCard listens for this and re-reads escrow_balance,
+        // so phantom "in escrow" clears on screen, not just in the DB.
+        window.dispatchEvent(new Event("wallet:escrow-cleaned"));
+      })
+      .catch(() => {});
   }, [onboarded]);
 
   return (
