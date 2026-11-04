@@ -51,6 +51,8 @@ const SELF_HEADED_ROUTES = ["/app", "/"];
 export function HeaderClient() {
   const { onboarded, role } = useSession();
   const pathname = usePathname();
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // `usePathname` is null until hydration resolves. Rendering the header in
   // that state shipped TWO headers in the server HTML on self-headed routes
@@ -61,8 +63,6 @@ export function HeaderClient() {
   const ownsItsHeader = SELF_HEADED_ROUTES.some(
     (p) => pathname === p || pathname.startsWith(p + "/"),
   );
-  const [scrolled, setScrolled] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   /* The session lives in localStorage, so the server has no idea whether
      anyone is signed in — it always renders the signed-out header. Zustand
      rehydrates synchronously, so the client would render the signed-in nav
@@ -96,6 +96,9 @@ export function HeaderClient() {
     }
   }, [role, onboarded]);
 
+  // Server: pathname known only after hydration. Render nothing until hydrated
+  // so prerendered / never ships this header alongside CustomerHome’s own.
+  if (!hydrated) return null;
   if (ownsItsHeader) return null;
 
   const dashboardHref = roleHomePath(role);

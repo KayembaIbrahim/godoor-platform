@@ -1,7 +1,7 @@
 import dynamicImport from "next/dynamic";
 
-export const dynamic = "force-static";
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
+
 
 /**
  * Customer Home page — the hub for the customer marketplace.
