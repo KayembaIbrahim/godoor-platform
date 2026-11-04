@@ -46,7 +46,7 @@ const RIDER_LINKS = [
  * those are still inside the customer experience. Reversible by removing one
  * string.
  */
-const SELF_HEADED_ROUTES = ["/app"];
+const SELF_HEADED_ROUTES = ["/app", "/"];
 
 export function HeaderClient() {
   const { onboarded, role } = useSession();
