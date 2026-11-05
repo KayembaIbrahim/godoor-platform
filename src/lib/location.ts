@@ -44,7 +44,8 @@ export const MASAKA: LatLng = { lat: -0.3417, lng: 31.7344 };
  * behaviour is unchanged and the 27 KB only loads inside the app.
  */
 type GeoApi = {
-  requestPermissions(): Promise<void>;
+  requestPermissions(): Promise<{ location?: string } | void>;
+  checkPermissions?: () => Promise<{ location?: string }>;
   getCurrentPosition(
     opts: { enableHighAccuracy: boolean; timeout: number; maximumAge: number },
   ): Promise<GeolocationPosition>;
@@ -71,6 +72,10 @@ function webGeoApi(): GeoApi {
   return {
     async requestPermissions() {
       // The browser prompts on first use; nothing to request up front.
+    },
+    async checkPermissions() {
+      // On the web, permission state is surfaced by the geolocation call itself.
+      return { location: "granted" };
     },
     getCurrentPosition(opts) {
       return new Promise((resolve, reject) => {
@@ -355,6 +360,7 @@ export function useGeolocation() {
       lastCoordsRef.current = c;
       if (newHeading != null) lastHeadingRef.current = newHeading;
       if (acc < bestAccuracyRef.current) bestAccuracyRef.current = acc;
+      try { localStorage.setItem("godoor-last-fix", JSON.stringify(c)); } catch {}
       setCoords(c);
       setAccuracy(acc);
       setHeading(newHeading);
@@ -460,6 +466,23 @@ export function useGeolocation() {
     setError(null);
     bestAccuracyRef.current = Infinity;
 
+    /* Instant seed from the last fix (persisted below): on a warm reopen
+       inside the APK the header shows the last known place immediately
+       instead of blanking until GPS/IP answer. The IP estimate and GPS fix
+       still overwrite it — processPosition/ipFallback ignore a worse fix. */
+    try {
+      const raw = localStorage.getItem("godoor-last-fix");
+      if (raw) {
+        const c = JSON.parse(raw) as LatLng;
+        if (Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
+          setCoords(c);
+          setAccuracy(5000);
+          setStatus("watching");
+          void reverseGeocode(c).then((a) => setAddress(a)).catch(() => {});
+        }
+      }
+    } catch {}
+
     /* THE IP FALLBACK STARTS HERE, IN PARALLEL — not after the GPS deadline.
        It used to run only once both GPS reads had failed, so the worst case
        was 3s (cached attempt) + 10s (accurate attempt) + the IP round trip
@@ -563,7 +586,17 @@ export function useGeolocation() {
   useEffect(() => {
     if (geoDoneRef.current) return;
     geoDoneRef.current = true;
-    startWatching();
+    /* APK fix (user report: "location is not auto filled in the APK"):
+       on a cold start from the home screen nothing ever triggered location —
+       the auto-fill only fired when a location-consuming screen mounted, so
+       the header sat on "Choose your location — Tap to use GPS" until the
+       user tapped. startWatching() already runs on first effect of this hook
+       (which CustomerHome mounts on first paint), so the eager warm-up is
+       simply: fire it immediately in this effect. Outside the native shell
+       nothing changes. Inside the shell, requestPermissions() in
+       startWatching() raises the Android runtime prompt on first paint,
+       before any navigation. */
+    void startWatching();
   }, [startWatching]);
 
   const refresh = useCallback(async () => {
