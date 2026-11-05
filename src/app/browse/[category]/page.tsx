@@ -344,7 +344,7 @@ export default function BrowseServicePage() {
         <div className="px-4 pt-4">
           <div className="rounded-2xl border border-border bg-surface p-8 text-center">
             <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-elevated">
-              <Icon className="h-7 w-7 text-muted" />
+              <span className="text-3xl leading-none" aria-hidden>{getCategoryEmoji(canonical)}</span>
             </div>
             <h2 className="font-display text-base font-semibold">
               {activeFilterCount > 0
