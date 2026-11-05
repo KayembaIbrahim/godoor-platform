@@ -10,6 +10,10 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: true,
+    // Render under display cut-outs / notches; the web app pads with
+    // safe-area CSS so nothing is hidden behind the camera.
+    overrideUserAgent: 'GoDoorAndroid',
+    appendUserAgent: ' GoDoorAndroid',
   },
   plugins: {
     SplashScreen: {
