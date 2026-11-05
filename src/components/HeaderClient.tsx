@@ -119,7 +119,7 @@ export function HeaderClient() {
 
   return (
     <header
-      className={`nav-glass sticky top-0 z-40 border-b transition-all duration-300 ${
+      className={`safe-area-top nav-glass sticky top-0 z-40 border-b transition-all duration-300 ${
         scrolled ? "nav-glass-raised border-border" : "border-transparent"
       }`}
     >

@@ -165,7 +165,7 @@ export default function ShoppingListPage() {
   return (
     <div className="min-h-[100dvh] bg-bg pb-24">
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur-md">
+      <header className="safe-area-top sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-go/10 text-go">

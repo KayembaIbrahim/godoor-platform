@@ -2026,3 +2026,8 @@ button[class*="rounded-xl"], a[class*="rounded-xl"] {
 @keyframes skeleton-sweep {
   100% { transform: translateX(100%); }
 }
+
+/* APKT notch support — every sticky header uses .safe-area-top so content
+   never hides behind the camera cut-out, regardless of device. */
+.safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }

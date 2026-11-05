@@ -24,10 +24,9 @@ public class MainActivity extends BridgeActivity {
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
         getWindow().getDecorView().setSystemUiVisibility(flags);
-
-        getWindow().getDecorView().setOnApplyWindowInsetsListener((v, insets) -> {
-            v.setPadding(0, 0, 0, 0);
-            return insets;
-        });
+        // NOTE: previously this reset v.setPadding(0,0,0,0) on every inset,
+        // which blocked inset dispatch to the WebView and broke
+        // env(safe-area-inset-*) on some pages. Removed — insets now reach
+        // the WebView and the web safe-area CSS does the padding.
     }
 }

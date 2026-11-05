@@ -676,7 +676,7 @@ function OrderTracker({ order }: { order: DBOrder }) {
   return (
     <div className="mx-auto min-h-screen max-w-6xl bg-bg pb-8">
       {/* Header */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-bg/95 backdrop-blur-xl px-4 py-3">
+      <div className="safe-area-top sticky top-0 z-30 flex items-center justify-between border-b border-border bg-bg/95 backdrop-blur-xl px-4 py-3">
         <Link href="/orders" className="flex items-center gap-1.5 text-sm text-muted hover:text-fg transition">
           <ArrowLeft className="h-4 w-4" /> Orders
         </Link>

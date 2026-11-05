@@ -82,7 +82,7 @@ export default function CategoriesPage() {
 
   return (
     <div className="mx-auto min-h-[70vh] max-w-lg bg-bg pb-24 md:max-w-3xl">
-      <header className="sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur-xl">
+      <header className="safe-area-top sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur-xl">
         <div className="px-4 pb-4 pt-4">
           <Link
             href="/app"
