@@ -40,11 +40,22 @@ type Code = {
   expires_at: string;
 };
 
+type ResetRequest = {
+  id: string;
+  user_id: string | null;
+  email: string;
+  name: string;
+  role: string;
+  requested_at: string;
+  status: "pending" | "code_issued" | "used" | "expired";
+};
+
 export default function AdminSupport() {
   const [query, setQuery] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [searching, setSearching] = useState(false);
   const [codes, setCodes] = useState<Code[]>([]);
+  const [requests, setRequests] = useState<ResetRequest[]>([]);
   const [issued, setIssued] = useState<{ code: string; id: string; email: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -52,7 +63,10 @@ export default function AdminSupport() {
   const loadCodes = useCallback(() => {
     fetch("/api/admin/password-resets", { cache: "no-store" })
       .then((r) => r.json().catch(() => ({})))
-      .then((d) => setCodes(Array.isArray(d.codes) ? d.codes : []))
+      .then((d) => {
+        setCodes(Array.isArray(d.codes) ? d.codes : []);
+        setRequests(Array.isArray(d.requests) ? d.requests : []);
+      })
       .catch(() => {});
   }, []);
 
@@ -103,11 +117,53 @@ export default function AdminSupport() {
   };
 
   const activeCodes = codes.filter((c) => c.status === "active");
+  const pendingRequests = requests.filter((r) => r.status === "pending");
 
   return (
     <div className="pb-20 md:pb-0 animate-fade-in">
       <h1 className="font-display text-2xl font-bold">Support</h1>
       <p className="mt-1 text-sm text-muted">Find a person, check their account, and get them back in.</p>
+
+      {/* ── Self-service reset requests ──────────────────────────────────── */}
+      <section className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <KeyRound className="h-4 w-4 text-amber-500" /> Self-service reset requests
+            {pendingRequests.length > 0 && <span className="ml-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-600">{pendingRequests.length}</span>}
+          </h2>
+          <Link href="/admin/password-resets" className="flex items-center gap-1 text-xs font-medium text-go hover:underline">
+            Manage all <ChevronRight className="h-3 w-3" />
+          </Link>
+        </div>
+        {pendingRequests.length === 0 ? (
+          <p className="mt-3 rounded-xl border border-dashed border-border px-3 py-4 text-center text-xs text-dim">
+            No self-service requests waiting. When a user submits /forgot-password, their request appears here with an Issue button.
+          </p>
+        ) : (
+          <ul className="mt-3 divide-y divide-border">
+            {pendingRequests.map((r) => (
+              <li key={r.id} className="flex items-center gap-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium">{r.name || r.email}</p>
+                  <p className="truncate text-[10px] text-dim">{r.email} · {r.role} · {new Date(r.requested_at).toLocaleString()}</p>
+                </div>
+                {r.user_id ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => issue({ id: r.user_id!, email: r.email, name: r.name, role: r.role, source: "user" })}
+                    className="shrink-0 flex items-center gap-1.5 rounded-xl bg-warning/15 px-3 py-2 text-xs font-medium text-amber-600 hover:bg-warning/25 disabled:opacity-50"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" /> Issue code
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-[10px] text-dim">Not registered</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* ── Who needs help ─────────────────────────────────────────────────── */}
       <section className="mt-6 rounded-2xl border border-border bg-surface p-4">

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
 import { evaluatePassword, passwordError } from "@/lib/password-strength";
-import { redeemResetCode } from "@/lib/password-reset-server";
+import { listResetRequests, markRequestUsed, redeemResetCode } from "@/lib/password-reset-server";
 
 export const runtime = "nodejs";
 
@@ -143,6 +143,23 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+
+  // Mark the originating request ticket as used so admin sees it resolved
+  try {
+    const tickets = await listResetRequests(sb);
+    const ticket = tickets.find(
+      (t) => t.code_id === id || (t.email.toLowerCase() === outcome.record.email.toLowerCase() && t.code_id === id),
+    );
+    if (ticket) {
+      await markRequestUsed(sb, ticket.id).catch(() => {});
+    } else {
+      // Fallback: mark any pending ticket for this email as used
+      const pending = tickets.find(
+        (t) => t.email.toLowerCase() === outcome.record.email.toLowerCase() && !t.code_id,
+      );
+      if (pending) await markRequestUsed(sb, pending.id).catch(() => {});
+    }
+  } catch {}
 
   ipAttempts.delete(ip);
   return NextResponse.json({ ok: true, email: outcome.record.email });

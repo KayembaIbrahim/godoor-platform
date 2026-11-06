@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase-server";
+import { recordResetRequest } from "@/lib/password-reset-server";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,10 @@ export const runtime = "nodejs";
  * We ask Supabase to send a recovery email via its configured SMTP. The email
  * contains a link that takes the user to /reset-password where they can set a
  * new password.
+ *
+ * ALSO: this records a `pwd_req:<id>` ticket in app_settings so the admin
+ * can SEE that this user asked for a reset (previously self-service requests
+ * left no admin-visible trace at all, which is why the admin "saw nothing").
  *
  * We never reveal whether the email exists in the system (uniform response).
  */
@@ -24,17 +29,32 @@ export async function POST(req: Request) {
   const sb = getServiceClient();
   if (!sb) return NextResponse.json({ ok: true });
 
+  const ip =
+    req.headers.get("x-real-ip") ||
+    req.headers.get("x-forwarded-for")?.split(",")?.[0]?.trim() ||
+    null;
+
   try {
     // Check if a user with this email exists in auth
     const { data: users } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const user = users?.users?.find((u) => u.email?.toLowerCase() === email);
 
     if (user) {
+      // Record the request so admin sees it in /admin/password-resets and /admin/support
+      const meta = user.user_metadata || {};
+      await recordResetRequest(sb, {
+        user_id: user.id,
+        email: user.email!,
+        name: (meta.name as string) || (meta.full_name as string) || "",
+        role: (meta.role as string) || "customer",
+        ip,
+      }).catch(() => null);
+
       // Generate a recovery link. Supabase sends the email via its SMTP.
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://godoor.site";
       const redirectTo = `${appUrl}/reset-password`;
 
-      const { data, error } = await sb.auth.admin.generateLink({
+      const { error } = await sb.auth.admin.generateLink({
         type: "recovery",
         email: user.email!,
         options: { redirectTo },
@@ -44,7 +64,16 @@ export async function POST(req: Request) {
         // Log but don't expose to user
         console.warn("Supabase generateLink error:", error.message);
       }
-      // Note: data.properties.action_link contains the link sent in the email
+    } else {
+      // Still record the request (unknown email) so admin can at least see
+      // that someone asked — but do not generate a link.
+      await recordResetRequest(sb, {
+        user_id: null,
+        email,
+        name: "",
+        role: "customer",
+        ip,
+      }).catch(() => null);
     }
   } catch (e) {
     // Never reveal whether the email exists or any internal error

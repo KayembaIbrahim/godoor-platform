@@ -402,6 +402,175 @@ export async function redeemResetCode(sb: SupabaseClient, id: string, code: unkn
 }
 
 /**
+ * Self-service reset-request ticket — this is what makes a user's
+ * "forgot password" request show up in the admin portal, and how the
+ * admin can hand them the code from there.
+ *
+ * Two stores, two purposes, both in `app_settings`:
+ *
+ *   1. `pwd_reset:<id>`  — the one-time CODE store (below). A row only
+ *      exists when an admin (or the self-service flow) actually ISSUES a
+ *      code. This is what the /reset-password page redeems.
+ *
+ *   2. `pwd_req:<id>`    — a lightweight REQUEST ticket. A row is created
+ *      the moment a user submits the forgot-password form, so admin sees
+ *      that someone asked — even though no code exists for them yet.
+ *      The ticket is what unifies the two flows: the admin panel and
+ *      /admin/support list these tickets, and the admin can issue a
+ *      code for the person directly from the ticket (which then also
+ *      creates a `pwd_reset:` row that the user can redeem).
+ *
+ * Before this, a self-service request called Supabase's `generateLink`
+ * and left NOTHING behind — no admin-visible record at all. That is why
+ * the admin "saw nothing in password reset."
+ */
+
+/** A self-service "forgot password" ticket shown in the admin portal. */
+export type ResetRequestTicket = {
+  id: string;
+  user_id: string | null;
+  email: string;
+  name: string;
+  role: string;
+  requested_at: string;
+  status: "pending" | "code_issued" | "used" | "expired";
+  /** The pwd_reset:<id> record id, once a code has been issued. */
+  code_id: string | null;
+  used_at: string | null;
+  issued_at: string | null;
+  ip: string | null;
+};
+
+const REQ_PREFIX = "pwd_req:";
+
+export function statusOfRequest(t: ResetRequestTicket): "pending" | "code_issued" | "used" | "expired" {
+  if (t.status === "used" || t.status === "expired") return t.status;
+  if (t.code_id) return "code_issued";
+  return "pending";
+}
+
+/** Creates (or refreshes) a pending request ticket for an email. */
+export async function recordResetRequest(
+  sb: SupabaseClient,
+  input: { user_id: string | null; email: string; name?: string; role?: string; ip?: string | null },
+): Promise<ResetRequestTicket | null> {
+  if (!input.email) return null;
+  const now = new Date().toISOString();
+  // Reuse the existing pending ticket for this email so a spammy user
+  // doesn't flood the admin queue with duplicates.
+  const existing = await listResetRequests(sb);
+  const prior = existing.find(
+    (t) => t.email.toLowerCase() === input.email.toLowerCase() && statusOfRequest(t) === "pending",
+  );
+  if (prior) {
+    return prior;
+  }
+  const rec: ResetRequestTicket = {
+    id: randomBytes(12).toString("hex"),
+    user_id: input.user_id || null,
+    email: input.email,
+    name: input.name || "",
+    role: input.role || "customer",
+    requested_at: now,
+    status: "pending",
+    code_id: null,
+    used_at: null,
+    issued_at: null,
+    ip: input.ip || null,
+  };
+  try {
+    await sb.from("app_settings").upsert({
+      key: `${REQ_PREFIX}${rec.id}`,
+      value: JSON.stringify(rec),
+      updated_at: now,
+    });
+    return rec;
+  } catch {
+    return null;
+  }
+}
+
+export async function listResetRequests(sb: SupabaseClient): Promise<ResetRequestTicket[]> {
+  try {
+    const { data, error } = await sb
+      .from("app_settings")
+      .select("key, value")
+      .like("key", `${REQ_PREFIX}%`);
+    if (error || !data) return [];
+    const out: ResetRequestTicket[] = [];
+    for (const row of data as { key: string; value: string }[]) {
+      if (!row.key.startsWith(REQ_PREFIX)) continue;
+      try {
+        const p = JSON.parse(row.value || "") as Partial<ResetRequestTicket>;
+        if (!p || typeof p.id !== "string" || typeof p.email !== "string") continue;
+        out.push({
+          id: p.id,
+          user_id: p.user_id ?? null,
+          email: p.email,
+          name: p.name || "",
+          role: p.role || "customer",
+          requested_at: p.requested_at || new Date().toISOString(),
+          status: p.status || "pending",
+          code_id: p.code_id ?? null,
+          used_at: p.used_at ?? null,
+          issued_at: p.issued_at ?? null,
+          ip: p.ip ?? null,
+        });
+      } catch {
+        continue;
+      }
+    }
+    out.sort((a, b) => (a.requested_at < b.requested_at ? 1 : -1));
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Marks a request ticket as having had a code issued for it. */
+export async function markRequestCodeIssued(sb: SupabaseClient, ticketId: string, codeId: string): Promise<void> {
+  try {
+    const { data } = await sb
+      .from("app_settings")
+      .select("value")
+      .eq("key", `${REQ_PREFIX}${ticketId}`)
+      .maybeSingle();
+    if (!data) return;
+    const p = JSON.parse((data as { value?: string }).value || "") as Partial<ResetRequestTicket>;
+    if (!p || typeof p.id !== "string") return;
+    p.code_id = codeId;
+    p.status = "code_issued";
+    p.issued_at = new Date().toISOString();
+    await sb.from("app_settings").upsert({
+      key: `${REQ_PREFIX}${ticketId}`,
+      value: JSON.stringify(p),
+      updated_at: new Date().toISOString(),
+    });
+  } catch {}
+}
+
+/** Marks a request ticket as used (the user actually redeemed the code). */
+export async function markRequestUsed(sb: SupabaseClient, ticketId: string): Promise<void> {
+  try {
+    const { data } = await sb
+      .from("app_settings")
+      .select("value")
+      .eq("key", `${REQ_PREFIX}${ticketId}`)
+      .maybeSingle();
+    if (!data) return;
+    const p = JSON.parse((data as { value?: string }).value || "") as Partial<ResetRequestTicket>;
+    if (!p || typeof p.id !== "string") return;
+    p.status = "used";
+    p.used_at = new Date().toISOString();
+    await sb.from("app_settings").upsert({
+      key: `${REQ_PREFIX}${ticketId}`,
+      value: JSON.stringify(p),
+      updated_at: new Date().toISOString(),
+    });
+  } catch {}
+}
+
+/**
  * Looks a person up so the admin can issue a code for them.
  *
  * Searches the riders table first (a rider is a person who may not have a

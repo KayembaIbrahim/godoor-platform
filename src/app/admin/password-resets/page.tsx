@@ -20,6 +20,18 @@ type Code = {
   issued_by: string;
 };
 
+type ResetRequest = {
+  id: string;
+  user_id: string | null;
+  email: string;
+  name: string;
+  role: string;
+  requested_at: string;
+  status: "pending" | "code_issued" | "used" | "expired";
+  code_id: string | null;
+  issued_at: string | null;
+};
+
 const STATUS_BADNESS: Record<Code["status"], string> = {
   active: "bg-success/15 text-success",
   used: "bg-elevated text-muted",
@@ -50,6 +62,7 @@ function ttlText(expiresAt: string): string {
 
 export default function AdminPasswordResets() {
   const [codes, setCodes] = useState<Code[]>([]);
+  const [requests, setRequests] = useState<ResetRequest[]>([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -66,7 +79,11 @@ export default function AdminPasswordResets() {
   const refresh = useCallback(() => {
     fetch("/api/admin/password-resets", { cache: "no-store" })
       .then((r) => r.json().catch(() => ({})))
-      .then((d) => { if (Array.isArray(d.codes)) setCodes(d.codes); else setCodes([]); setLoading(false); })
+      .then((d) => {
+        if (Array.isArray(d.codes)) setCodes(d.codes); else setCodes([]);
+        if (Array.isArray(d.requests)) setRequests(d.requests); else setRequests([]);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, []);
 
@@ -156,7 +173,58 @@ export default function AdminPasswordResets() {
         />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border">
+      {/* ── Self-service requests (users who asked via /forgot-password) ── */}
+      <section className="mt-5 overflow-hidden rounded-2xl border border-border">
+        <div className="border-b border-border bg-surface-2 px-4 py-2.5">
+          <h2 className="text-xs font-semibold text-fg flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 text-amber-500" />
+            Self-service requests
+            {requests.length > 0 && <span className="ml-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-600">{requests.length}</span>}
+          </h2>
+          <p className="mt-0.5 text-[10px] text-dim">Users who requested a reset themselves. Issue a code for them below.</p>
+        </div>
+        {loading ? (
+          <p className="px-4 py-6 text-center text-xs text-dim">Loading…</p>
+        ) : requests.length === 0 ? (
+          <p className="px-4 py-6 text-center text-xs text-dim">No self-service requests yet. When a user submits /forgot-password, their request appears here.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {requests.map((r) => {
+              const statusLabel = r.status === "used" ? "Used" : r.status === "code_issued" ? "Code sent" : "Pending";
+              const statusTone = r.status === "used" ? "bg-elevated text-muted" : r.status === "code_issued" ? "bg-success/15 text-success" : "bg-amber-500/15 text-amber-600";
+              return (
+                <li key={r.id} className="flex items-center gap-3 px-4 py-3">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${statusTone}`}>
+                    {statusLabel}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium truncate">{r.name || r.email}</p>
+                    <p className="text-[11px] text-dim truncate">{r.email} · {r.role} · {formatDateTime(r.requested_at)}</p>
+                  </div>
+                  {r.status === "pending" && r.user_id ? (
+                    <button
+                      type="button"
+                      disabled={busyId === r.user_id}
+                      onClick={() => {
+                        setSelected({ id: r.user_id!, email: r.email, name: r.name, role: r.role });
+                        doIssue();
+                        refresh();
+                      }}
+                      className="shrink-0 flex items-center gap-1 rounded-lg bg-warning/15 px-2.5 py-1.5 text-xs font-medium text-amber-600 hover:bg-warning/25 disabled:opacity-50"
+                    >
+                      <KeyRound className="h-3 w-3" /> Issue code
+                    </button>
+                  ) : r.status === "pending" && !r.user_id ? (
+                    <span className="shrink-0 text-[10px] text-dim">Email not registered</span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <div className="overflow-hidden rounded-2xl border border-border mt-4">
         <table className="w-full text-left text-[11px]">
           <thead className="border-b border-border bg-surface-2 text-muted">
             <tr>

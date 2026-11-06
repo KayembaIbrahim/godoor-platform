@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
 import {
-  findResetCandidates, issueResetCode, listResetCodes, revokeResetCode,
+  findResetCandidates, issueResetCode, listResetCodes, listResetRequests,
+  markRequestCodeIssued, revokeResetCode,
 } from "@/lib/password-reset-server";
 
 export const runtime = "nodejs";
@@ -31,8 +32,8 @@ export async function GET() {
   }
   const sb = getServiceClient();
   if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
-  const codes = await listResetCodes(sb);
-  return NextResponse.json({ codes });
+  const [codes, requests] = await Promise.all([listResetCodes(sb), listResetRequests(sb)]);
+  return NextResponse.json({ codes, requests });
 }
 
 export async function POST(req: Request) {
@@ -88,6 +89,19 @@ export async function POST(req: Request) {
   if (!issued) {
     return NextResponse.json({ error: "Could not issue the reset code. Try again." }, { status: 500 });
   }
+
+  // If any self-service ticket exists for this user/email, link it to the code
+  try {
+    const tickets = await listResetRequests(sb);
+    const ticket = tickets.find(
+      (t) =>
+        (t.user_id && t.user_id === userId) ||
+        t.email.toLowerCase() === realEmail.toLowerCase(),
+    );
+    if (ticket) {
+      await markRequestCodeIssued(sb, ticket.id, issued.record.id).catch(() => {});
+    }
+  } catch {}
 
   return NextResponse.json({
     ok: true,
