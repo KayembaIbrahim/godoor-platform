@@ -40,9 +40,12 @@ export function NotificationBell({ inBar = false }: { inBar?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Notifications are per-user; a signed-out visitor must see nothing.
-  if (hydrated && !supabaseUser) return null;
-
+  // ALL hooks must run unconditionally, BEFORE any early return. The previous
+  // version returned `null` when hydrated && signed-out BEFORE the `useEffect`
+  // below ran. When the user signed in (booked a ride → supabaseUser flips
+  // from null to a user), the hook count went from 5 to 6 and React threw
+  // error #300 "Rendered more hooks than during previous render" — the
+  // "Something went wrong" screen. Same root cause as the old HeaderClient bug.
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -52,6 +55,9 @@ export function NotificationBell({ inBar = false }: { inBar?: boolean } = {}) {
   }, []);
 
   const unread = unreadCount(role);
+
+  // Notifications are per-user; a signed-out visitor must see nothing.
+  if (hydrated && !supabaseUser) return null;
 
   return (
     <div className="relative" ref={ref}>
