@@ -13,6 +13,7 @@ import { getCategoryEmoji } from "@/lib/categories";
 import { browseMeta, canonicalCategoryForSlug, merchantInSlug } from "@/lib/service-slugs";
 import { Price } from "@/components/Price";
 import { CustomerNav } from "@/components/CustomerNav";
+import { Logo } from "@/components/Logo";
 
 /**
  * Per-category browse page — where every category chip on the customer home
@@ -115,13 +116,18 @@ export default function BrowseServicePage() {
           what it is before the user reads a single card. */}
       <header className={`sticky top-0 z-20 border-b border-border bg-gradient-to-b to-transparent ${meta.wash}`}>
         <div className="px-4 pb-4 pt-4">
-          <Link
-            href="/app"
-            className="inline-flex items-center gap-1 rounded-lg py-1 pr-2 text-sm font-medium text-muted transition hover:text-fg"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Home
-          </Link>
+          <div className="flex items-center justify-between gap-3">
+            <Link href="/" aria-label="GoDoor home" className="min-h-11 shrink-0 transition-transform active:scale-95">
+              <Logo size="sm" maxWidth={76} />
+            </Link>
+            <Link
+              href="/app"
+              className="inline-flex items-center gap-1 rounded-lg py-1 pr-2 text-sm font-medium text-muted transition hover:text-fg"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Home
+            </Link>
+          </div>
 
           <div className="mt-3 flex items-center gap-3">
             <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ring-1 ${meta.ring}`}>

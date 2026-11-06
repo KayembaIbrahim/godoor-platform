@@ -10,6 +10,7 @@ import { Price } from "@/components/Price";
 import { useCart } from "@/lib/cart-store";
 import { useSession } from "@/lib/session-store";
 import { MorseLogo } from "@/components/MorseLogo";
+import { Logo } from "@/components/Logo";
 
 type Product = { id: string; name: string; desc: string; price: number; image?: string; images?: string[]; bulky?: boolean };
 
@@ -121,7 +122,10 @@ export default function MerchantPage() {
       {/* Header */}
       <div className="border-b border-border bg-surface/50 px-4 py-3">
         <div className="flex items-center gap-3">
-          <Link href="/app" className="text-muted hover:text-fg transition"><ArrowLeft className="h-5 w-5" /></Link>
+          <Link href="/" aria-label="GoDoor home" className="shrink-0 transition-transform active:scale-95">
+            <Logo size="sm" maxWidth={76} />
+          </Link>
+          <Link href="/app" className="shrink-0 text-muted hover:text-fg transition"><ArrowLeft className="h-5 w-5" /></Link>
           {(merchant as any).logo_url && (
             <img src={(merchant as any).logo_url} alt={merchant.name} className="h-10 w-10 rounded-xl object-cover ring-1 ring-border" />
           )}

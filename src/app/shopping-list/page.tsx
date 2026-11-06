@@ -10,8 +10,10 @@ import {
   ShoppingBasket,
   Trash2,
 } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { formatUgx } from "@/lib/shopping-list";
+import { Logo } from "@/components/Logo";
 import type { ShoppingItem, ShoppingListStatus } from "@/lib/shopping-list";
 
 /**
@@ -167,6 +169,9 @@ export default function ShoppingListPage() {
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="safe-area-top sticky top-0 z-30 border-b border-border bg-bg/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3">
+          <Link href="/" aria-label="GoDoor home" className="min-h-11 shrink-0 transition-transform active:scale-95">
+            <Logo size="sm" maxWidth={76} />
+          </Link>
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-go/10 text-go">
               <ShoppingBasket className="h-[18px] w-[18px]" />

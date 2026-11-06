@@ -10,6 +10,7 @@ import { rememberDetectedAddress, getLastAddress } from "@/components/AddressSea
 import { isDeliberate } from "@/lib/customer-location-core";
 import { useSession } from "@/lib/session-store";
 import { FIRST_ORDER_OFFER } from "@/lib/first-order-offer";
+import { Logo } from "@/components/Logo";
 
 /**
  * The dark conversion hero.
@@ -142,7 +143,23 @@ export default function DarkHero() {
     <section className="relative isolate overflow-hidden bg-bg pb-14 pt-16 md:pb-20 md:pt-24">
       <ParticleField />
 
-      <div className="relative z-10 mx-auto max-w-5xl px-4 text-center">
+      <div className="relative z-10 mx-auto max-w-5xl px-4">
+        {/* Brand header — catalogue pages previously had no header bearing the
+            logo, so visitors could not tell they were still inside GoDoor. */}
+        <header className="safe-area-top mb-8 flex items-center justify-between gap-3">
+          <Link href="/" aria-label="GoDoor home" className="min-h-11 shrink-0 transition-transform active:scale-95">
+            <Logo size="md" />
+          </Link>
+          {!onboarded && (
+            <Link
+              href="/signin"
+              className="min-h-11 shrink-0 rounded-xl border border-border bg-surface px-4 py-2 text-sm font-semibold text-fg transition hover:bg-elevated"
+            >
+              Sign in
+            </Link>
+          )}
+        </header>
+        <div className="text-center">
         {/* Eyebrow */}
         <p className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-3.5 py-1.5 text-xs font-semibold text-brand">
           <Sparkles className="h-3.5 w-3.5 text-brand" />

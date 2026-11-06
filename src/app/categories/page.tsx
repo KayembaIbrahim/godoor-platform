@@ -10,6 +10,7 @@ import { CORE_RAIL_CATEGORIES, RAIL_LABELS } from "@/lib/service-tiles";
 import { browseHref } from "@/lib/service-slugs";
 import { discRgb as sharedDiscRgb } from "@/lib/category-discs";
 import { CustomerNav } from "@/components/CustomerNav";
+import { Logo } from "@/components/Logo";
 
 /**
  * The full category directory — the "Categories" tab in the bottom nav.
@@ -84,13 +85,18 @@ export default function CategoriesPage() {
     <div className="mx-auto min-h-[70vh] max-w-lg bg-bg pb-24 md:max-w-3xl">
       <header className="safe-area-top sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur-xl">
         <div className="px-4 pb-4 pt-4">
-          <Link
-            href="/app"
-            className="inline-flex items-center gap-1 rounded-lg py-1 pr-2 text-sm font-medium text-muted transition hover:text-fg"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Home
-          </Link>
+          <div className="flex items-center justify-between gap-3">
+            <Link href="/" aria-label="GoDoor home" className="min-h-11 shrink-0 transition-transform active:scale-95">
+              <Logo size="sm" maxWidth={76} />
+            </Link>
+            <Link
+              href="/app"
+              className="inline-flex items-center gap-1 rounded-lg py-1 pr-2 text-sm font-medium text-muted transition hover:text-fg"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Home
+            </Link>
+          </div>
 
           <h1 className="mt-3 font-display text-xl font-bold leading-tight">All categories</h1>
           <p className="mt-0.5 text-xs text-muted" aria-live="polite">
