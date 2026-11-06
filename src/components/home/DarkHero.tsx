@@ -332,6 +332,7 @@ export default function DarkHero() {
         <p className="mt-7 text-xs text-muted">
           GoDoor Wallet escrow · Live GPS tracking · Verified kitchens &amp; riders
         </p>
+        </div>
       </div>
     </section>
   );
