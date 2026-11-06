@@ -17,8 +17,15 @@ export const dynamic = "force-dynamic";
  *      can race providers in parallel and pick the first valid answer.
  */
 export async function GET(req: NextRequest) {
+  // Client IP priority: Cloudflare sets cf-connecting-ip (true client IP,
+  // survives the CDN relay). Vercel's x-forwarded-for may instead be the
+  // Cloudflare edge IP — geolocating THAT returns EU/US coords and the
+  // Uganda-bounds filter would reject everything, 503ing the route.
+  const cfIp = (req.headers.get("cf-connecting-ip") || "").trim();
+  const realIp = (req.headers.get("x-real-ip") || "").trim();
   const forwarded = req.headers.get("x-forwarded-for") || "";
-  const clientIp = forwarded.split(",")[0]?.trim() || "";
+  const xffIp = forwarded.split(",")[0]?.trim() || "";
+  const clientIp = cfIp || realIp || xffIp || "";
 
   const providers: Array<() => Promise<{ lat: number; lng: number } | null>> = [
     // Primary: ipwho.is — solid 200, Uganda correct.
