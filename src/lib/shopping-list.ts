@@ -243,7 +243,7 @@ export function validateShoppingList(
     );
   }
 
-  const shoppingFeeUgx = SHOPPING_LIST_RUNNER_FEE_UGX;
+  const shoppingFeeUgx = SHOPPING_LIST_RUNNER_FEE_UGX; // flat runner fee, validated by min-items gate
   const extraStopSurchargeUgx = opts?.needsExtraStop
     ? SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX
     : 0;

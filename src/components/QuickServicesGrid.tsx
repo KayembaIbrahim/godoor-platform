@@ -23,7 +23,7 @@ import { serviceDiscRgb } from "@/lib/category-discs";
 const SERVICES = [
   { id: "GoRide", label: "GoRide", sub: "Boda & Car", emoji: "🏍️", href: "/ride", action: null },
   { id: "GoFood", label: "GoFood", sub: "Meals", emoji: "🍽️", href: "/browse/food", action: null },
-  { id: "GoMart", label: "GoMart", sub: "Groceries", emoji: "🛒", href: "/browse/mart", action: null },
+  { id: "GoMart", label: "GoMart", sub: "My shopping list", emoji: "🛒", href: "/shopping-list/mart", action: null },
   { id: "GoExpress", label: "GoExpress", sub: "Send parcel", emoji: "📦", href: null, action: "express" },
   { id: "GoPharma", label: "GoPharma", sub: "Prescriptions", emoji: "💊", href: "/browse/pharma", action: null },
   { id: "GoPay", label: "GoPay", sub: "Wallet", emoji: "💵", href: "/wallet", action: null },
