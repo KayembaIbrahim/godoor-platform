@@ -419,6 +419,8 @@ export default function RidePage() {
                   dropoffLoc={{ lat: dropoff.lat, lng: dropoff.lng }}
                   pickupLoc={{ lat: pickup.lat, lng: pickup.lng }}
                   showPickup
+                  onDropoffDragEnd={(c) => setDropoff({ place: c.place, lat: c.lat, lng: c.lng })}
+                  onPickupDragEnd={(c) => setPickup({ place: c.place, lat: c.lat, lng: c.lng })}
                   roadRoute={previewCoords}
       maneuvers={previewRoute.route?.maneuvers ?? null}
                   label="Your route"
@@ -443,6 +445,7 @@ export default function RidePage() {
               {quote?.quote && <div className="border-t border-border px-3 py-3"><FareBreakdownWrapper quote={{ base_ugx: quote.quote.base_ugx, distance_ugx: quote.quote.distance_ugx, time_ugx: quote.quote.time_ugx, wait_ugx: quote.quote.wait_ugx, fare_ugx: quote.quote.fare_ugx, service_fee_ugx: quote.service_fee_ugx ?? 0, total_ugx: quote.total_ugx, at_minimum: quote.quote.at_minimum, tier_label: quote.quote.tier_label, distance_km: quote.quote.distance_km }} /></div>}
               <div className="px-3 pb-3 text-[10px] text-dim">
                 <p>Pay in GoDoor Wallet. What you see is what you pay.</p>
+                <p>Tip: Drag the destination pin to the exact gate — the rider sees the exact spot (like Uber/Glovo).</p>
               </div>
             </div>
           )}

@@ -27,13 +27,21 @@ type Props = {
   dropoff: LatLng | null;
   riderLoc?: LatLng | null;
   riderHeading?: number | null;
-  /** The rider's vehicle, so the map draws their actual machine. */
   riderVehicleType?: string | null;
   pickupLabel?: string;
   dropoffLabel?: string;
   showRouteInfo?: boolean;
   onRoute?: (route: RoadRoute | null) => void;
   className?: string;
+  /**
+   * When true, pickup/dropoff pins are draggable and onDragEnd fires with new
+   * coords + a reverse-geocoded place name. This is how Uber/Glovo fix the
+   * "pin is in the wrong compound" report: search gives a centroid, the user
+   * nudges the pin to the gate, the rider sees the exact gate.
+   */
+  editable?: boolean;
+  onDropoffDragEnd?: (c: { lat: number; lng: number; place: string }) => void;
+  onPickupDragEnd?: (c: { lat: number; lng: number; place: string }) => void;
 };
 
 /**
@@ -52,16 +60,34 @@ export function RoadRouteMap({
   showRouteInfo = true,
   onRoute,
   className,
+  editable,
+  onDropoffDragEnd,
+  onPickupDragEnd,
 }: Props) {
   const { route, loading } = useRoadRoute(pickup, dropoff);
   const [stepsOpen, setStepsOpen] = useState(false);
+  const [pinHint, setPinHint] = useState<string | null>(null);
 
   if (loading && !route) return <RoadRouteSkeleton />;
 
+  const handleDrag = async (c: LatLng, cb?: (x: { lat: number; lng: number; place: string }) => void) => {
+    if (!cb) return;
+    setPinHint("Finding exact spot…");
+    try {
+      const { reverseGeocode } = await import("@/lib/location");
+      const place = await reverseGeocode(c);
+      cb({ lat: c.lat, lng: c.lng, place });
+      setPinHint(null);
+    } catch {
+      cb({ lat: c.lat, lng: c.lng, place: `${c.lat.toFixed(5)}°, ${c.lng.toFixed(5)}°` });
+      setPinHint(null);
+    }
+  };
+
   const coords = route?.coordinates || [];
   const markers = [
-    ...(pickup ? [{ id: "pickup", position: pickup, isPickup: true, label: pickupLabel }] : []),
-    ...(dropoff ? [{ id: "dropoff", position: dropoff, isDestination: true, label: dropoffLabel }] : []),
+    ...(pickup ? [{ id: "pickup", position: pickup, isPickup: true, label: pickupLabel, draggable: editable, onDragEnd: editable && onPickupDragEnd ? (c: LatLng) => void handleDrag(c, onPickupDragEnd) : undefined }] : []),
+    ...(dropoff ? [{ id: "dropoff", position: dropoff, isDestination: true, label: dropoffLabel, draggable: editable, onDragEnd: editable && onDropoffDragEnd ? (c: LatLng) => void handleDrag(c, onDropoffDragEnd) : undefined }] : []),
     ...(riderLoc ? [{ id: "rider-live", position: riderLoc, isRider: true, label: "Rider", heading: riderHeading, vehicleType: riderVehicleType }] : []),
   ];
   const fit = [pickup, dropoff, riderLoc].filter(Boolean) as LatLng[];
@@ -92,7 +118,9 @@ export function RoadRouteMap({
             <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
           </span>
           <span className="text-[11px] font-semibold">
-            {route?.source === "mapbox" ? "Road route" : route?.source === "osrm" ? "Road route (fallback)" : "Direct route"}
+            {editable
+              ? (pinHint || "Drag the pin to the exact gate · route updates live")
+              : route?.source === "mapbox" ? "Road route" : route?.source === "osrm" ? "Road route (fallback)" : "Direct route"}
           </span>
         </div>
       </div>

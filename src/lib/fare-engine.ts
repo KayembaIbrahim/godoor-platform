@@ -40,27 +40,21 @@ export const UGANDA_UTC_OFFSET_HOURS = 3;
 /**
  * Fare bands, all in East Africa Time (UTC+3), defined by the operator:
  *
- *   day      00:00–21:00 → UGX 1,000/km  (flat evening 9pm–12am removed)
- *   evening  21:00–00:00 → UGX 1,500/km  (9pm–12am)
- *   late     00:00–06:30 → UGX 2,000/km  (12am–6:30am)
- *   day      06:30–21:00 → UGX 1,000/km  (7am reverts to 1k)
+ *   2 km costs UGX 1,500 daytime; 2 km costs UGX 2,000 at night.
+ *   → per-km: day 750/km · evening 1,000/km · late 1,000/km
  *
- * NOTE the midnight switch: the 2k late rate starts at 12am (0:00), NOT 11pm — the
- * 11pm hour is still the 1.5k evening rate. And the late window ends 06:30 (not
- * 7am), so 6:30–7am is daytime 1k.
- *
- * Each band carries its own per-kilometre rate (boda_per_km_ugx / _evening_ /
- * _late_), so a night rate can never silently re-price a daytime trip. The 250
- * service fee and the minimum fares (2,000 day/evening, 2,500 late) are separate
- * and unchanged.
+ * Pure-distance, no base or minimum on boda. The 250 flat service fee stays.
  */
 export type FareTier = "day" | "evening" | "late";
 
 /** Per-km UGX by band — the operator's published schedule (see FareTier docs). */
 export const BODA_PER_KM_UGX: Record<FareTier, number> = {
-  day: 1000,
-  evening: 1800,
-  late: 2500,
+  /* Operator schedule: 2 km costs UGX 1,500 daytime; 2 km costs UGX 2,000
+     at night. Per-km representation (750 / 1,000) keeps the fare linear so
+     1 km reflects exactly half. */
+  day: 750,
+  evening: 1000,
+  late: 1000,
 };
 
 /**

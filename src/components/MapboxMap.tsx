@@ -86,14 +86,10 @@ export type MarkerData = {
   isDestination?: boolean;
   isPickup?: boolean;
   heading?: number | null;
-  /** Reported GPS fix radius in metres. Only the rider marker draws a halo. */
   accuracy?: number | null;
-  /**
-   * The rider's vehicle, as stored on the `riders` table. It selects the
-   * silhouette drawn on the map, so a customer can tell a motorbike from a
-   * car at a glance instead of guessing from a generic puck.
-   */
   vehicleType?: string | null;
+  draggable?: boolean;
+  onDragEnd?: (c: LatLng) => void;
 };
 
 /** A turn-by-turn instruction pinned to a point on the route. */
@@ -1343,11 +1339,7 @@ function MapboxMapInner({
   }, []);
 
   const markerKey = useMemo(
-    /* `vehicleType` is part of the key because the vehicle decides which
-       silhouette is drawn. Without it, a rider whose vehicle_type was
-       corrected mid-trip would keep the old silhouette until the next
-       unrelated change re-created the marker. */
-    () => markers.map((m) => `${m.id}:${m.position?.lat?.toFixed(5) ?? "x"}:${m.position?.lng?.toFixed(5) ?? "x"}:${m.isRider}:${m.isPickup}:${m.isDestination}:${m.heading ?? "h"}:${m.accuracy ?? "a"}:${m.vehicleType ?? "v"}`).join("|"),
+    () => markers.map((m) => `${m.id}:${m.position?.lat?.toFixed(5) ?? "x"}:${m.position?.lng?.toFixed(5) ?? "x"}:${m.isRider}:${m.isPickup}:${m.isDestination}:${m.heading ?? "h"}:${m.accuracy ?? "a"}:${m.vehicleType ?? "v"}:${m.draggable ? "d" : "s"}`).join("|"),
     [markers]
   );
 
@@ -1377,7 +1369,16 @@ function MapboxMapInner({
             const cur = marker.getLngLat();
             glideTo(m, marker, [cur.lng, cur.lat], [m.position.lng, m.position.lat]);
           } else {
-            marker.setLngLat([m.position.lng, m.position.lat]);
+            /* Draggable pin: do not fight the user's drag position. Only
+               move the marker when parent explicitly moved it. */
+            if (!m.draggable) {
+              marker.setLngLat([m.position.lng, m.position.lat]);
+            } else {
+              const cur = marker.getLngLat();
+              if (Math.abs(cur.lat - m.position.lat) > 0.00001 || Math.abs(cur.lng - m.position.lng) > 0.00001) {
+                marker.setLngLat([m.position.lng, m.position.lat]);
+              }
+            }
           }
           const arrowEl = (marker.getElement() as any)?.__gdrArrow;
           if (arrowEl && m.heading != null && Number.isFinite(m.heading)) {
@@ -1412,9 +1413,17 @@ function MapboxMapInner({
           const marker = new mapboxgl.default.Marker({
             element: el,
             anchor: m.isRider ? "center" : "bottom",
+            draggable: Boolean(m.draggable),
           })
             .setLngLat([m.position.lng, m.position.lat])
             .addTo(map);
+          if (m.draggable && m.onDragEnd) {
+            const cb = m.onDragEnd;
+            marker.on("dragend", () => {
+              const ll = marker.getLngLat();
+              cb({ lat: ll.lat, lng: ll.lng });
+            });
+          }
           if (m.label) {
             marker.setPopup(
               new mapboxgl.default.Popup({ offset: 24, closeButton: false, className: "go-door-popup" })

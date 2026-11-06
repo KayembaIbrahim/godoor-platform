@@ -112,17 +112,19 @@ type Props = {
    * the person coming to them is on a motorbike or in a car.
    */
   riderVehicleType?: string | null;
+  onDropoffDragEnd?: (c: { lat: number; lng: number; place: string }) => void;
+  onPickupDragEnd?: (c: { lat: number; lng: number; place: string }) => void;
 };
 
 export function LiveTrackingMap({
   riderLoc, riderHeading, riderAccuracy = null, providerLoc, providerName, dropoffLoc, pickupLoc, showPickup = false, label, compact = false, fill = false,
   userLocation, userAccuracy, merchantName, customerName, roadRoute = null, maneuvers = null, roadDistanceKm = null, roadDurationMin = null,
-  /* Turn-by-turn is instruction for whoever is DRIVING. A passenger watching a
-     ride must not be told "Drive northwest…", so the banner is opt-in. */
   showNavigation = true,
   quotedFeeUgx = null, trafficAware = false, congestion = null,
   navigationBearing = null, navigationZoom = 16.5, navigationPitch = 45,
   riderVehicleType = null,
+  onDropoffDragEnd,
+  onPickupDragEnd,
 }: Props) {
   const UG_DEFAULT: LatLng = { lat: 0.3163, lng: 32.5822 };
   const hasCoords = (p: LatLng | null | undefined) => !!p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9);
@@ -234,22 +236,29 @@ export function LiveTrackingMap({
 
   const markers = useMemo(() => {
     const m: any[] = [];
-
-    /* Suppress the pickup pin when the viewer is already standing on it. A
-       passenger waiting at the pickup had the green "You" puck and the orange
-       "Pickup" pin render on top of each other, making both unreadable. */
     const viewerOnPickup =
       showPickup &&
       validPickup &&
       hasCoords(userLocation) &&
-      distanceKm(userLocation as LatLng, validPickup) < 0.04; // ~40 m
+      distanceKm(userLocation as LatLng, validPickup) < 0.04;
+
+    const drag = async (c: LatLng, cb?: (x: { lat: number; lng: number; place: string }) => void) => {
+      if (!cb) return;
+      try {
+        const { reverseGeocode } = await import("@/lib/location");
+        const place = await reverseGeocode(c);
+        cb({ lat: c.lat, lng: c.lng, place });
+      } catch {
+        cb({ lat: c.lat, lng: c.lng, place: `${c.lat.toFixed(5)}°, ${c.lng.toFixed(5)}°` });
+      }
+    };
 
     if (showPickup && validPickup && !viewerOnPickup) {
-      m.push({ id: "pickup", position: validPickup, isPickup: true, label: merchantName || "Shop" });
+      m.push({ id: "pickup", position: validPickup, isPickup: true, label: merchantName || "Shop", draggable: Boolean(onPickupDragEnd), onDragEnd: onPickupDragEnd ? (c: LatLng) => void drag(c, onPickupDragEnd) : undefined });
     }
 
     if (validDropoff) {
-      m.push({ id: "dropoff", position: validDropoff, isDestination: true, label: customerName || "Delivery" });
+      m.push({ id: "dropoff", position: validDropoff, isDestination: true, label: customerName || "Delivery", draggable: Boolean(onDropoffDragEnd), onDragEnd: onDropoffDragEnd ? (c: LatLng) => void drag(c, onDropoffDragEnd) : undefined });
     }
 
     if (hasCoords(riderLoc)) {
@@ -259,7 +268,7 @@ export function LiveTrackingMap({
     }
 
     return m;
-  }, [showPickup, validPickup, validDropoff, riderLoc, riderHeading, riderAccuracy, providerLoc, providerName, merchantName, customerName, userLocation, riderVehicleType]);
+  }, [showPickup, validPickup, validDropoff, riderLoc, riderHeading, riderAccuracy, providerLoc, providerName, merchantName, customerName, userLocation, riderVehicleType, onDropoffDragEnd, onPickupDragEnd]);
 
   const kmAway = dist != null && (dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)} km`);
 
