@@ -16,9 +16,9 @@ import { serviceDiscRgb } from "@/lib/category-discs";
  * The eight super-app services, in the brief's order. One row, one definition.
  *
  * Each entry is either a ROUTE (`href`) or an in-page FLOW (`action`): GoRide,
- * GoFood, GoMart, GoPharma and GoPay have somewhere to go, while GoExpress,
- * Airtime and Services run through this component's own sheets — a parcel quote
- * and an airtime purchase are not pages, they are transactions.
+ * GoFood, GoMart, GoPharma and GoPay have somewhere to go, while GoExpress
+ * and Services run through this component's own sheets — a parcel quote is
+ * not a page, it's a transaction. (Airtime was removed from the catalogue.)
  */
 const SERVICES = [
   { id: "GoRide", label: "GoRide", sub: "Boda & Car", emoji: "🏍️", href: "/ride", action: null },
@@ -27,20 +27,12 @@ const SERVICES = [
   { id: "GoExpress", label: "GoExpress", sub: "Send parcel", emoji: "📦", href: null, action: "express" },
   { id: "GoPharma", label: "GoPharma", sub: "Prescriptions", emoji: "💊", href: "/browse/pharma", action: null },
   { id: "GoPay", label: "GoPay", sub: "Wallet", emoji: "💵", href: "/wallet", action: null },
-  { id: "Airtime", label: "Airtime", sub: "MTN & Airtel", emoji: "📱", href: null, action: "airtime" },
   { id: "Services", label: "Services", sub: "All directory", emoji: "📂", href: null, action: "services" },
 ] as const;
 
 export function QuickServicesGrid() {
   const [allServicesOpen, setAllServicesOpen] = useState(false);
-  const [airtimeOpen, setAirtimeOpen] = useState(false);
   const [expressOpen, setExpressOpen] = useState(false);
-
-  // Airtime modal state
-  const [airtimePhone, setAirtimePhone] = useState("");
-  const [airtimeAmount, setAirtimeAmount] = useState("5000");
-  const [airtimeCarrier, setAirtimeCarrier] = useState<"MTN" | "AIRTEL">("MTN");
-  const [airtimeSuccess, setAirtimeSuccess] = useState(false);
 
   // Express parcel state
   const [parcelPickup, setParcelPickup] = useState("");
@@ -55,8 +47,6 @@ export function QuickServicesGrid() {
   const handleServiceClick = (key: string) => {
     if (key === "services") {
       setAllServicesOpen(true);
-    } else if (key === "airtime") {
-      setAirtimeOpen(true);
     } else if (key === "express") {
       setExpressOpen(true);
     }
@@ -64,23 +54,10 @@ export function QuickServicesGrid() {
 
 return (
     <div className="space-y-3">
-      {/* ── C. The eight super-app services ──────────────────────────────────
-          The brief's identity row: GoFood, GoMart, GoPharma, GoExpress,
-          GoRide, GoPay, Airtime, Services — each in a soft pastel disc with
-          its label underneath.
-
-          HORIZONTAL, NOT A 4×2 GRID. Eight discs at 68px plus gaps is ~628px
-          of content, so on a 390px phone the row genuinely overflows and
-          scrolls. That is the point: the full directory of every category
-          lives at /categories, and each vertical lands on its own browse page
-          with filters and sorting. The home page is discovery only.
-
-          ONE DEFINITION, NOT TWO. This component already owned these eight
-          tiles with their working modals, and it had become orphaned — the
-          home was rendering a *different* category rail built from merchant
-          data, which showed category names ("Clothing & Fashion") rather
-          than the platform's services. Rendering this row instead removes the
-          second, competing set. */}
+      {/* ── C. The seven super-app services ──────────────────────────────────
+          GoFood, GoMart, GoPharma, GoExpress, GoRide, GoPay, Services —
+          each in a soft pastel disc with its label beside it. The full
+          directory of every category lives at /categories. */}
       {/* Same format as "See all" (/categories): a bordered card per service,
           44px pastel disc on the left, label + sub to its right. The old
           56px vertical stack (disc on top, label underneath) did not match
@@ -147,292 +124,6 @@ return (
           <Bike className="h-4 w-4" />
         </div>
       </div>
-
-      {/* Modal: All GoDoor Services Directory */}
-      {allServicesOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-md animate-fade-in"
-        >
-          <div className="relative w-full max-w-md max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-ink p-5 text-white shadow-2xl">
-            <div className="sticky top-0 flex items-center justify-between border-b border-white/10 pb-3 bg-ink">
-              <div>
-                <h3 className="font-display text-base font-bold">All GoDoor Services</h3>
-                <p className="text-xs text-slate-400">Everything delivered or booked in one tap</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAllServicesOpen(false)}
-                className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-slate-300 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4 pt-3">
-              {/* Mobility & Transport */}
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-go">Mobility & Delivery</p>
-                <div className="mt-2 space-y-2">
-                  <Link
-                    href="/ride"
-                    onClick={() => setAllServicesOpen(false)}
-                    className="flex items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#FF5500] text-white">
-                        <span className="text-xl leading-none" aria-hidden>🏍️</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold">GoRide Boda</p>
-                        <p className="text-xs text-slate-400">Instant motorcycle ride across Masaka & Kampala</p>
-                      </div>
-                    </div>
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAllServicesOpen(false);
-                      setExpressOpen(true);
-                    }}
-                    className="flex w-full items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#8B5CF6] text-white">
-                        <span className="text-xl leading-none" aria-hidden>📦</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold">GoExpress Parcel</p>
-                        <p className="text-xs text-slate-400">Same-day tracked package and document delivery</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Shopping & Food */}
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-go">Shopping & Food</p>
-                <div className="mt-2 space-y-2">
-                  <Link
-                    href="/browse/food"
-                    onClick={() => setAllServicesOpen(false)}
-                    className="flex items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#F59E0B] text-white">
-                        <span className="text-xl leading-none" aria-hidden>🍽️</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold">GoFood Restaurants</p>
-                        <p className="text-xs text-slate-400">Hot meals from local kitchens & fast food</p>
-                      </div>
-                    </div>
-                  </Link>
-                  <Link
-                    href="/browse/mart"
-                    onClick={() => setAllServicesOpen(false)}
-                    className="flex items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#10B981] text-white">
-                        <span className="text-xl leading-none" aria-hidden>🛒</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold">GoMart Groceries</p>
-                        <p className="text-xs text-slate-400">Fresh vegetables, household staples & drinks</p>
-                      </div>
-                    </div>
-                  </Link>
-                  <Link
-                    href="/browse/pharma"
-                    onClick={() => setAllServicesOpen(false)}
-                    className="flex items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#3B82F6] text-white">
-                        <span className="text-xl leading-none" aria-hidden>💊</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold">GoPharma Care</p>
-                        <p className="text-xs text-slate-400">Prescription meds, wellness & first-aid essentials</p>
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              </div>
-
-              {/* Payments & Utility */}
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-go">Payments & Morse Pay</p>
-                <div className="mt-2 space-y-2">
-                  <Link
-                    href="/wallet"
-                    onClick={() => setAllServicesOpen(false)}
-                    className="flex items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#1E293B] text-white border border-white/10">
-                        <span className="text-xl leading-none" aria-hidden>💵</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold">GoDoor Pay & Morse Escrow</p>
-                        <p className="text-xs text-slate-400">Zero fee mobile money top-up & merchant checkout</p>
-                      </div>
-                    </div>
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAllServicesOpen(false);
-                      setAirtimeOpen(true);
-                    }}
-                    className="flex w-full items-center justify-between rounded-2xl bg-white/5 p-3 hover:bg-white/10 transition text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#EAB308] text-white">
-                        <span className="text-xl leading-none" aria-hidden>📱</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold">Airtime & Data Bundles</p>
-                        <p className="text-xs text-slate-400">Instant MTN and Airtel airtime top-up</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Airtime Top-Up */}
-      {airtimeOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-md animate-fade-in"
-        >
-          <div className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-ink p-6 text-white shadow-2xl">
-            <button
-              type="button"
-              onClick={() => {
-                setAirtimeOpen(false);
-                setAirtimeSuccess(false);
-              }}
-              className="absolute top-4 right-4 grid h-8 w-8 place-items-center rounded-full bg-white/10 text-slate-300 hover:text-white"
-            >
-              <X className="h-4 w-4" />
-            </button>
-
-            {airtimeSuccess ? (
-              <div className="text-center py-4">
-                <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 mb-3">
-                  <CheckCircle2 className="h-8 w-8" />
-                </div>
-                <h3 className="font-display text-lg font-bold">Airtime Sent!</h3>
-                <p className="mt-1 text-xs text-slate-300">
-                  {formatUgx(Number(airtimeAmount))} dispatched to {airtimePhone} ({airtimeCarrier}).
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAirtimeOpen(false);
-                    setAirtimeSuccess(false);
-                  }}
-                  className="mt-5 w-full rounded-xl bg-go py-2.5 text-xs font-bold text-white"
-                >
-                  Done
-                </button>
-              </div>
-            ) : (
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#EAB308] text-white">
-                    <span className="text-xl leading-none" aria-hidden>📱</span>
-                  </div>
-                  <div>
-                    <h3 className="font-display text-base font-bold">Instant Airtime</h3>
-                    <p className="text-xs text-slate-400">MTN & Airtel Top-Up</p>
-                  </div>
-                </div>
-
-                {/* Carrier selector */}
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => setAirtimeCarrier("MTN")}
-                    className={`rounded-xl py-2 text-xs font-bold transition border ${
-                      airtimeCarrier === "MTN"
-                        ? "bg-[#FFCC00]/20 text-[#FFCC00] border-[#FFCC00]/50"
-                        : "bg-white/5 text-slate-400 border-white/10"
-                    }`}
-                  >
-                    MTN Uganda
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAirtimeCarrier("AIRTEL")}
-                    className={`rounded-xl py-2 text-xs font-bold transition border ${
-                      airtimeCarrier === "AIRTEL"
-                        ? "bg-[#ED1B24]/20 text-[#ED1B24] border-[#ED1B24]/50"
-                        : "bg-white/5 text-slate-400 border-white/10"
-                    }`}
-                  >
-                    Airtel Uganda
-                  </button>
-                </div>
-
-                {/* Phone input */}
-                <div className="space-y-1.5 mb-3">
-                  <label className="text-[10px] uppercase font-bold text-slate-400">Phone Number</label>
-                  <input
-                    type="tel"
-                    placeholder="0770 000 000"
-                    value={airtimePhone}
-                    onChange={(e) => setAirtimePhone(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:border-go focus:outline-none"
-                  />
-                </div>
-
-                {/* Amount presets */}
-                <div className="space-y-1.5 mb-5">
-                  <label className="text-[10px] uppercase font-bold text-slate-400">Select Amount</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {["2000", "5000", "10000", "20000", "50000"].map((amt) => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => setAirtimeAmount(amt)}
-                        className={`rounded-xl py-2 text-xs font-bold transition border ${
-                          airtimeAmount === amt
-                            ? "bg-go text-white border-go"
-                            : "bg-white/5 text-slate-300 border-white/10 hover:bg-white/10"
-                        }`}
-                      >
-                        {formatUgx(Number(amt))}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!airtimePhone) return;
-                    setAirtimeSuccess(true);
-                  }}
-                  disabled={!airtimePhone}
-                  className="w-full rounded-xl bg-go py-3 text-xs font-bold text-white transition hover:bg-go/90 disabled:opacity-50"
-                >
-                  Pay with GoDoor Wallet ({formatUgx(Number(airtimeAmount))})
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Modal: GoExpress Parcel Delivery */}
       {expressOpen && (

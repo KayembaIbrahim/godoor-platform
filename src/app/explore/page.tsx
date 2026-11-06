@@ -96,7 +96,6 @@ const SERVICES_20 = [
   { icon: PackageCheck, label: "GoExpress", desc: "Send parcel", color: "text-navy", plate: "bg-navy-soft", status: "live", badge: "Live" },
   { icon: Pill, label: "GoPharma", desc: "Medicines & wellness", color: "text-blue-600", plate: "bg-blue-100", status: "live", badge: "Live" },
   { icon: CreditCard, label: "GoPay", desc: "Money & payments", color: "text-purple-600", plate: "bg-purple-100", status: "live", badge: "Live" },
-  { icon: Zap, label: "Airtime", desc: "MTN & Airtel top-up", color: "text-warning", plate: "bg-warning", status: "live", badge: "Live" },
   { icon: Menu, label: "Services", desc: "GoDoor services directory", color: "text-muted", plate: "bg-surface", status: "upcoming", badge: "Directory" },
 ] as const;
 

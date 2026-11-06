@@ -34,15 +34,14 @@ function timeAgo(ms: number): string {
 
 export function NotificationBell({ inBar = false }: { inBar?: boolean } = {}) {
   const { role, supabaseUser } = useSession();
+  const hydrated = useHydrated();
   const { items, unreadCount, markAllRead } = useNotifications();
   const myItems = items.filter((n) => !n.role || !role || n.role === role);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  /* The unread count comes from a store persisted to localStorage, so the
-     server renders the bell with no badge while the client would render one
-     on its very first render — a hydration mismatch. The badge waits for
-     hydration; the bell itself is identical either way. */
-  const hydrated = useHydrated();
+
+  // Notifications are per-user; a signed-out visitor must see nothing.
+  if (hydrated && !supabaseUser) return null;
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

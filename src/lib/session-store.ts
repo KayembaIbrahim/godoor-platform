@@ -316,11 +316,11 @@ set({
         // *resolved* auth state — leaving it false would stall every gated
         // fetch behind a session load that is never coming.
         set({ ...initial, authReady: true });
-        // persist is the only thing that collapses identity — wipe it now so
-        // the next visitor on this device cannot see the previous user's
-        // profile (e.g. "Good evening, Ibrahim") while signed out.
         try {
           localStorage.removeItem("godoor-session");
+          localStorage.removeItem("godoor-notifications");
+          const { useNotifications } = await import("./notifications-store");
+          useNotifications.getState().clearAll();
         } catch {}
       },
       // Social login removed — email + password only (see interface comment).

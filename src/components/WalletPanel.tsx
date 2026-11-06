@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { formatUgx } from "@/lib/utils";
 import { useSession } from "@/lib/session-store";
+import { useLiveRate } from "@/lib/use-live-rate";
 import { apiAuthHeaders } from "@/lib/db";
 import { MorseLogo } from "@/components/MorseLogo";
 import TransferSheet from "@/components/TransferSheet";
@@ -70,10 +71,9 @@ function copyToClipboard(text: string) {
 }
 
 function usd(ugx: number, rate: number): string {
-  // rate is the live value from useLiveRate()/api/morse — never a constant.
-  // Guard against divide-by-zero only; callers pass the live rate.
-  const r = rate > 0 ? rate : 1;
-  return `$${(ugx / r).toFixed(2)}`;
+  // rate is the live value from useLiveRate(). Never fall back to 1 —
+  // that rendered the UGW amount as if it were dollars ($10,000 for 10,000 UGX).
+  return rate > 0 ? `$${(ugx / rate).toFixed(2)}` : "—";
 }
 
 /* ── Ledger history ───────────────────────────────────────────── */
@@ -240,7 +240,9 @@ function TopUpCard({ rate, onDeposited }: { rate: number; onDeposited: () => voi
             <span className="text-xs text-muted">Amount</span>
             <span className="flex items-center gap-2">
               <span className="num text-sm font-semibold tabular-nums">{formatUgx(deposit.amount)}</span>
-              <span className="num text-[10px] text-dim">{usd(deposit.amount, rate)}</span>
+              {rate > 0 && (
+                <span className="num text-[10px] text-dim">≈ {usd(deposit.amount, rate)}</span>
+              )}
             </span>
           </div>
           <div className="flex items-center justify-between rounded-xl bg-surface px-3 py-2.5">
@@ -490,10 +492,15 @@ export function WalletPanel() {
   const [cfg, setCfg] = useState<MorseConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [transferOpen, setTransferOpen] = useState(false);
+  const { rate: liveRate } = useLiveRate();
 
-  // Live rate — no hardcoded fallback. While loading, the panel shows a
-  // skeleton rate instead of a fake 4102.
-  const rate = cfg?.rateUgx ?? 0;
+  // Live rate from the heartbeat hook — this is what the USD equivalents are
+  // computed from. `cfg` from /api/morse is branding only (referral code,
+  // download URL); it does NOT carry the rate into TopUpCard because it was
+  // never fetched there. Previous bug: `rate` was `cfg?.rateUgx ?? 0` but
+  // `cfg` was never set in this component, so `rate` stayed 0, the USD line
+  // never showed, and `usd()` fell back to `r = 1`, rendering UGX as dollars.
+  const rate = liveRate ?? 0;
 
   const load = useCallback(async () => {
     try {

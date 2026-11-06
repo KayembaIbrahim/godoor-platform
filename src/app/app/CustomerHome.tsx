@@ -482,7 +482,7 @@ export default function CustomerHome() {
 
       {/* ── C. Services ─────────────────────────────────────────────────
           The brief's identity row — GoFood, GoMart, GoPharma, GoExpress,
-          GoRide, GoPay, Airtime, Services — each in a pastel disc.
+          GoRide, GoPay, Services — each in a pastel disc.
 
           This REPLACES the merchant-derived category rail that sat here
           before. That rail was built from live shops, so in production (2
