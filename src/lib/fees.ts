@@ -139,9 +139,9 @@ export function shoppingListRiderShare(feeUgx: number): number {
   return Math.round((feeUgx * SHOPPING_LIST_RIDER_SHARE_PERCENT) / 100);
 }
 
-export const BUSINESS_FEE_PERCENT = 10;
-export const RIDER_FEE_PERCENT = 5;
-export const CUSTOMER_SERVICE_FEE_PERCENT = 15;
+export const BUSINESS_FEE_PERCENT = 15;
+export const RIDER_FEE_PERCENT = 15;
+export const CUSTOMER_SERVICE_FEE_PERCENT = 0; // deprecated: flat fees only
 
 /** Integer split used at settlement, mirroring release_escrow in SQL. */
 export function splitOrderAmounts(subtotalUgx: number, deliveryFeeUgx: number) {

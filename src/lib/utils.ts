@@ -90,43 +90,42 @@ export const BULKY_PER_KG_UGX = 1000;
  *  When products gain one, this becomes the fallback rather than the rule.) */
 export const BULKY_WEIGHT_KG_PER_ITEM = 10;
 
-/** Time-of-day billing tiers (Uganda EAT = UTC+3).
- *  Day (05:00–19:00) min 1,500 · evening (19:00–00:00) min 2,000 · midnight
- *  (00:00–05:00) min 3,000. A 10-minute trip lands near 1,800 day / 2,000
- *  evening / 3,000 midnight instead of a flat ~$1. */
+/** Time-of-day billing tiers (Uganda EAT = UTC+3) — v2 bands.
+ *  Day 07:00–19:00 · Evening 19:00–23:00 · Late night 23:00–07:00.
+ *  Delivery minimums: 2,500 day/evening, 3,000 late; per-km rides the
+ *  ride bands 1,000/1,800/2,500. Same card the ride engine uses. */
 export type FareTier = "day" | "evening" | "midnight";
 
 export function ugandaFareTier(at: Date = new Date()): FareTier {
   const h = (at.getUTCHours() + 3) % 24;
-  if (h < 5) return "midnight";
-  if (h >= 19) return "evening";
+  if (h < 7) return "midnight";
+  if (h >= 19 && h < 23) return "evening";
   return "day";
 }
 
 export const FARE_MINIMUM_UGX: Record<FareTier, number> = {
-  day: 1500,
-  evening: 2000,
+  day: 2500,
+  evening: 2500,
   midnight: 3000,
 };
 
-/** Per-unit rates counted on BOTH road distance and trip time.
- *  Per-km delivery rate aligned to GoRide: UGX 1,500/km (rider-settable via
- *  fee_config boda_per_km_ugx). 200/km was far below rider cost — a 10 km
- *  delivery paid the rider less than the fuel. */
-export const FARE_PER_KM_UGX = 1500;
-export const FARE_PER_MIN_UGX = 100;
+/** Per-unit rates for delivery. Per-km rides the boda bands; time billing off. */
+export const FARE_PER_KM_UGX: Record<FareTier, number> = {
+  day: 1000,
+  evening: 1800,
+  midnight: 2500,
+};
+export const FARE_PER_MIN_UGX = 0;
 
-/** Calculate GoDoor delivery fee from distance + time with time-of-day minimum.
- *  `durationMin` defaults to a 25 km/h urban motorbike estimate when omitted.
- *  `bulkyWeightKg` adds a per-kg heavy-item surcharge (1,000 UGX/kg) for sofas,
- *  fridges, and other items whose handling cost scales with weight. */
+/** Calculate GoDoor delivery fee from distance with time-of-day band + floor.
+ *  Same rate card as rides: base 1,000 included implicitly via the floor —
+ *  for short trips the tier minimum rules; for long trips per-km rules.
+ *  `bulkyWeightKg` adds a per-kg heavy-item surcharge (1,000 UGX/kg). */
 export function calcDeliveryFee(distanceKm: number, bulkyWeightKg = 0, durationMin?: number | null, at?: Date): number {
   const km = Number.isFinite(distanceKm) && distanceKm > 0 ? distanceKm : 0;
-  const mins = durationMin != null && Number.isFinite(durationMin) && (durationMin as number) > 0
-    ? (durationMin as number)
-    : (km / 25) * 60;
+  void durationMin;
   const tier = ugandaFareTier(at);
-  const raw = FARE_PER_KM_UGX * km + FARE_PER_MIN_UGX * mins;
+  const raw = 1000 + FARE_PER_KM_UGX[tier] * km;
   let fee = Math.max(FARE_MINIMUM_UGX[tier], raw);
   fee = Math.round(fee / 100) * 100;
   if (bulkyWeightKg > 0) fee += Math.round(bulkyWeightKg) * BULKY_PER_KG_UGX;

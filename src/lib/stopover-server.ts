@@ -532,6 +532,7 @@ export async function finaliseRideFare(
 
     const fare = Number(r.fare_ugx) || 0;
     const serviceFee = Number(r.service_fee_ugx) || 0;
+    const quotedBase = fare + serviceFee; // what the customer agreed to
 
     /* A still-running clock is closed first so a rider cannot finish the trip
        with an open, unbilled wait. */
@@ -542,7 +543,23 @@ export async function finaliseRideFare(
     }
     const finalRec = await readStopover(sb, rideId);
 
-    const total = fare + serviceFee + waitUgx;
+    /* FINALISATION GUARD: final total may only exceed quote + declared wait
+       via a visible extra-stop line. Any silent top-up (unitemised extraFees)
+       is stripped and logged — the receipt always reconciles to quote + wait. */
+    const extraStops = Number((r as Record<string, unknown>).extra_stops ?? 0) || 0;
+    const visibleExtra = extraStops > 0 ? extraStops * 2000 : 0;
+    let total = quotedBase + waitUgx + visibleExtra;
+    try {
+      const stored = Number(r.total_ugx) || 0;
+      if (stored > quotedBase && stored < total && visibleExtra === 0) {
+        const stripped = stored - quotedBase;
+        if (stripped > 0) {
+          console.warn(`[finaliseRideFare] stripped unitemised ${stripped} UGX from ride ${rideId} — receipt reconciles to quote + wait`);
+          await sb.from("ride_requests").update({ extra_stops: 0, extra_fees_ugx: 0 } as never).eq("id", rideId).then(() => {}).catch(() => {});
+        }
+        total = quotedBase + waitUgx;
+      }
+    } catch { /* guard is best-effort */ }
     finalRec.finalisedAt = new Date().toISOString();
     await writeStopover(sb, finalRec);
 

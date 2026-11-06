@@ -59,8 +59,8 @@ export type FareTier = "day" | "evening" | "late";
 /** Per-km UGX by band — the operator's published schedule (see FareTier docs). */
 export const BODA_PER_KM_UGX: Record<FareTier, number> = {
   day: 1000,
-  evening: 1500,
-  late: 2000,
+  evening: 1800,
+  late: 2500,
 };
 
 /**
@@ -142,32 +142,34 @@ export type FareRates = {
  */
 export const FALLBACK_FARE_RATES: FareRates = {
   boda_base_ugx: 2000,
-  /* day per-km is now 1,000 (was 1,500 — the old flat rate charged 2,100 for a
-     1.4 km trip before the base, which is why users saw UGX 4,700 for a 1.4 km
-     daytime ride). */
   boda_per_km_ugx: BODA_PER_KM_UGX.day,
   boda_per_min_ugx: 0,
-  boda_min_ugx: 2000,
+  /* Launch minimum UGX 3,000 (was 2,000): lifts sub-cost short trips
+     (a 900 m daytime ride cost 900 pure-distance and lost the rider money)
+     to a viable fare while warning the customer via at_minimum. */
+  boda_min_ugx: 3000,
   boda_evening_per_km_ugx: BODA_PER_KM_UGX.evening,
   boda_late_per_km_ugx: BODA_PER_KM_UGX.late,
   boda_late_base_ugx: 2500,
-  boda_late_min_ugx: 2500,
+  boda_late_min_ugx: 3500,
   car_base_ugx: 3500,
   car_per_km_ugx: 1800,
   car_min_ugx: 4000,
-  delivery_base_ugx: 0,
-  delivery_per_km_ugx: 200,
-  delivery_per_min_ugx: 100,
-  delivery_min_day_ugx: 1500,
-  delivery_min_evening_ugx: 2000,
+  /* Delivery uses ride bands at lighter structure: base 1,000,
+     same per-km bands, minimums 2,500 / 3,000 late (was 200/100 — below rider cost). */
+  delivery_base_ugx: 1000,
+  delivery_per_km_ugx: BODA_PER_KM_UGX.day,
+  delivery_per_min_ugx: 0,
+  delivery_min_day_ugx: 2500,
+  delivery_min_evening_ugx: 2500,
   delivery_min_late_ugx: 3000,
-  evening_start_hour: 21,
-  late_start_hour: 24,
-  late_end_hour: 6.5,
+  evening_start_hour: 19,
+  late_start_hour: 23,
+  late_end_hour: 7,
   evening_multiplier: 1,
   late_multiplier: 1,
-  wait_grace_min: 3,
-  wait_per_min_ugx: 100,
+  wait_grace_min: 4,
+  wait_per_min_ugx: 250,
   stopover_max_session_min: 20,
   stopover_max_ride_min: 60,
   stopover_min_session_min: 1,
@@ -360,8 +362,15 @@ export function quoteFare(input: FareInput): FareQuote {
   let base: number, perKm: number, perMin: number, minFare: number;
   if (input.kind === "delivery") {
     base = rates.delivery_base_ugx;
-    perKm = rates.delivery_per_km_ugx;
-    perMin = rates.delivery_per_min_ugx;
+    /* Delivery rides the ride bands (1,000/1,800/2,500) — the day band comes
+       from delivery_per_km_ugx (admin-tunable), evening/late from the boda
+       bands. Per-min is always 0 for delivery (time billing off). */
+    perKm =
+      tier === "late" ? rates.boda_late_per_km_ugx
+      : tier === "evening" ? rates.boda_evening_per_km_ugx
+      : rates.delivery_per_km_ugx;
+    perMin = (rates.delivery_per_min_ugx === 100 ? 0 : rates.delivery_per_min_ugx);
+    /* Legacy DB rows predate the rebalance; treat a 100/min row as off. */
     minFare =
       tier === "late" ? rates.delivery_min_late_ugx
       : tier === "evening" ? rates.delivery_min_evening_ugx

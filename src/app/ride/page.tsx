@@ -11,54 +11,19 @@ import { useRoadRoute } from "@/lib/routing";
 import { formatUgx } from "@/lib/utils";
 import { createRide, fetchMyRides, fetchRideById, rideAction, subscribeToRide, fetchRiderLocation, subscribeToRiderLocation, type DBRide } from "@/lib/db";
 import { StopoverAlert } from "@/components/StopoverAlert";
+import FareBreakdown from "@/components/FareBreakdown";
+function FareBreakdownWrapper({ quote }: { quote: Parameters<typeof FareBreakdown>[0]["quote"] }) { return <FareBreakdown quote={quote} compact />; }
 
 const LiveTrackingMap = dynamic(() => import("@/components/LiveTrackingMap").then((m) => m.LiveTrackingMap), {
   ssr: false,
   loading: () => <div className="h-64 rounded-2xl bg-surface animate-pulse" />,
 });
 
-const BODA_BASE = 2000;
-const BODA_LATE_BASE = 2500;
-/* Banded per-km (operator schedule, EAT): day 1,000 · evening 9pm–12am 1,500 ·
-   late 12am–6:30am 2,000. Mirrors the server fare engine exactly — the preview
-   here must never drift from what POST /api/rides charges. */
-const BODA_PER_KM: Record<string, number> = {
-  day: 1000,
-  evening: 1500,
-  late: 2000,
-};
-const BODA_SERVICE_FEE = 250;
-
-/* Mirrors the server fare engine's tier boundaries (EAT = UTC+3, no DST):
-   evening from 21:00 (9pm), late from 00:00 through 06:30 (the window spans
-   midnight, and starts at midnight — 11pm is still the evening rate). */
-const EVENING_START_HOUR = 21;
-const LATE_START_HOUR = 24;
-const LATE_END_HOUR = 6.5;
-
-function ugandaHourOf(d: Date): number {
-  const h = d.getUTCHours() + d.getUTCMinutes() / 60;
-  return ((h + 3) % 24 + 24) % 24;
-}
-
-function isLateNight(d: Date): boolean {
-  const h = ugandaHourOf(d);
-  /* Late starts at midnight (0:00), not 23:00 — LATE_START_HOUR is 24, so the
-     pre-midnight arm is dead by design. */
-  return h < LATE_END_HOUR;
-}
-
-function isEvening(d: Date): boolean {
-  const h = ugandaHourOf(d);
-  return h >= EVENING_START_HOUR;
-}
-
-/** Band key for a moment: day / evening / late. */
-function bandOf(d: Date): "day" | "evening" | "late" {
-  if (isLateNight(d)) return "late";
-  if (isEvening(d)) return "evening";
-  return "day";
-}
+/* Fare preview is NOT computed locally — it comes from POST /api/rides/quote,
+   the same server function that prices the booking. The old client-side
+   estimateFare() re-implemented base+per-km by hand and drifted: preview
+   1,800 vs charge 3,400 on the same trip. One server quote, one display
+   component (FareBreakdown) — drift is structurally impossible now. */
 
 /** The service-fee rate actually applied to THIS ride, derived from the
  *  stored amounts. A ride priced under an older config must keep showing that
@@ -72,18 +37,21 @@ function appliedFeePct(total: number | null | undefined, fee: number | null | un
   return Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
 }
 
-function estimateFare(km: number | null, at?: Date): { fare: number; fee: number; total: number; night: boolean; band: "day" | "evening" | "late"; perKm: number } {
-  if (km === null || km <= 0) return { fare: 0, fee: 0, total: 0, night: false, band: "day", perKm: BODA_PER_KM.day };
-  const band = bandOf(at ?? new Date());
-  const night = band === "late";
-  /* Late-night: 2,500 base AND 2,500 floor. Daytime/evening: 2,000 base / 2,000 floor. */
-  const base = night ? BODA_LATE_BASE : BODA_BASE;
-  const floor = night ? BODA_LATE_BASE : BODA_BASE;
-  const perKm = BODA_PER_KM[band];
-  const fare = Math.max(floor, Math.round(base + km * perKm));
-  /* Flat UGX 250 boda service fee — the server charges via serviceFeeFor(..., "ride_boda"). */
-  const fee = BODA_SERVICE_FEE;
-  return { fare, fee, total: fare + fee, night, band, perKm };
+type ServerQuote = {
+  total_ugx: number;
+  fare_ugx?: number;
+  service_fee_ugx?: number;
+  quote?: {
+    base_ugx: number; distance_ugx: number; time_ugx?: number; wait_ugx?: number; bulky_ugx?: number;
+    fare_ugx: number; at_minimum?: boolean; tier_label?: string; distance_km: number; duration_min?: number;
+  };
+};
+
+async function fetchServerQuote(p: Addr, d: Addr): Promise<ServerQuote | null> {
+  const r = await fetch("/api/rides/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pickup_lat: p.lat, pickup_lng: p.lng, dropoff_lat: d.lat, dropoff_lng: d.lng, kind: "boda" }) });
+  if (!r.ok) return null;
+  const j = await r.json() as { quote: ServerQuote["quote"]; service_fee_ugx: number; total_ugx: number; fare_ugx?: number };
+  return { total_ugx: j.total_ugx, fare_ugx: j.fare_ugx ?? j.quote?.fare_ugx, service_fee_ugx: j.service_fee_ugx, quote: j.quote };
 }
 
 type Addr = { place: string; lat: number; lng: number };
@@ -231,7 +199,7 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
              no quote was passed, so a booked ride showed "FARE UGX 2,000" while
              the trip total below read UGX 4,049. Pass the fare actually agreed
              when the ride was created. */
-          quotedFeeUgx={ride.fare_ugx > 0 ? ride.fare_ugx : null}
+          quotedFeeUgx={ride.total_ugx > 0 ? ride.total_ugx : null}
           label={statusLabel}
           merchantName="Pickup"
           customerName="You"
@@ -342,7 +310,16 @@ export default function RidePage() {
   }, [activeId, activeRide]);
 
   const km = pickup && dropoff ? distanceKm(pickup, dropoff) : null;
-  const est = useMemo(() => estimateFare(km), [km]);
+  const [quote, setQuote] = useState<ServerQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  useEffect(() => {
+    if (!pickup || !dropoff) { setQuote(null); return; }
+    const t = setTimeout(() => {
+      setQuoteLoading(true);
+      fetchServerQuote(pickup, dropoff).then((q) => { setQuote(q); setQuoteLoading(false); }).catch(() => setQuoteLoading(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
   const previewRoute = useRoadRoute(
     pickup ? { lat: pickup.lat, lng: pickup.lng } : null,
     dropoff ? { lat: dropoff.lat, lng: dropoff.lng } : null,
@@ -455,21 +432,17 @@ export default function RidePage() {
                   <p className="text-sm font-bold tabular-nums">{km !== null ? `${km.toFixed(1)} km` : "—"}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-dim">Fare · {est.perKm.toLocaleString("en-US")}/km{est.band === "late" ? " · late night" : est.band === "evening" ? " · evening" : ""}</p>
-                  <p className="text-sm font-bold tabular-nums">{formatUgx(est.total)}</p>
+                  <p className="text-[9px] uppercase tracking-wider text-dim">Fare{quote?.quote?.tier_label ? ` · ${quote.quote.tier_label}` : ""}</p>
+                  <p className="text-sm font-bold tabular-nums">{quoteLoading ? "…" : formatUgx(quote?.total_ugx ?? 0)}</p>
                 </div>
                 <div>
                   <p className="text-[9px] uppercase tracking-wider text-dim">ETA pickup</p>
                   <p className="flex items-center justify-center gap-1 text-sm font-bold"><Clock className="h-3 w-3 text-primary" /> ~10 min</p>
                 </div>
               </div>
+              {quote?.quote && <div className="border-t border-border px-3 py-3"><FareBreakdownWrapper quote={{ base_ugx: quote.quote.base_ugx, distance_ugx: quote.quote.distance_ugx, time_ugx: quote.quote.time_ugx, wait_ugx: quote.quote.wait_ugx, fare_ugx: quote.quote.fare_ugx, service_fee_ugx: quote.service_fee_ugx ?? 0, total_ugx: quote.total_ugx, at_minimum: quote.quote.at_minimum, tier_label: quote.quote.tier_label, distance_km: quote.quote.distance_km }} /></div>}
               <div className="px-3 pb-3 text-[10px] text-dim">
-                <p>Pay the rider directly (GoDoor Wallet).</p>
-                <p className="mt-1 tabular-nums">
-                  Base {formatUgx(est.band === "late" ? BODA_LATE_BASE : BODA_BASE)}
-                  {" "}· Distance {formatUgx(Math.max(0, Math.round((km ?? 0) * est.perKm)))} ({(km ?? 0).toFixed(1)} km × {est.perKm.toLocaleString("en-US")})
-                  {" "}· Service {formatUgx(est.fee)}
-                </p>
+                <p>Pay in GoDoor Wallet. What you see is what you pay.</p>
               </div>
             </div>
           )}
