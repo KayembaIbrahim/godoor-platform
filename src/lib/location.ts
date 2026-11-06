@@ -402,27 +402,39 @@ export function useGeolocation() {
   // `freeipapi` 307-redirects to `free.freeipapi.com`, which serves
   // `access-control-allow-origin: *` and real Uganda coordinates.
   const ipFallback = useCallback(async () => {
-    const found = await firstOf<{ lat: number; lng: number }>(
-      [
-        async () => {
-          const r = await fetchTimed("https://freeipapi.com/api/json", undefined, GEO_TIMEOUT_MS);
-          const j = await r.json();
-          if (j.latitude && j.longitude) return { lat: Number(j.latitude), lng: Number(j.longitude) };
-          return null;
-        },
-        // Backup only. Primary geocoding is Mapbox, which we already hold a
-        // token for — reuse it rather than depend on a third-party IP database.
-        async () => {
-          const r = await fetchTimed("https://ipwho.is/", undefined, GEO_TIMEOUT_MS);
-          const j = await r.json();
-          if (j.latitude && j.longitude) return { lat: Number(j.latitude), lng: Number(j.longitude) };
-          return null;
-        },
-      ],
-      (c) => Number.isFinite(c.lat) && Number.isFinite(c.lng),
-      GEO_TIMEOUT_MS,
-      "ip geolocation",
-    );
+    const inUg = (c: { lat: number; lng: number }) =>
+      c.lat >= -1.5 && c.lat <= 4.5 && c.lng >= 28 && c.lng <= 36;
+    // RACE, not chain. The old chain waited a full GEO_TIMEOUT_MS on a
+    // throttled provider before even trying the next one — the user sat on
+    // "Detecting your location…" for 6-12s and reported "not auto filled".
+    // All three run simultaneously; first valid answer wins.
+    const providers: Array<() => Promise<{ lat: number; lng: number } | null>> = [
+      // 1) Server route — no CORS, real client IP from x-forwarded-for.
+      async () => {
+        const r = await fetchTimed("/api/geo/ip", undefined, GEO_TIMEOUT_MS);
+        if (!r.ok) return null;
+        const j = await r.json();
+        const c = { lat: Number(j.lat), lng: Number(j.lng) };
+        return Number.isFinite(c.lat) && Number.isFinite(c.lng) && inUg(c) ? c : null;
+      },
+      // 2) ipwho.is — the solid one of the direct pair (verified Uganda-correct).
+      async () => {
+        const r = await fetchTimed("https://ipwho.is/", undefined, GEO_TIMEOUT_MS);
+        const j = await r.json();
+        const c = { lat: Number(j.latitude), lng: Number(j.longitude) };
+        return Number.isFinite(c.lat) && Number.isFinite(c.lng) && inUg(c) ? c : null;
+      },
+      // 3) freeipapi — flaky in-browser (one failed request in five), kept as backup.
+      async () => {
+        const r = await fetchTimed("https://freeipapi.com/api/json", undefined, GEO_TIMEOUT_MS);
+        const j = await r.json();
+        const c = { lat: Number(j.latitude), lng: Number(j.longitude) };
+        return Number.isFinite(c.lat) && Number.isFinite(c.lng) && inUg(c) ? c : null;
+      },
+    ];
+    const found = await Promise.any(
+      providers.map((p) => withTimeout(p(), GEO_TIMEOUT_MS, "ip geolocation").catch(() => null)),
+    ).catch(() => null) as { lat: number; lng: number } | null;
     if (!found) return false;
 
     /* A precise fix may have landed while this lookup was in flight. Never
@@ -431,9 +443,8 @@ export function useGeolocation() {
        true either way: "we have a location" is still the answer. */
     if (bestAccuracyRef.current !== Infinity) return true;
 
-    // Uganda bounds check — if IP says outside Uganda, clamp to Kampala fallback
-    const inUg = found.lat >= -1.5 && found.lat <= 4.5 && found.lng >= 28 && found.lng <= 36;
-    const loc = inUg ? found : { lat: 0.3163, lng: 32.5822 };
+    // Providers already filtered to Uganda bounds; clamp as a belt-and-braces.
+    const loc = found;
     setCoords(loc);
     setAccuracy(5000);
     setStatus("watching");
