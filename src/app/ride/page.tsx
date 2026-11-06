@@ -18,7 +18,26 @@ const LiveTrackingMap = dynamic(() => import("@/components/LiveTrackingMap").the
 });
 
 const BODA_BASE = 2000;
+const BODA_LATE_BASE = 2500;
 const BODA_PER_KM = 1200;
+
+/* Mirrors the server fare engine's tier boundaries (EAT = UTC+3, no DST):
+   evening from 19:30, late-night from 23:00 through 06:30 (the window spans
+   midnight). The live night floor is 2,500 — this preview uses the same
+   boundaries so the estimate matches what the server charges. */
+const EVENING_START_HOUR = 19.5;
+const LATE_START_HOUR = 23;
+const LATE_END_HOUR = 6.5;
+
+function ugandaHourOf(d: Date): number {
+  const h = d.getUTCHours() + d.getUTCMinutes() / 60;
+  return ((h + 3) % 24 + 24) % 24;
+}
+
+function isLateNight(d: Date): boolean {
+  const h = ugandaHourOf(d);
+  return h >= LATE_START_HOUR || h < LATE_END_HOUR;
+}
 
 /** The service-fee rate actually applied to THIS ride, derived from the
  *  stored amounts. A ride priced under an older config must keep showing that
@@ -32,11 +51,15 @@ function appliedFeePct(total: number | null | undefined, fee: number | null | un
   return Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
 }
 
-function estimateFare(km: number | null): { fare: number; fee: number; total: number } {
-  if (km === null || km <= 0) return { fare: 0, fee: 0, total: 0 };
-  const fare = Math.max(2500, Math.round(BODA_BASE + km * BODA_PER_KM));
+function estimateFare(km: number | null, at?: Date): { fare: number; fee: number; total: number; night: boolean } {
+  if (km === null || km <= 0) return { fare: 0, fee: 0, total: 0, night: false };
+  const night = isLateNight(at ?? new Date());
+  /* Late-night: 2,500 base AND 2,500 floor. Daytime: 2,000 base / 2,000 floor. */
+  const base = night ? BODA_LATE_BASE : BODA_BASE;
+  const floor = night ? BODA_LATE_BASE : BODA_BASE;
+  const fare = Math.max(floor, Math.round(base + km * BODA_PER_KM));
   const fee = Math.round((fare * 5) / 100);
-  return { fare, fee, total: fare + fee };
+  return { fare, fee, total: fare + fee, night };
 }
 
 type Addr = { place: string; lat: number; lng: number };
@@ -113,6 +136,26 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
   /* A settled ride keeps its receipt on screen briefly (so the customer sees
      the outcome) but no longer shows live tracking, which is what made a
      finished trip look like it was still running. */
+  /* Distance is stored on the ride row at booking time — surface it on the
+     receipt so the customer can see how far they actually travelled, not just
+     what they paid. Falls back to the straight-line estimate from the stored
+     pickup/dropoff coords when the column predates the fare engine. */
+  const distanceKm = (ride.distance_km ? Number(ride.distance_km) : 0) > 0
+    ? Number(ride.distance_km)
+    : (ride.pickup_lat && ride.dropoff_lat ? distanceKm(pickup as { lat: number; lng: number }, drop as { lat: number; lng: number }) : 0);
+  const distanceLabel = distanceKm > 0 ? `${distanceKm.toFixed(1)} km` : null;
+
+  const badges = (
+    <>
+      {distanceLabel && (
+        <span className="rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold text-muted tabular-nums">{distanceLabel}</span>
+      )}
+      {ride.tier_label ? (
+        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">{ride.tier_label}</span>
+      ) : null}
+    </>
+  );
+
   if (settled) {
     return (
       <div className="overflow-hidden rounded-2xl border border-success/30 bg-surface">
@@ -128,6 +171,9 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
             <p className="num mt-1 text-sm font-bold text-primary tabular-nums">
               {formatUgx(ride.total_ugx)} <span className="text-[10px] font-normal text-dim">{appliedFeePct(ride.total_ugx, ride.service_fee_ugx) ? `incl. ${appliedFeePct(ride.total_ugx, ride.service_fee_ugx)}% service fee` : ""}</span>
             </p>
+            {(distanceLabel || ride.tier_label) && (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">{badges}</div>
+            )}
           </div>
         </div>
       </div>
@@ -159,6 +205,9 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
       <div className="p-4">
         <p className="text-sm font-bold">{statusLabel}</p>
         <p className="mt-1 text-xs text-muted">{ride.pickup_address || "Pickup"} → {ride.dropoff_address || "Dropoff"}</p>
+        {(distanceLabel || ride.tier_label) && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">{badges}</div>
+        )}
         {ride.rider_name ? (
           <p className="mt-1 text-xs text-muted">Rider: <span className="font-semibold text-fg">{ride.rider_name}</span></p>
         ) : (
@@ -353,7 +402,7 @@ export default function RidePage() {
                   <p className="text-sm font-bold tabular-nums">{km !== null ? `${km.toFixed(1)} km` : "—"}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-dim">Fare</p>
+                  <p className="text-[9px] uppercase tracking-wider text-dim">Fare{est.night ? " · late night" : ""}</p>
                   <p className="text-sm font-bold tabular-nums">{formatUgx(est.total)}</p>
                 </div>
                 <div>
@@ -383,7 +432,10 @@ export default function RidePage() {
                     className="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-3.5 text-left hover:bg-elevated transition">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">{r.pickup_address || "Pickup"} → {r.dropoff_address || "Dropoff"}</p>
-                      <p className="text-[10px] text-muted">{new Date(r.created_at).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })} · {formatUgx(r.total_ugx)}</p>
+                      <p className="text-[10px] text-muted">
+                        {new Date(r.created_at).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}
+                        {r.distance_km ? ` · ${Number(r.distance_km).toFixed(1)} km` : ""} · {formatUgx(r.total_ugx)}
+                      </p>
                     </div>
                     <span className="shrink-0 rounded-full bg-elevated px-2 py-0.5 text-[9px] font-bold capitalize text-muted">{r.status.replace("_", " ")}</span>
                   </button>

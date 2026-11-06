@@ -59,6 +59,11 @@ export type FareRates = {
   boda_per_km_ugx: number;
   boda_per_min_ugx: number;
   boda_min_ugx: number;
+  /* Late-night base / minimum — applied only in the "late" tier (see
+     `late_start_hour` / `late_end_hour`). Kept separate so the day base and
+     day minimum are never silently re-priced by a night policy change. */
+  boda_late_base_ugx: number;
+  boda_late_min_ugx: number;
   /* GoCar / larger vehicles scale the boda base; kept explicit so admin can tune */
   car_base_ugx: number;
   car_per_km_ugx: number;
@@ -73,6 +78,10 @@ export type FareRates = {
   /* When the evening tier begins. 19.5 = 19:30 EAT, per the operator brief. */
   evening_start_hour: number;
   late_start_hour: number;
+  /* When the late (late-night) tier ends: 6.5 = 06:30 EAT. The late window
+     spans midnight, so a boundary of 6.5 means "before 06:30 counts as late"
+     as well as after `late_start_hour`. */
+  late_end_hour: number;
   /* Time-of-day uplift applied to the distance component, matching how Ugandan
      operators price a peak: the base and the per-minute stay flat, the distance
      carries the rise, so the surcharge scales with how far you actually go
@@ -106,7 +115,9 @@ export const FALLBACK_FARE_RATES: FareRates = {
   boda_base_ugx: 2000,
   boda_per_km_ugx: 1200,
   boda_per_min_ugx: 0,
-  boda_min_ugx: 2500,
+  boda_min_ugx: 2000,
+  boda_late_base_ugx: 2500,
+  boda_late_min_ugx: 2500,
   car_base_ugx: 3500,
   car_per_km_ugx: 1800,
   car_min_ugx: 4000,
@@ -117,7 +128,8 @@ export const FALLBACK_FARE_RATES: FareRates = {
   delivery_min_evening_ugx: 2000,
   delivery_min_late_ugx: 3000,
   evening_start_hour: 19.5,
-  late_start_hour: 22,
+  late_start_hour: 23,
+  late_end_hour: 6.5,
   evening_multiplier: 1,
   late_multiplier: 1,
   wait_grace_min: 3,
@@ -151,6 +163,8 @@ export function resolveFareRates(row?: FareRateRow | null): FareRates {
     boda_per_km_ugx: Math.max(0, Math.trunc(r("boda_per_km_ugx"))),
     boda_per_min_ugx: Math.max(0, Math.trunc(r("boda_per_min_ugx"))),
     boda_min_ugx: Math.max(0, Math.trunc(r("boda_min_ugx"))),
+    boda_late_base_ugx: Math.max(0, Math.trunc(r("boda_late_base_ugx"))),
+    boda_late_min_ugx: Math.max(0, Math.trunc(r("boda_late_min_ugx"))),
     car_base_ugx: Math.max(0, Math.trunc(r("car_base_ugx"))),
     car_per_km_ugx: Math.max(0, Math.trunc(r("car_per_km_ugx"))),
     car_min_ugx: Math.max(0, Math.trunc(r("car_min_ugx"))),
@@ -162,6 +176,7 @@ export function resolveFareRates(row?: FareRateRow | null): FareRates {
     delivery_min_late_ugx: Math.max(0, Math.trunc(r("delivery_min_late_ugx"))),
     evening_start_hour: Math.min(23.99, Math.max(0, r("evening_start_hour"))),
     late_start_hour: Math.min(23.99, Math.max(0, r("late_start_hour"))),
+    late_end_hour: Math.min(23.99, Math.max(0, r("late_end_hour"))),
     /* Clamped to a sane 1.0–3.0 band: below 1.0 would quietly discount rides,
        above 3.0 a mis-typed value could price a Kampala trip like a flight. */
     evening_multiplier: Math.min(3, Math.max(1, r("evening_multiplier"))),
@@ -187,7 +202,11 @@ export function fareTierFor(at: Date = new Date(), rates: FareRates = FALLBACK_F
   const h = ugandaHour(at);
   const evening = rates.evening_start_hour;
   const late = Math.max(evening, rates.late_start_hour);
-  if (h >= late) return "late";
+  /* The late (late-night) window spans midnight: it starts at `late` (23:00 by
+     default) and ends at `late_end_hour` (06:30). Without the pre-06:30 arm,
+     00:00–06:29 would evaluate to "day" and the late-night rate would only
+     ever apply for one hour. */
+  if (h >= late || h < rates.late_end_hour) return "late";
   if (h >= evening) return "evening";
   return "day";
 }
@@ -315,10 +334,13 @@ export function quoteFare(input: FareInput): FareQuote {
     perMin = rates.boda_per_min_ugx;
     minFare = rates.car_min_ugx;
   } else {
-    base = rates.boda_base_ugx;
+    /* Late-night swaps the day base/minimum for the late-night ones: the
+       2,500 UGX floor then applies to the whole ride, so an 800 m ride at
+       02:00 costs 2,500, not 2,000. Daytime keeps 2,000 base / 2,000 floor. */
+    base = tier === "late" ? rates.boda_late_base_ugx : rates.boda_base_ugx;
     perKm = rates.boda_per_km_ugx;
     perMin = rates.boda_per_min_ugx;
-    minFare = rates.boda_min_ugx;
+    minFare = tier === "late" ? rates.boda_late_min_ugx : rates.boda_min_ugx;
   }
 
   /* The peak uplift rides on the distance component only. Putting it on the base
