@@ -24,7 +24,7 @@ const SERVICES = [
   { id: "GoRide", label: "GoRide", sub: "Boda & Car", emoji: "🏍️", href: "/ride", action: null },
   { id: "GoFood", label: "GoFood", sub: "Meals", emoji: "🍽️", href: "/browse/food", action: null },
   { id: "GoMart", label: "GoMart", sub: "My shopping list", emoji: "🛒", href: "/shopping-list/mart", action: null },
-  { id: "GoExpress", label: "GoExpress", sub: "Send parcel", emoji: "📦", href: null, action: "express" },
+  { id: "GoExpress", label: "GoExpress", sub: "Send parcel", emoji: "📦", href: "/express", action: null },
   { id: "GoPharma", label: "GoPharma", sub: "Prescriptions", emoji: "💊", href: "/browse/pharma", action: null },
   { id: "GoPay", label: "GoPay", sub: "Wallet", emoji: "💵", href: "/wallet", action: null },
   { id: "Services", label: "Services", sub: "All directory", emoji: "📂", href: null, action: "services" },

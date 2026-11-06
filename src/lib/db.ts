@@ -1167,6 +1167,8 @@ export type RideInput = {
   dropoff_lat: number;
   dropoff_lng: number;
   dropoff_address?: string;
+  kind?: "boda" | "car" | "delivery" | "express" | "parcel";
+  description?: string;
 };
 
 export async function createRide(input: RideInput): Promise<DBRide> {

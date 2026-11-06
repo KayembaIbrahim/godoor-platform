@@ -95,6 +95,42 @@ type CredRequest = {
 };
 
 /**
+ * Canonicalise a free-text category from the partner form into a CATEGORIES id.
+ *
+ * The partner form offers short labels ("Groceries", "Electronics", "Hardware")
+ * while the catalogue matches on canonical ids ("Groceries & Market",
+ * "Electronics & Gadgets", "Hardware & Building"). Without this step a business
+ * approved at /admin/applications keeps its form category and then fails
+ * matchCategory() server-side, so it never appears under its browse category.
+ */
+const CATEGORY_ALIAS: Record<string, string> = {
+  "groceries": "Groceries & Market",
+  "groceries & market": "Groceries & Market",
+  "supermarket": "Groceries & Market",
+  "market": "Groceries & Market",
+  "food & restaurants": "Food & Restaurants",
+  "food": "Food & Restaurants",
+  "pharmacy": "Pharmacy",
+  "clothing & fashion": "Clothing & Fashion",
+  "electronics": "Electronics & Gadgets",
+  "electronics & gadgets": "Electronics & Gadgets",
+  "furniture & home": "Furniture & Appliances",
+  "furniture": "Furniture & Appliances",
+  "furniture & appliances": "Furniture & Appliances",
+  "hardware": "Hardware & Building",
+  "hardware & building": "Hardware & Building",
+  "beauty & salon": "Beauty & Personal Care",
+  "beauty": "Beauty & Personal Care",
+  "beauty & personal care": "Beauty & Personal Care",
+  "other": "Delivery & Courier",
+};
+
+function canonicalCategory(raw: string): string {
+  const key = (raw || "").trim().toLowerCase().replace(/\s*&\s*/g, " & ");
+  return CATEGORY_ALIAS[key] || (raw || "Delivery & Courier").trim() || "Delivery & Courier";
+}
+
+/**
  * Create (or reset) the rider's login account and ensure their riders row
  * exists. Always returns a fresh one-time password. The plaintext password is
  * ONLY returned once, in the response to this call — never persisted.
@@ -342,30 +378,96 @@ export async function PATCH(req: NextRequest) {
 
   // Rider approval → create the login account + one-time password. The
   // credentials are returned exactly once; credentials_issued guards re-runs.
-  if (
-    patch.status === "approved" &&
-    application?.role === "rider" &&
-    !application?.credentials_issued &&
-    isEmail(String(application.email || ""))
-  ) {
-    try {
-      const creds = await issueRiderCredentials(sb, {
-        contactName: clamp(application.contact_name, 120),
-        email: String(application.email),
-        phone: clamp(application.phone, 40),
-        vehicle: clamp(application.category, 80),
-        area: clamp(application.area, 160),
-      });
-      await sb.from("partner_requests").update({ credentials_issued: true }).eq("id", id);
-      return NextResponse.json({ ok: true, credentials: { email: creds.email, password: creds.password } });
-    } catch (e: any) {
-      console.error("[partner-request] credential issuance failed:", e?.message || e);
-      return NextResponse.json(
-        { ok: true, error: "Application approved but provisioning failed. Try Approve again: " + (e?.message || "unknown error") },
-        { status: 500 },
-      );
+  let riderCreds: { email: string; password: string } | null = null;
+  let merchantCreated: { id: string } | null = null;
+  if (patch.status === "approved" && application?.role === "rider") {
+    if (!application?.credentials_issued && isEmail(String(application.email || ""))) {
+      try {
+        const creds = await issueRiderCredentials(sb, {
+          contactName: clamp(application.contact_name, 120),
+          email: String(application.email),
+          phone: clamp(application.phone, 40),
+          vehicle: clamp(application.category, 80),
+          area: clamp(application.area, 160),
+        });
+        await sb.from("partner_requests").update({ credentials_issued: true }).eq("id", id);
+        riderCreds = { email: creds.email, password: creds.password };
+      } catch (e: any) {
+        console.error("[partner-request] credential issuance failed:", e?.message || e);
+        return NextResponse.json(
+          { ok: true, error: "Application approved but provisioning failed. Try Approve again: " + (e?.message || "unknown error") },
+          { status: 500 },
+        );
+      }
     }
   }
 
+  if (patch.status === "approved" && application?.role === "business") {
+    // Business approval MUST create the merchant row that /api/merchants
+    // returns. It never did — only riders got provisioning — so
+    // "approved" businesses never appeared in the catalogue (the reported
+    // bug: admin approves, customer sees nothing).
+    try {
+      const email = String(application.email || "").toLowerCase().trim();
+      // Find the auth user if one exists (business may have signed up).
+      let ownerId: string | null = null;
+      if (email) {
+        try {
+          const { data } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
+          const foundUser = (data?.users || []).find(
+            (u) => String(u.email || "").toLowerCase() === email,
+          );
+          if (foundUser) ownerId = foundUser.id;
+        } catch {}
+      }
+      // Idempotent: if a merchant already exists for this business name, don't duplicate.
+      const bizName = clamp(application.business_name, 200);
+      const category = canonicalCategory(String(application.category || ""));
+      const existing = await sb
+        .from("merchants")
+        .select("id")
+        .ilike("name", bizName)
+        .limit(1);
+      if (!existing?.error && existing?.data && existing.data.length > 0) {
+        merchantCreated = { id: String(existing.data[0].id) };
+      } else {
+        const { data: created, error: createErr } = await sb
+          .from("merchants")
+          .insert({
+            name: bizName,
+            category,
+            tagline: clamp(application.details, 500) || "",
+            area: clamp(application.area, 200) || "Uganda",
+            district: clamp(application.district, 120) || "Uganda",
+            momo_number: clamp(application.phone, 40) || "",
+            momo_name: clamp(application.contact_name, 120) || "",
+            lat: 0.3533, // placeholder OK — matchCategory/category field is what browse uses
+            lng: 32.5822,
+            delivery_fee_ugx: 2000,
+            rating: 0,
+            status: "active",
+            verified: true,
+            owner_id: ownerId,
+            email,
+          })
+          .select("id")
+          .single();
+        if (createErr) {
+          console.error("[partner-request] merchant creation failed:", createErr.message);
+        } else if (created) {
+          merchantCreated = { id: String(created.id) };
+        }
+      }
+    } catch (e: any) {
+      console.error("[partner-request] business provisioning failed:", e?.message || e);
+    }
+  }
+
+  if (riderCreds) {
+    return NextResponse.json({ ok: true, credentials: riderCreds });
+  }
+  if (merchantCreated) {
+    return NextResponse.json({ ok: true, merchant_id: merchantCreated.id });
+  }
   return NextResponse.json({ ok: true });
 }

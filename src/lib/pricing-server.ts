@@ -42,7 +42,9 @@ export function parseTrip(body: Record<string, unknown>) {
 }
 
 export function fareKindOf(v: unknown): FareKind {
-  return v === "car" ? "car" : "boda";
+  if (v === "car") return "car";
+  if (v === "delivery" || v === "express" || v === "parcel") return "delivery";
+  return "boda";
 }
 
 /** fee_config row — the service-fee percentage, which is separate from fares. */
