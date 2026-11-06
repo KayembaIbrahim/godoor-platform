@@ -7,16 +7,25 @@
  *
  * Business rules (product requirement):
  *   • A shopping list must contain AT LEAST 5 valid items.
- *   • Each valid item is charged a shopping service fee of UGX 500.
- *   • 5 items  => 2,500 UGX shopping fee
- *   • 10 items => 5,000 UGX shopping fee
+ *   • Runner fee: flat UGX 3,000 for grocery-only lists (single shop).
+ *   • Extra-stop surcharge: +UGX 3,000 when the list needs sourcing beyond one
+ *     location (non-grocery / multi-shop) — total UGX 6,000. Rider earns 65%.
  *   • Merchandise cost and delivery fee are calculated SEPARATELY and are
- *     never folded into the shopping fee.
+ *     never folded into the runner fee.
  *   • All totals are recomputed on the server. Client-supplied totals are
  *     never trusted.
  */
 
+export const SHOPPING_LIST_RUNNER_FEE_UGX = 3000;
+export const SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX = 3000;
+export const SHOPPING_LIST_RIDER_SHARE_PERCENT = 65;
 export const SHOPPING_FEE_PER_ITEM_UGX = 500;
+
+export function shoppingListRiderShare(feeUgx: number): number {
+  return Math.round(
+    (Math.max(0, feeUgx) * SHOPPING_LIST_RIDER_SHARE_PERCENT) / 100,
+  );
+}
 export const SHOPPING_LIST_MIN_ITEMS = 5;
 export const SHOPPING_LIST_MAX_ITEMS = 100;
 export const SHOPPING_ITEM_MAX_QUANTITY = 99;
@@ -90,6 +99,8 @@ export interface ShoppingListValidation {
   deliveryFeeUgx: number;
   totalUgx: number;
   errors: string[];
+  extraStopSurchargeUgx?: number;
+  riderShareUgx?: number;
 }
 
 function cleanString(value: unknown): string {
@@ -190,13 +201,13 @@ export function validateShoppingItem(
 
 /**
  * Validate an entire submitted list and compute authoritative totals.
- * The shopping fee is derived from the number of VALID items only.
+ * Flat runner fee: 3,000 grocery-only, +3,000 extra-stop surcharge.
  */
+/** Parse an entire submitted list and compute authoritative totals. */
 export function validateShoppingList(
   rawItems: unknown,
-  opts?: { deliveryFeeUgx?: number },
+  opts?: { deliveryFeeUgx?: number; needsExtraStop?: boolean },
 ): ShoppingListValidation {
-  const errors: string[] = [];
 
   if (!Array.isArray(rawItems)) {
     return {
@@ -232,7 +243,13 @@ export function validateShoppingList(
     );
   }
 
-  const shoppingFeeUgx = validItemCount * SHOPPING_FEE_PER_ITEM_UGX;
+  const shoppingFeeUgx = SHOPPING_LIST_RUNNER_FEE_UGX;
+  const extraStopSurchargeUgx = opts?.needsExtraStop
+    ? SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX
+    : 0;
+  const riderShareUgx = shoppingListRiderShare(
+    shoppingFeeUgx + extraStopSurchargeUgx,
+  );
 
   // Merchandise is only counted from client-supplied unit prices as an
   // ESTIMATE. The authoritative merchandise cost is set by staff when the
@@ -243,19 +260,32 @@ export function validateShoppingList(
   );
 
   const deliveryFeeUgx = Math.max(0, toInt(opts?.deliveryFeeUgx ?? 0, 0));
-  const totalUgx = shoppingFeeUgx + merchandiseUgx + deliveryFeeUgx;
+  const totalUgx =
+    shoppingFeeUgx +
+    extraStopSurchargeUgx +
+    merchandiseUgx +
+    deliveryFeeUgx;
 
   return {
     valid: errors.length === 0,
     items: results,
     validItemCount,
-    shoppingFeeUgx,
+    shoppingFeeUgx: shoppingFeeUgx + extraStopSurchargeUgx,
     merchandiseUgx,
     deliveryFeeUgx,
     totalUgx,
     errors,
+    extraStopSurchargeUgx,
+    riderShareUgx,
   };
 }
+/** Runner fee: 3,000 grocery-only, 6,000 with an extra stop. */
+export function shoppingListRunnerFee(needsExtraStop: boolean): number {
+  return needsExtraStop
+    ? SHOPPING_LIST_RUNNER_FEE_UGX + SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX
+    : SHOPPING_LIST_RUNNER_FEE_UGX;
+}
+
 
 /** Format a UGX amount for display (no decimals — UGX has no minor unit). */
 export function formatUgx(amount: number): string {

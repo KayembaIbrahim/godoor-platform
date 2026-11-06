@@ -72,7 +72,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Admin cannot create customer shopping lists" }, { status: 403 });
   }
 
-  let body: { id?: string; name?: string; notes?: string; items?: unknown };
+  let body: {
+    id?: string;
+    name?: string;
+    notes?: string;
+    items?: unknown;
+    needsExtraStop?: boolean;
+  };
   try {
     body = await req.json();
   } catch {
@@ -87,6 +93,7 @@ export async function POST(req: NextRequest) {
     name: typeof body.name === "string" ? body.name : undefined,
     notes: typeof body.notes === "string" ? body.notes : null,
     rawItems: body.items,
+    needsExtraStop: Boolean((body as { needsExtraStop?: unknown }).needsExtraStop),
   });
 
   if (!result.ok) {

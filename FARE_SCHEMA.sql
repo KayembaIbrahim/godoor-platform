@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS public.fare_rates (
 
   /* Boda / GoRide */
   boda_base_ugx        INTEGER NOT NULL DEFAULT 2000,
-  boda_per_km_ugx      INTEGER NOT NULL DEFAULT 1200,
+  boda_per_km_ugx      INTEGER NOT NULL DEFAULT 1500,
   boda_per_min_ugx     INTEGER NOT NULL DEFAULT 0,
   boda_min_ugx         INTEGER NOT NULL DEFAULT 2500,
 

@@ -29,7 +29,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseStoredValue } from "@/lib/welcome-bg-server";
 import {
-  SHOPPING_FEE_PER_ITEM_UGX,
+  SHOPPING_LIST_RUNNER_FEE_UGX,
   SHOPPING_LIST_MAX_ITEMS,
   validateShoppingList,
   type ShoppingItem,
@@ -275,6 +275,7 @@ export type CreateListInput = {
   name?: string;
   notes?: string | null;
   rawItems: unknown;
+  needsExtraStop?: boolean;
 };
 
 /**
@@ -290,7 +291,9 @@ export async function createList(
   | { ok: true; list: ShoppingListRow }
   | { ok: false; error: string; status: number; detail?: unknown }
 > {
-  const validation = validateShoppingList(input.rawItems);
+  const validation = validateShoppingList(input.rawItems, {
+    needsExtraStop: input.needsExtraStop,
+  });
   if (!validation.valid) {
     return {
       ok: false,
@@ -390,7 +393,7 @@ export async function updateList(
   }
 
   const validItemCount = items.length;
-  const shoppingFeeUgx = validItemCount * SHOPPING_FEE_PER_ITEM_UGX;
+  const shoppingFeeUgx = SHOPPING_LIST_RUNNER_FEE_UGX;
   const merchandiseUgx =
     input.merchandiseUgx !== undefined
       ? Math.max(0, Math.trunc(input.merchandiseUgx))

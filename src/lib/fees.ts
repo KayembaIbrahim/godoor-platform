@@ -42,12 +42,32 @@ export type FeeConfigShape = {
   rateStale?: boolean;
 };
 
-/** Percent of the order subtotal retained by GoDoor from the customer (15%). */
-export const CUSTOMER_SERVICE_FEE_PERCENT = 15;
-/** Deducted from the merchant's subtotal (10%). */
-export const BUSINESS_FEE_PERCENT = 10;
-/** Deducted from the rider's delivery fee (5%). */
-export const RIDER_FEE_PERCENT = 5;
+/**
+ * Flat service fees — business-pricing model, researched against SafeBoda/Glovo
+ * Uganda benchmarks (2024-2025).
+ *
+ * Research notes:
+ * - SafeBoda Uganda: base fare ~500 UGX + per-km/min pricing; minimum ride
+ *   ~1,000–2,000 UGX for short trips; competitive with boda stages.
+ * - Glovo Uganda: flat service fee UGX 400 per order (kept constant as distance
+ *   rises), delivery fee scales with distance; merchant commission 25–35% on
+ *   the order value (not the delivery fee).
+ *
+ * GoDoor policy (flat, predictable — no percentage on the customer):
+ * - GoRide (boda/car): UGX 250 fixed platform fee.
+ * - Shopping (GoMart/Pharma/etc. orders): UGX 500 fixed platform fee.
+ * - GoMart shopping-list runner: UGX 3,000 fixed fee + UGX 3,000 extra-stop
+ *   surcharge when items must be sourced beyond a single shop (rider must
+ *   travel to a second location). Rider earns 65% of the 3,000 fee
+ *   (UGX 1,950); platform keeps 35% (UGX 1,050).
+ */
+export const FLAT_SERVICE_FEE_RIDE_UGX = 250;
+export const FLAT_SERVICE_FEE_SHOPPING_UGX = 500;
+export const SHOPPING_LIST_RUNNER_FEE_UGX = 3000;
+export const SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX = 3000;
+export const SHOPPING_LIST_RIDER_SHARE_PERCENT = 65;
+export const SHOPPING_LIST_FEE_GROCERY_ONLY_UGX = 3000;
+export const SHOPPING_LIST_FEE_NON_GROCERY_UGX = 6000;
 
 const num = (v: unknown, fallback: number): number => {
   const n = Number(v);
@@ -79,20 +99,44 @@ export function resolveFees(row?: FeeConfigShape | null) {
  * floor/ceiling. `percent` defaults to 15 so a caller can never accidentally
  * quote the old 5%.
  */
+/**
+ * Flat service fee by service kind. Replaces the old percent-of-subtotal model
+ * (which could charge UGX 1,500 on a small order but UGX 15,000 on a big one
+ * for the same effort). Predictable for customers, fair for riders.
+ */
+export type ServiceFeeKind = "ride_boda" | "ride_car" | "shopping" | "pharmacy" | "general";
+
 export function serviceFeeFor(
   subtotalUgx: number,
   cfg?: FeeConfigShape | null,
-  percent?: number,
+  kind?: ServiceFeeKind,
 ): number {
   if (!Number.isFinite(subtotalUgx) || subtotalUgx <= 0) return 0;
-  const fees = resolveFees(cfg);
-  const pct = Number.isFinite(percent as number)
-    ? (percent as number)
-    : Number.isFinite(fees.service_fee_percent)
-      ? fees.service_fee_percent
-      : CUSTOMER_SERVICE_FEE_PERCENT;
-  const raw = Math.round((subtotalUgx * pct) / 100);
-  return Math.min(fees.service_fee_max_ugx, Math.max(fees.service_fee_min_ugx, raw));
+  switch (kind) {
+    case "ride_boda":
+    case "ride_car":
+      return FLAT_SERVICE_FEE_RIDE_UGX;
+    case "pharmacy":
+      return 1000;
+    case "shopping":
+      return FLAT_SERVICE_FEE_SHOPPING_UGX;
+    default:
+      return FLAT_SERVICE_FEE_SHOPPING_UGX;
+  }
+}
+
+/**
+ * GoMart runner fee: flat 3,000 when grocery-only (single shop), 6,000 when
+ * the list needs sourcing beyond one location (extra stop). Rider earns 65%.
+ */
+export function shoppingListRunnerFee(needsExtraStop: boolean): number {
+  return needsExtraStop
+    ? SHOPPING_LIST_FEE_NON_GROCERY_UGX
+    : SHOPPING_LIST_FEE_GROCERY_ONLY_UGX;
+}
+
+export function shoppingListRiderShare(feeUgx: number): number {
+  return Math.round((feeUgx * SHOPPING_LIST_RIDER_SHARE_PERCENT) / 100);
 }
 
 /** Integer split used at settlement, mirroring release_escrow in SQL. */

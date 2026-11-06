@@ -113,7 +113,7 @@ export type FareRates = {
  */
 export const FALLBACK_FARE_RATES: FareRates = {
   boda_base_ugx: 2000,
-  boda_per_km_ugx: 1200,
+  boda_per_km_ugx: 1500,
   boda_per_min_ugx: 0,
   boda_min_ugx: 2000,
   boda_late_base_ugx: 2500,

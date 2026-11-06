@@ -109,8 +109,11 @@ export const FARE_MINIMUM_UGX: Record<FareTier, number> = {
   midnight: 3000,
 };
 
-/** Per-unit rates counted on BOTH road distance and trip time. */
-export const FARE_PER_KM_UGX = 200;
+/** Per-unit rates counted on BOTH road distance and trip time.
+ *  Per-km delivery rate aligned to GoRide: UGX 1,500/km (rider-settable via
+ *  fee_config boda_per_km_ugx). 200/km was far below rider cost — a 10 km
+ *  delivery paid the rider less than the fuel. */
+export const FARE_PER_KM_UGX = 1500;
 export const FARE_PER_MIN_UGX = 100;
 
 /** Calculate GoDoor delivery fee from distance + time with time-of-day minimum.
