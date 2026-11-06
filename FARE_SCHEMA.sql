@@ -26,13 +26,15 @@
 CREATE TABLE IF NOT EXISTS public.fare_rates (
   id TEXT PRIMARY KEY DEFAULT 'default',
 
-  /* Boda / GoRide — banded per-km: day 1,000 · evening (9pm–12am) 1,500 · late (12am–6:30am) 2,000 */
-  boda_base_ugx        INTEGER NOT NULL DEFAULT 2000,
+  /* Boda / GoRide — PURE distance pricing: no base fare, no minimum.
+     Fare = distance_km × banded per-km rate. 2.2 km daytime = 2,200.
+     The old 2,000 base + 2,500 minimum made 2.2 km cost 4,450 — removed. */
+  boda_base_ugx        INTEGER NOT NULL DEFAULT 0,
   boda_per_km_ugx      INTEGER NOT NULL DEFAULT 1000,
-  boda_evening_per_km_ugx INTEGER NOT NULL DEFAULT 1500,
-  boda_late_per_km_ugx INTEGER NOT NULL DEFAULT 2000,
+  boda_evening_per_km_ugx INTEGER NOT NULL DEFAULT 1800,
+  boda_late_per_km_ugx INTEGER NOT NULL DEFAULT 2500,
   boda_per_min_ugx     INTEGER NOT NULL DEFAULT 0,
-  boda_min_ugx         INTEGER NOT NULL DEFAULT 2500,
+  boda_min_ugx         INTEGER NOT NULL DEFAULT 0,
 
   /* GoCar */
   car_base_ugx         INTEGER NOT NULL DEFAULT 3500,

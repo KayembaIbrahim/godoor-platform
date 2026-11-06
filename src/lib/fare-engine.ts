@@ -141,17 +141,19 @@ export type FareRates = {
  * admin-editable — see `resolveFareRates` for the override path.
  */
 export const FALLBACK_FARE_RATES: FareRates = {
-  boda_base_ugx: 2000,
+  /* Pure distance pricing per operator decision: NO base fare, NO minimum
+     fare on GoRide. Fare = distance_km × per-km rate for the time band.
+     Example: 2.2 km daytime = 2.2 × 1,000 = 2,200 (+ 250 flat service fee).
+     The old 2,000 base + 3,000 minimum charged 4,450 for a 2.2 km ride
+     that should have been ~2,200 — removed. */
+  boda_base_ugx: 0,
   boda_per_km_ugx: BODA_PER_KM_UGX.day,
   boda_per_min_ugx: 0,
-  /* Launch minimum UGX 3,000 (was 2,000): lifts sub-cost short trips
-     (a 900 m daytime ride cost 900 pure-distance and lost the rider money)
-     to a viable fare while warning the customer via at_minimum. */
-  boda_min_ugx: 3000,
+  boda_min_ugx: 0,
   boda_evening_per_km_ugx: BODA_PER_KM_UGX.evening,
   boda_late_per_km_ugx: BODA_PER_KM_UGX.late,
-  boda_late_base_ugx: 2500,
-  boda_late_min_ugx: 3500,
+  boda_late_base_ugx: 0,
+  boda_late_min_ugx: 0,
   car_base_ugx: 3500,
   car_per_km_ugx: 1800,
   car_min_ugx: 4000,
@@ -381,18 +383,19 @@ export function quoteFare(input: FareInput): FareQuote {
     perMin = rates.boda_per_min_ugx;
     minFare = rates.car_min_ugx;
   } else {
-    /* Late-night swaps the day base/minimum for the late-night ones: the
-       2,500 UGX floor then applies to the whole ride, so an 800 m ride at
-       02:00 costs 2,500, not 2,000. Daytime keeps 2,000 base / 2,000 floor.
-       The per-km rate is banded — 1k day / 1.5k evening / 2k late — so the
-       distance surcharge scales with the time of day rather than a flat 1.5k. */
-    base = tier === "late" ? rates.boda_late_base_ugx : rates.boda_base_ugx;
+    /* Pure distance pricing: no base, no minimum floor on GoRide.
+       The fare is ONLY distance_km × banded per-km rate (1k day /
+       1.8k evening / 2.5k late). The old base+minimum system charged
+       ~2× the distance value on short trips (2.2 km → 4,450 instead of
+       2,200). Base/minimum fields exist for admin compat but are
+       treated as 0 for boda rides. */
+    base = 0;
     perKm =
       tier === "late" ? rates.boda_late_per_km_ugx
       : tier === "evening" ? rates.boda_evening_per_km_ugx
       : rates.boda_per_km_ugx;
     perMin = rates.boda_per_min_ugx;
-    minFare = tier === "late" ? rates.boda_late_min_ugx : rates.boda_min_ugx;
+    minFare = 0;
   }
 
   /* The peak uplift rides on the distance component only. Putting it on the base
@@ -412,7 +415,11 @@ export function quoteFare(input: FareInput): FareQuote {
   const waitUgx = billableWait * rates.wait_per_min_ugx;
 
   const rawSubtotal = base + distanceUgx + timeUgx;
-  const subtotal = Math.max(minFare, rawSubtotal);
+  /* Pure-distance boda: floor is 0, so max() is a no-op — kept for
+     car/delivery kinds that still use a floor. at_minimum never shows
+     "Minimum fare applied" on a boda ride. */
+  const effectiveMin = input.kind === "boda" ? 0 : minFare;
+  const subtotal = Math.max(effectiveMin, rawSubtotal);
   const atMinimum = subtotal > rawSubtotal;
 
   const bulkyUgx = bulky > 0 ? bulky * Math.max(0, Math.trunc(input.bulkySurchargeUgx ?? 0)) : 0;
