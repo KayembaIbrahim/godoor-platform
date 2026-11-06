@@ -50,7 +50,9 @@ export default function BusinessOrdersPage() {
   const [morseTag, setMorseTag] = useState<string>("");
   const [morseModal, setMorseModal] = useState<string | null>(null);
   const [morseRequests, setMorseRequests] = useState<Record<string, any>>({});
-  const [morseRate, setMorseRate] = useState(4102);
+  // Live USD→UGX rate — 0 while loading, never a hardcoded 4102. Filled in
+  // from /api/morse below; the modal only renders once it resolves.
+  const [morseRate, setMorseRate] = useState(0);
   const [morseBusy, setMorseBusy] = useState(false);
   const [morseMsg, setMorseMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [copiedMorse, setCopiedMorse] = useState(false);
@@ -154,9 +156,12 @@ export default function BusinessOrdersPage() {
     return () => { unsub(); };
   }, [myMerchantId]);
 
-  // Morse config + this merchant's payment requests
+  // Morse config + this merchant's payment requests — live rate, no hardcode.
   useEffect(() => {
-    fetch("/api/morse").then((r) => r.json()).then((j) => { if (j.config) setMorseRate(j.config.rateUgx); }).catch(() => {});
+    fetch("/api/morse", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => { if (j.config && typeof j.config.rateUgx === "number") setMorseRate(j.config.rateUgx); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -439,6 +444,7 @@ export default function BusinessOrdersPage() {
       {morseModal && (() => {
         const order = orders.find((o) => o.id === morseModal);
         const req = morseRequests[morseModal];
+        if (!morseRate || morseRate <= 0) return null; // live rate not ready yet
         const usdt = Math.max(1, Math.ceil((order?.total_ugx || 0) / morseRate));
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">

@@ -35,6 +35,11 @@ export type FeeConfigShape = {
   free_delivery_threshold_ugx?: number | null;
   rider_commission_percent?: number | null;
   platform_commission_percent?: number | null;
+  /** Live USD→UGX (live-rate.ts). Optional — null while loading. */
+  ugx_per_usd?: number | null;
+  rateSource?: "live" | "cached" | "fallback" | "loading";
+  rateUpdatedAt?: string | null;
+  rateStale?: boolean;
 };
 
 /** Percent of the order subtotal retained by GoDoor from the customer (15%). */

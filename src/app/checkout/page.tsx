@@ -603,7 +603,9 @@ export default function CheckoutPage() {
           <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/60 px-3 py-2">
             <MorseLogo className="h-3.5" />
             <p className="text-[10px] text-muted">
-              Live rate: 1 USD = {formatUgx(feeCfg.ugx_per_usd || 4102)} UGX
+              {typeof feeCfg.ugx_per_usd === "number" && feeCfg.ugx_per_usd > 0
+                ? <>Live rate: 1 USD = {formatUgx(feeCfg.ugx_per_usd)} UGX{feeCfg.rateUpdatedAt ? ` · updated ${new Date(feeCfg.rateUpdatedAt).toLocaleTimeString()}` : ""}</>
+                : "Loading live rate…"}
             </p>
           </div>
         </div>

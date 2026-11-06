@@ -20,6 +20,7 @@ import { useSession } from "@/lib/session-store";
 import { apiAuthHeaders } from "@/lib/db";
 import { MorseLogo } from "@/components/MorseLogo";
 import TransferSheet from "@/components/TransferSheet";
+import { LiveRateBadge } from "@/components/LiveRateBadge";
 
 type EscrowLedgerRow = {
   id: string;
@@ -35,6 +36,10 @@ type MorseConfig = {
   referralCode: string;
   downloadUrl: string;
   rateUgx: number;
+  rateSource?: "live" | "cached" | "fallback";
+  rateUpdatedAt?: string | null;
+  rateAgeMs?: number | null;
+  rateStale?: boolean;
 };
 
 type ActiveDeposit = {
@@ -65,7 +70,9 @@ function copyToClipboard(text: string) {
 }
 
 function usd(ugx: number, rate: number): string {
-  const r = rate > 0 ? rate : 4102;
+  // rate is the live value from useLiveRate()/api/morse — never a constant.
+  // Guard against divide-by-zero only; callers pass the live rate.
+  const r = rate > 0 ? rate : 1;
   return `$${(ugx / r).toFixed(2)}`;
 }
 
@@ -120,8 +127,16 @@ function TopUpCard({ rate, onDeposited }: { rate: number; onDeposited: () => voi
   const [deposit, setDeposit] = useState<ActiveDeposit | null>(null);
   const [reported, setReported] = useState(false);
 
+  // TopUpCard owns its branding fetch (referral code, handle, download URL)
+  // once, then never touches the rate — the live rate comes from the
+  // heartbeat hook below, not a one-shot /api/morse read.
   useEffect(() => {
-    fetch("/api/morse").then((r) => r.json()).then((j) => { if (j.config) setCfg(j.config); }).catch(() => {});
+    let cancelled = false;
+    fetch("/api/morse", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled && j.config) setCfg(j.config); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   async function start() {
@@ -266,6 +281,9 @@ function TopUpCard({ rate, onDeposited }: { rate: number; onDeposited: () => voi
       <p className="mt-2 text-sm text-muted">
         Send money from your Morse wallet to GoDoor. An admin verifies the transfer, then your balance is credited.
       </p>
+      <div className="mt-3">
+        <LiveRateBadge />
+      </div>
 
       <div className="mt-4">
         <span className="text-sm text-muted">Amount</span>
@@ -293,7 +311,7 @@ function TopUpCard({ rate, onDeposited }: { rate: number; onDeposited: () => voi
           className="num mt-3 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm tabular-nums outline-none ring-go focus:ring-2"
         />
         <p className="num mt-1 text-xs text-dim tabular-nums">
-          ≈ {usd(amount, rate)} USD · at {formatUgx(rate)} per USD
+          {rate > 0 ? <>≈ {usd(amount, rate)} USD</> : "Loading live rate…"}
         </p>
       </div>
 
@@ -473,7 +491,9 @@ export function WalletPanel() {
   const [loading, setLoading] = useState(true);
   const [transferOpen, setTransferOpen] = useState(false);
 
-  const rate = cfg?.rateUgx || 4102;
+  // Live rate — no hardcoded fallback. While loading, the panel shows a
+  // skeleton rate instead of a fake 4102.
+  const rate = cfg?.rateUgx ?? 0;
 
   const load = useCallback(async () => {
     try {
@@ -481,15 +501,8 @@ export function WalletPanel() {
       // `/api/wallet/balance` is no longer fetched here: the balance card above
       // owns that figure, and asking twice meant every top-up and every send
       // triggered two identical reads of the same row.
-      const [ledRes, cfgRes] = await Promise.all([
-        fetch("/api/wallet/ledger", { headers, cache: "no-store" }),
-        fetch("/api/morse"),
-      ]);
+      const ledRes = await fetch("/api/wallet/ledger", { headers, cache: "no-store" });
       if (ledRes.ok) setLedger((await ledRes.json()).data || []);
-      if (cfgRes.ok) {
-        const j = await cfgRes.json().catch(() => ({}));
-        if (j.config) setCfg(j.config);
-      }
     } catch {}
     setLoading(false);
   }, []);

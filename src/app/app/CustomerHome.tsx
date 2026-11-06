@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   MapPin, Star, ChevronDown, Search, BadgeCheck, Clock, ShieldCheck,
-  Navigation, Store, Wallet as WalletIcon, Gift, X,
+  Navigation, Store, Wallet as WalletIcon, Gift, X, ShoppingCart,
 } from "lucide-react";
 
 import { ProductSearch } from "@/components/ProductSearch";
@@ -26,6 +26,7 @@ import DeliveryPreference from "@/components/home/DeliveryPreference";
 import TableBooking from "@/components/home/TableBooking";
 
 import { useSession } from "@/lib/session-store";
+import { useCart } from "@/lib/cart-store";
 import { useMerchants } from "@/lib/hooks";
 import { useFavorites } from "@/lib/customer-stores";
 import { useActiveOrder } from "@/lib/use-active-order";
@@ -70,6 +71,7 @@ import { CATEGORIES } from "@/lib/categories";
 
 export default function CustomerHome() {
   const { role, onboarded, profile, supabaseUser } = useSession();
+  const cartCount = useCart((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
 
   // Role guard: business/rider should never see the customer marketplace.
   useEffect(() => {
@@ -329,6 +331,21 @@ export default function CustomerHome() {
               >
                 <Search className="h-4 w-4" />
               </button>
+              {/* Cart — customer-only. The cart store is cleared on role
+                  switch, so this badge only ever shows a real customer cart. */}
+              <Link
+                href="/cart"
+                aria-label={cartCount > 0 ? `Cart, ${cartCount} items` : "Cart"}
+                title="Cart"
+                className="icon-bar-item tap-44 relative"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                {cartCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-go px-1 text-[9px] font-bold text-white">
+                    {cartCount > 99 ? "99+" : cartCount}
+                  </span>
+                )}
+              </Link>
               <NotificationBell inBar />
               <ThemeToggle inBar />
             </div>

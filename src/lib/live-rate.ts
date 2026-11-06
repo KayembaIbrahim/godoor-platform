@@ -19,6 +19,14 @@
  * (identical 4068.44 print, 2dp-truncated) — including it would double-
  * weight that leg and drag the mean ~13 shillings low, so it is kept out.
  * exchangerate.host needs an access key.
+ *
+ * Heartbeat / freshness contract (the "no heartbeat" fix):
+ *  - Every response carries `updatedAt` (ISO time the rate was fetched) and
+ *    `ttlMs` (how long it stays fresh).
+ *  - `CACHE_TTL_MS` is 60s. If the rate is older than 120s (2x TTL) it is
+ *    STALE — callers must not treat it as live. The API surfaces this as
+ *    `stale: true` and the UI shows a pulsing dot + "updated Xs ago" badge.
+ *  - `MIN_REASONABLE_RATE` = 3500 guards against garbage.
  */
 const EXCHANGE_APIS = [
   "https://open.er-api.com/v6/latest/USD",
@@ -28,15 +36,17 @@ const EXCHANGE_APIS = [
 /**
  * Lower bound for sanity. The real rate is ~4068–4144 (verified live); the
  * old floor of 4200 wrongly rejected legit prints and forced a hardcoded
- * fallback. 3000 still catches garbage responses.
+ * fallback. 3500 still catches garbage responses.
  */
-const MIN_REASONABLE_RATE = 3000; // UGX per USD
+const MIN_REASONABLE_RATE = 3500; // UGX per USD
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min cache so live moves show up quickly
+export const CACHE_TTL_MS = 60 * 1000; // 60s — short enough to feel live
+const STALE_THRESHOLD_MS = 2 * CACHE_TTL_MS; // 120s — after this the rate is stale
 const DEFAULT_FALLBACK_RATE = 4102; // Last-resort only (matches Google ~4102); live sources win on every refresh
 
 let cachedRate: number | null = null;
-let cachedAt = 0;
+let cachedAt = 0; // epoch ms of last successful fetch
+let cachedAtIso = ""; // ISO string of cachedAt
 
 async function normalizeResponse(res: Response): Promise<number | null> {
   try {
@@ -110,53 +120,72 @@ async function fetchLiveMean(): Promise<number | null> {
   return Number.isFinite(mean) && mean >= MIN_REASONABLE_RATE ? mean : null;
 }
 
+export type LiveRateResult = {
+  rate: number;
+  source: "live" | "cached" | "fallback";
+  updatedAt: string; // ISO timestamp of last successful fetch
+  ageMs: number; // ms since last fetch (0 for live)
+  stale: boolean; // true if older than STALE_THRESHOLD_MS
+};
+
 /**
- * Fetched live USD→UGX rate (mean of live providers), cached 5 min.
+ * Fetched live USD→UGX rate (mean of live providers), cached 60s.
  * IMPORTANT: never cache DEFAULT_FALLBACK_RATE as a "good" value — only live,
  * validated rates are stored. If all providers fail, return the last-known-good
  * live rate if one exists; only then fall back to DEFAULT_FALLBACK_RATE. This
  * stops a cold-start server from hard-coding a fallback rate in cache and
  * serving it forever as if it were live.
+ *
+ * Heartbeat: the returned `updatedAt` / `ageMs` / `stale` fields let the UI
+ * prove the rate is alive — a pulsing dot, "updated Xs ago", and a warning
+ * when stale. Before this, the API returned only `rate` + `rateSource` with
+ * no age, so a rate frozen at cache-time looked identical to a fresh one.
  */
-export async function fetchLiveUgxPerUsd(): Promise<{ rate: number; source: "live" | "cached" | "fallback" }> {
+export async function fetchLiveUgxPerUsd(): Promise<LiveRateResult> {
   const now = Date.now();
   if (cachedRate !== null && now - cachedAt < CACHE_TTL_MS) {
-    return { rate: cachedRate, source: "cached" };
+    const ageMs = now - cachedAt;
+    return { rate: cachedRate, source: "cached", updatedAt: cachedAtIso, ageMs, stale: ageMs > STALE_THRESHOLD_MS };
   }
 
   const live = await fetchLiveMean();
   if (live !== null) {
     cachedRate = live;
     cachedAt = now;
-    return { rate: cachedRate, source: "live" };
+    cachedAtIso = new Date(now).toISOString();
+    return { rate: cachedRate, source: "live", updatedAt: cachedAtIso, ageMs: 0, stale: false };
   }
   // All providers failed since last fetch. Keep serving the last-known-good
   // live rate (if any) until it expires; do NOT overwrite it with the fallback.
   if (cachedRate !== null) {
-    cachedAt = now; // extend; keeps serving prior good value
-    return { rate: cachedRate, source: "cached" };
+    const ageMs = now - cachedAt;
+    return { rate: cachedRate, source: "cached", updatedAt: cachedAtIso, ageMs, stale: ageMs > STALE_THRESHOLD_MS };
   }
   // Never fetched live successfully this process. Do not cache the fallback:
   // the next request must retry the providers, not serve a hardcoded rate.
-  return { rate: DEFAULT_FALLBACK_RATE, source: "fallback" };
+  return { rate: DEFAULT_FALLBACK_RATE, source: "fallback", updatedAt: new Date(now).toISOString(), ageMs: 0, stale: true };
 }
 
 /**
  * Server-side rate for settlement, falls back to DB value then live API then
  * hardcoded. Returns `{ rate, source }` so display paths can show whether the
  * rate is genuinely live ("live"/"cached") or a hardcoded fallback ("fallback").
+ * Also carries the heartbeat fields (`updatedAt`, `ageMs`, `stale`) so the
+ * UI can prove freshness.
  */
-export async function resolveUgxRate(dbRate?: number | null): Promise<{ rate: number; source: "live" | "cached" | "fallback" }> {
+export async function resolveUgxRate(dbRate?: number | null): Promise<LiveRateResult> {
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
   if (dbRate && Number.isFinite(dbRate) && dbRate >= MIN_REASONABLE_RATE) {
-    return { rate: dbRate, source: "fallback" };
+    return { rate: dbRate, source: "fallback", updatedAt: nowIso, ageMs: 0, stale: true };
   }
   try {
-    const { rate, source } = await fetchLiveUgxPerUsd();
-    if (rate >= MIN_REASONABLE_RATE) {
-      return { rate, source };
+    const result = await fetchLiveUgxPerUsd();
+    if (result.rate >= MIN_REASONABLE_RATE) {
+      return result;
     }
   } catch {
     // fall through
   }
-  return { rate: DEFAULT_FALLBACK_RATE, source: "fallback" };
+  return { rate: DEFAULT_FALLBACK_RATE, source: "fallback", updatedAt: nowIso, ageMs: 0, stale: true };
 }

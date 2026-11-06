@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 
 export async function GET() {
   const fees = await (await import("@/lib/fees")).resolveFees(null);
-  const { rate, source } = await resolveUgxRate(fees.ugx_per_usd ?? null);
+  const { rate, source, updatedAt, ageMs, stale } = await resolveUgxRate(fees.ugx_per_usd ?? null);
   return NextResponse.json({
     ok: true,
     config: {
@@ -25,6 +25,9 @@ export async function GET() {
       downloadUrl: usdtConfig.downloadUrl,
       rateUgx: Math.round(rate),
       rateSource: source, // "live" | "cached" | "fallback" — surface it so the UI never shows a hardcoded rate as live
+      rateUpdatedAt: updatedAt, // ISO — the heartbeat timestamp
+      rateAgeMs: ageMs, // ms since last fetch
+      rateStale: stale, // true if older than 120s
     },
   });
 }

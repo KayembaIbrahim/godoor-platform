@@ -6,7 +6,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/** 1 USD ≈ 4,102 UGX (display fallback only; live value comes from /api/fees). */
+/**
+ * Display-only fallback — NEVER used for settlement. The live rate always
+ * comes from `useLiveRate()` (/api/morse). This constant exists only so a
+ * missing/loading rate doesn't divide by zero in a formatter. It is NOT
+ * presented as the live rate anywhere (see use-live-rate.ts).
+ */
 export const UGX_PER_USD = 4102;
 
 /** Get the live USD to UGX rate from the fees API. This ensures the client always
@@ -14,10 +19,11 @@ export const UGX_PER_USD = 4102;
  */
 export async function getLiveUgxPerUsd(): Promise<number> {
   try {
-    const res = await fetch("/api/fees", { next: { revalidate: 3600 } });
+    const res = await fetch("/api/fees", { cache: "no-store" });
     if (!res.ok) throw new Error(String(res.status));
     const body = await res.json();
-    return Number(body.ugxPerUsd) || UGX_PER_USD;
+    const rate = Number(body.ugxPerUsd);
+    return Number.isFinite(rate) && rate > 0 ? rate : UGX_PER_USD;
   } catch {
     return UGX_PER_USD;
   }
@@ -46,9 +52,11 @@ export function storedDeliveryFee(fee: number | null | undefined): number {
   return typeof fee === "number" && Number.isFinite(fee) ? Math.trunc(fee) : 0;
 }
 
-/** Format price with USD equivalent in small text */
+/** Format price with USD equivalent in small text.
+ *  `ugxPerUsd` should be the live rate from useLiveRate(); the UGX_PER_USD
+ *  constant is only a divide-by-zero guard, never presented as live. */
 export function formatPriceSplit(amount: number, ugxPerUsd?: number): { primary: string; usd: string } {
-  const rate = ugxPerUsd ?? UGX_PER_USD;
+  const rate = ugxPerUsd && ugxPerUsd > 0 ? ugxPerUsd : UGX_PER_USD;
   const usd = (amount / rate).toFixed(2);
   return { primary: formatUgx(amount), usd: `~$${usd}` };
 }

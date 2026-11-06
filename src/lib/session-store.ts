@@ -74,8 +74,8 @@ export type SessionState = {
   signIn: (email: string, password: string) => Promise<AuthResult & { role?: Role }>;
   signOut: () => Promise<void>;
   loadAuthSession: () => Promise<void>;
-  signInWithGoogle: () => Promise<AuthResult>;
-  signInWithX: () => Promise<AuthResult>;
+  // Social login (Google / X) removed by owner decision 2026-11-06 —
+  // email + password is the only auth path. See onboarding/SignInForm.
 };
 
 const initial: Pick<SessionState, "role" | "profile" | "onboarded" | "supabaseUser" | "authReady"> = {
@@ -323,40 +323,7 @@ set({
           localStorage.removeItem("godoor-session");
         } catch {}
       },
-
-      signInWithGoogle: async () => {
-        const sb = getSupabase();
-        if (!sb) return { error: "Supabase not configured." };
-        try {
-          const { error } = await sb.auth.signInWithOAuth({
-            provider: "google",
-            options: {
-              redirectTo: `${window.location.origin}/app/api/auth/callback`,
-            },
-          });
-          if (error) return friendlyError(error.message);
-          return {};
-        } catch (e: any) {
-          return friendlyError(e?.message || "Google sign-in failed.");
-        }
-      },
-
-      signInWithX: async () => {
-        const sb = getSupabase();
-        if (!sb) return { error: "Supabase not configured." };
-        try {
-          const { error } = await sb.auth.signInWithOAuth({
-            provider: "twitter",
-            options: {
-              redirectTo: `${window.location.origin}/app/api/auth/callback`,
-            },
-          });
-          if (error) return friendlyError(error.message);
-          return {};
-        } catch (e: any) {
-          return friendlyError(e?.message || "X sign-in failed.");
-        }
-      },
+      // Social login removed — email + password only (see interface comment).
     }),
     {
       name: "godoor-session",

@@ -183,10 +183,10 @@ function toTopupRequest(r: any): TopupRequest {
 // must only be used for `handle`/`network` branding fields. See
 // `scripts/audit-live-rate.mjs`, run alongside `npx tsc --noEmit`.
 export const usdtConfig = {
-  // Deprecated static display fallback — do not use for settlement/UGX math.
-  // Kept only for backward-compat with any external reader of the shape;
-  // live paths in this repo must never read it (use resolveUgxRate instead).
-  rateUgx: 3700,
+  // NOTE: `rateUgx` was removed. It was a hardcoded 3700 that settled into
+  // being read as if live. Every rate consumer must call `resolveUgxRate()`
+  // / `fetchLiveUgxPerUsd()` (and the client hook `useLiveRate()`). This
+  // config now carries branding only.
   handle: "godoor",
   network: "usdt",
   referralCode: "godoor-defi",

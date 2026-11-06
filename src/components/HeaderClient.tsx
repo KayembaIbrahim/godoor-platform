@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Menu, X, Wallet } from "lucide-react";
+import { Menu, X, Wallet, ShoppingCart } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { HeaderAuth } from "@/components/HeaderAuth";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -53,6 +53,7 @@ export function HeaderClient() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const cartCount = useCart((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
 
   // ALL hooks must run unconditionally on every render, before any early
   // return. The previous layout returned `null` when `pathname === null`
@@ -217,8 +218,26 @@ export function HeaderClient() {
             brand and makes it the last thing the eye lands on, which is
             where an account control belongs. */}
         <div className="flex items-center gap-2 sm:gap-2.5 lg:gap-3">
-          {/* The shared utility bar — three controls, one surface. */}
+          {/* The shared utility bar — cart, wallet, notifications, theme.
+              The cart is customer-only (business/rider carts are cleared on
+              role switch — see the effect above), so it only renders for
+              customers/visitors. */}
           <div className="icon-bar">
+            {isCustomer && (
+              <Link
+                href="/cart"
+                className="icon-bar-item relative"
+                aria-label={cartCount > 0 ? `Cart, ${cartCount} items` : "Cart"}
+                title="Cart"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                {cartCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-go px-1 text-[9px] font-bold text-white">
+                    {cartCount > 99 ? "99+" : cartCount}
+                  </span>
+                )}
+              </Link>
+            )}
             <Link
               href="/wallet"
               className="icon-bar-item"

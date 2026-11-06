@@ -1430,7 +1430,11 @@ export type FeeConfig = {
   free_delivery_threshold_ugx: number;
   rider_commission_percent: number;
   platform_commission_percent: number;
-  ugx_per_usd: number;
+  /** Live USD→UGX from /api/fees (live-rate.ts). Optional — null while loading. */
+  ugx_per_usd?: number | null;
+  rateSource?: "live" | "cached" | "fallback" | "loading";
+  rateUpdatedAt?: string | null;
+  rateStale?: boolean;
   created_at: number;
   updated_at: number;
 };
@@ -1438,7 +1442,9 @@ export type FeeConfig = {
 const DEFAULT_FEES: FeeConfig = {
   ...FALLBACK_FEE_CONFIG,
   id: "default",
-  ugx_per_usd: 4102,
+  // No hardcoded USD→UGX here: the live rate comes from /api/fees
+  // (live-rate.ts → er-api + frankfurter mean). This field is typed as
+  // optional on the FeeConfig shape; the API fills it live.
   created_at: Date.now(),
   updated_at: Date.now(),
 };
