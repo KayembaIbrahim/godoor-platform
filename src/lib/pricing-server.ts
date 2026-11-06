@@ -134,7 +134,7 @@ export async function priceRide(
     at: args.at,
     rates,
   });
-  const serviceFee = serviceFeeFor(quote.fare_ugx, feeRow);
+  const serviceFee = serviceFeeFor(quote.fare_ugx, feeRow, "ride_boda");
   return {
     quote,
     serviceFee,

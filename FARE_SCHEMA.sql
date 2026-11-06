@@ -26,9 +26,11 @@
 CREATE TABLE IF NOT EXISTS public.fare_rates (
   id TEXT PRIMARY KEY DEFAULT 'default',
 
-  /* Boda / GoRide */
+  /* Boda / GoRide — banded per-km: day 1,000 · evening (9pm–12am) 1,500 · late (12am–6:30am) 2,000 */
   boda_base_ugx        INTEGER NOT NULL DEFAULT 2000,
-  boda_per_km_ugx      INTEGER NOT NULL DEFAULT 1500,
+  boda_per_km_ugx      INTEGER NOT NULL DEFAULT 1000,
+  boda_evening_per_km_ugx INTEGER NOT NULL DEFAULT 1500,
+  boda_late_per_km_ugx INTEGER NOT NULL DEFAULT 2000,
   boda_per_min_ugx     INTEGER NOT NULL DEFAULT 0,
   boda_min_ugx         INTEGER NOT NULL DEFAULT 2500,
 
@@ -45,9 +47,10 @@ CREATE TABLE IF NOT EXISTS public.fare_rates (
   delivery_min_evening_ugx   INTEGER NOT NULL DEFAULT 2000,
   delivery_min_late_ugx      INTEGER NOT NULL DEFAULT 3000,
 
-  /* Tier boundaries as EAT hours. 19.5 = 19:30, per the operator brief. */
-  evening_start_hour   NUMERIC(4,2) NOT NULL DEFAULT 19.5,
-  late_start_hour      NUMERIC(4,2) NOT NULL DEFAULT 22,
+  /* Tier boundaries as EAT hours. Evening 21:00 (9pm), late 00:00 (24) – 06:30. */
+  evening_start_hour   NUMERIC(4,2) NOT NULL DEFAULT 21,
+  late_start_hour      NUMERIC(4,2) NOT NULL DEFAULT 24,
+  late_end_hour        NUMERIC(4,2) NOT NULL DEFAULT 6.5,
 
   /* Peak uplift on the DISTANCE component. 1.00 = no uplift, which is the
      shipped default: turning this on re-prices live rides, so it must be an

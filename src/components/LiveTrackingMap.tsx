@@ -129,11 +129,17 @@ export function LiveTrackingMap({
   const validDropoff = hasCoords(dropoffLoc) ? dropoffLoc : null;
   const validPickup = hasCoords(pickupLoc) ? pickupLoc : null;
 
-  const dist = riderLoc && validDropoff ? distanceKm(riderLoc, validDropoff) : null;
+  /* Distance shown to the customer: live rider→dropoff when a rider is moving,
+     otherwise the full pickup→dropoff leg. Before a rider is assigned
+     riderLoc is null, but the trip distance is still known — without this
+     fallback both the Distance and ETA tiles rendered "—" on a booked ride. */
+  const liveDist = riderLoc && validDropoff ? distanceKm(riderLoc, validDropoff) : null;
+  const legDist = validPickup && validDropoff ? distanceKm(validPickup, validDropoff) : null;
+  const dist = liveDist ?? legDist ?? (roadDistanceKm != null && roadDistanceKm > 0 ? roadDistanceKm : null);
   const etaMin = dist != null ? Math.max(2, Math.round(dist * 4)) : null;
 
   // Fare counts road distance + trip time with day/night minimums
-  // (1,500 day · 2,000 from 7pm · 3,000 midnight) — never the old flat ~$1.
+  // (day 1,000/km · evening 1,500/km · late 2,000/km) — never the old flat ~$1.
   const fareKm = roadDistanceKm != null && roadDistanceKm > 0 ? roadDistanceKm : dist;
   // A price must not move with traffic. The agreed fee is fixed at checkout and
   // always wins; without one we estimate on a traffic-neutral 25 km/h so the

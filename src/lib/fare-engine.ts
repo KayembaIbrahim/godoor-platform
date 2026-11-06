@@ -37,7 +37,31 @@ import type { FeeConfigShape } from "@/lib/fees";
 /** Uganda runs on East Africa Time = UTC+3, year-round, no DST. */
 export const UGANDA_UTC_OFFSET_HOURS = 3;
 
+/**
+ * Fare bands, all in East Africa Time (UTC+3), defined by the operator:
+ *
+ *   day      00:00–21:00 → UGX 1,000/km  (flat evening 9pm–12am removed)
+ *   evening  21:00–00:00 → UGX 1,500/km  (9pm–12am)
+ *   late     00:00–06:30 → UGX 2,000/km  (12am–6:30am)
+ *   day      06:30–21:00 → UGX 1,000/km  (7am reverts to 1k)
+ *
+ * NOTE the midnight switch: the 2k late rate starts at 12am (0:00), NOT 11pm — the
+ * 11pm hour is still the 1.5k evening rate. And the late window ends 06:30 (not
+ * 7am), so 6:30–7am is daytime 1k.
+ *
+ * Each band carries its own per-kilometre rate (boda_per_km_ugx / _evening_ /
+ * _late_), so a night rate can never silently re-price a daytime trip. The 250
+ * service fee and the minimum fares (2,000 day/evening, 2,500 late) are separate
+ * and unchanged.
+ */
 export type FareTier = "day" | "evening" | "late";
+
+/** Per-km UGX by band — the operator's published schedule (see FareTier docs). */
+export const BODA_PER_KM_UGX: Record<FareTier, number> = {
+  day: 1000,
+  evening: 1500,
+  late: 2000,
+};
 
 /**
  * Local (EAT) hour-of-day as a float, so a 19:30 boundary is expressible.
@@ -59,6 +83,11 @@ export type FareRates = {
   boda_per_km_ugx: number;
   boda_per_min_ugx: number;
   boda_min_ugx: number;
+  /* Per-km rate by time band — the operator's published schedule:
+     day 1,000/km · evening (9pm–12am) 1,500/km · late (12am–6:30am) 2,000/km.
+     Kept separate so a night rate can never silently re-price a daytime trip. */
+  boda_evening_per_km_ugx: number;
+  boda_late_per_km_ugx: number;
   /* Late-night base / minimum — applied only in the "late" tier (see
      `late_start_hour` / `late_end_hour`). Kept separate so the day base and
      day minimum are never silently re-priced by a night policy change. */
@@ -113,9 +142,14 @@ export type FareRates = {
  */
 export const FALLBACK_FARE_RATES: FareRates = {
   boda_base_ugx: 2000,
-  boda_per_km_ugx: 1500,
+  /* day per-km is now 1,000 (was 1,500 — the old flat rate charged 2,100 for a
+     1.4 km trip before the base, which is why users saw UGX 4,700 for a 1.4 km
+     daytime ride). */
+  boda_per_km_ugx: BODA_PER_KM_UGX.day,
   boda_per_min_ugx: 0,
   boda_min_ugx: 2000,
+  boda_evening_per_km_ugx: BODA_PER_KM_UGX.evening,
+  boda_late_per_km_ugx: BODA_PER_KM_UGX.late,
   boda_late_base_ugx: 2500,
   boda_late_min_ugx: 2500,
   car_base_ugx: 3500,
@@ -127,8 +161,8 @@ export const FALLBACK_FARE_RATES: FareRates = {
   delivery_min_day_ugx: 1500,
   delivery_min_evening_ugx: 2000,
   delivery_min_late_ugx: 3000,
-  evening_start_hour: 19.5,
-  late_start_hour: 23,
+  evening_start_hour: 21,
+  late_start_hour: 24,
   late_end_hour: 6.5,
   evening_multiplier: 1,
   late_multiplier: 1,
@@ -163,6 +197,8 @@ export function resolveFareRates(row?: FareRateRow | null): FareRates {
     boda_per_km_ugx: Math.max(0, Math.trunc(r("boda_per_km_ugx"))),
     boda_per_min_ugx: Math.max(0, Math.trunc(r("boda_per_min_ugx"))),
     boda_min_ugx: Math.max(0, Math.trunc(r("boda_min_ugx"))),
+    boda_evening_per_km_ugx: Math.max(0, Math.trunc(r("boda_evening_per_km_ugx"))),
+    boda_late_per_km_ugx: Math.max(0, Math.trunc(r("boda_late_per_km_ugx"))),
     boda_late_base_ugx: Math.max(0, Math.trunc(r("boda_late_base_ugx"))),
     boda_late_min_ugx: Math.max(0, Math.trunc(r("boda_late_min_ugx"))),
     car_base_ugx: Math.max(0, Math.trunc(r("car_base_ugx"))),
@@ -201,12 +237,14 @@ export function resolveFareRates(row?: FareRateRow | null): FareRates {
 export function fareTierFor(at: Date = new Date(), rates: FareRates = FALLBACK_FARE_RATES): FareTier {
   const h = ugandaHour(at);
   const evening = rates.evening_start_hour;
+  /* The late (late-night) window spans midnight and STARTS at midnight (0:00),
+     not late_start_hour — 11pm is still the evening rate. late_start_hour is
+     clamped to >= 24 (i.e. 0:00) by the fallback, so the pre-midnight late arm
+     is dead by design. The window ends at late_end_hour (06:30), so 6:30–7am
+     falls back to day. */
   const late = Math.max(evening, rates.late_start_hour);
-  /* The late (late-night) window spans midnight: it starts at `late` (23:00 by
-     default) and ends at `late_end_hour` (06:30). Without the pre-06:30 arm,
-     00:00–06:29 would evaluate to "day" and the late-night rate would only
-     ever apply for one hour. */
-  if (h >= late || h < rates.late_end_hour) return "late";
+  if (late <= 24 && h >= late) return "late";
+  if (h < rates.late_end_hour) return "late";
   if (h >= evening) return "evening";
   return "day";
 }
@@ -336,9 +374,14 @@ export function quoteFare(input: FareInput): FareQuote {
   } else {
     /* Late-night swaps the day base/minimum for the late-night ones: the
        2,500 UGX floor then applies to the whole ride, so an 800 m ride at
-       02:00 costs 2,500, not 2,000. Daytime keeps 2,000 base / 2,000 floor. */
+       02:00 costs 2,500, not 2,000. Daytime keeps 2,000 base / 2,000 floor.
+       The per-km rate is banded — 1k day / 1.5k evening / 2k late — so the
+       distance surcharge scales with the time of day rather than a flat 1.5k. */
     base = tier === "late" ? rates.boda_late_base_ugx : rates.boda_base_ugx;
-    perKm = rates.boda_per_km_ugx;
+    perKm =
+      tier === "late" ? rates.boda_late_per_km_ugx
+      : tier === "evening" ? rates.boda_evening_per_km_ugx
+      : rates.boda_per_km_ugx;
     perMin = rates.boda_per_min_ugx;
     minFare = tier === "late" ? rates.boda_late_min_ugx : rates.boda_min_ugx;
   }
@@ -370,7 +413,11 @@ export function quoteFare(input: FareInput): FareQuote {
   return {
     kind: input.kind,
     tier,
-    tier_label: tierLabel(tier),
+    /* The tier label carries the band so the customer sees WHY the price moved:
+       "Daytime · 1,000/km" vs "Evening · 1,500/km" (9pm–12am) vs "Late night ·
+       2,000/km" (12am–6:30am). The per-km rate is part of the quote, not a
+       surprise at the total. */
+    tier_label: `${tierLabel(tier)} · ${perKm.toLocaleString("en-US")}/km`,
     distance_km: Math.round(km * 100) / 100,
     duration_min: Math.round(durationMin * 10) / 10,
     wait_min: Math.round(waitMin),

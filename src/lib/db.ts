@@ -1140,9 +1140,17 @@ export type DBRide = {
   dropoff_lng: number;
   dropoff_address: string;
   distance_km: number;
+  duration_min?: number | null;
   fare_ugx: number;
   service_fee_ugx: number;
   total_ugx: number;
+  fare_tier?: string | null;
+  tier_label?: string | null;
+  base_ugx?: number | null;
+  distance_ugx?: number | null;
+  time_ugx?: number | null;
+  wait_ugx?: number | null;
+  quote_snapshot?: Record<string, unknown> | null;
   status: "requested" | "accepted" | "in_progress" | "completed" | "cancelled";
   rider_id: string | null;
   rider_name: string;

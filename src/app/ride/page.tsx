@@ -19,14 +19,21 @@ const LiveTrackingMap = dynamic(() => import("@/components/LiveTrackingMap").the
 
 const BODA_BASE = 2000;
 const BODA_LATE_BASE = 2500;
-const BODA_PER_KM = 1200;
+/* Banded per-km (operator schedule, EAT): day 1,000 · evening 9pm–12am 1,500 ·
+   late 12am–6:30am 2,000. Mirrors the server fare engine exactly — the preview
+   here must never drift from what POST /api/rides charges. */
+const BODA_PER_KM: Record<string, number> = {
+  day: 1000,
+  evening: 1500,
+  late: 2000,
+};
+const BODA_SERVICE_FEE = 250;
 
 /* Mirrors the server fare engine's tier boundaries (EAT = UTC+3, no DST):
-   evening from 19:30, late-night from 23:00 through 06:30 (the window spans
-   midnight). The live night floor is 2,500 — this preview uses the same
-   boundaries so the estimate matches what the server charges. */
-const EVENING_START_HOUR = 19.5;
-const LATE_START_HOUR = 23;
+   evening from 21:00 (9pm), late from 00:00 through 06:30 (the window spans
+   midnight, and starts at midnight — 11pm is still the evening rate). */
+const EVENING_START_HOUR = 21;
+const LATE_START_HOUR = 24;
 const LATE_END_HOUR = 6.5;
 
 function ugandaHourOf(d: Date): number {
@@ -36,7 +43,21 @@ function ugandaHourOf(d: Date): number {
 
 function isLateNight(d: Date): boolean {
   const h = ugandaHourOf(d);
-  return h >= LATE_START_HOUR || h < LATE_END_HOUR;
+  /* Late starts at midnight (0:00), not 23:00 — LATE_START_HOUR is 24, so the
+     pre-midnight arm is dead by design. */
+  return h < LATE_END_HOUR;
+}
+
+function isEvening(d: Date): boolean {
+  const h = ugandaHourOf(d);
+  return h >= EVENING_START_HOUR;
+}
+
+/** Band key for a moment: day / evening / late. */
+function bandOf(d: Date): "day" | "evening" | "late" {
+  if (isLateNight(d)) return "late";
+  if (isEvening(d)) return "evening";
+  return "day";
 }
 
 /** The service-fee rate actually applied to THIS ride, derived from the
@@ -51,15 +72,18 @@ function appliedFeePct(total: number | null | undefined, fee: number | null | un
   return Number.isInteger(pct) ? String(pct) : pct.toFixed(1);
 }
 
-function estimateFare(km: number | null, at?: Date): { fare: number; fee: number; total: number; night: boolean } {
-  if (km === null || km <= 0) return { fare: 0, fee: 0, total: 0, night: false };
-  const night = isLateNight(at ?? new Date());
-  /* Late-night: 2,500 base AND 2,500 floor. Daytime: 2,000 base / 2,000 floor. */
+function estimateFare(km: number | null, at?: Date): { fare: number; fee: number; total: number; night: boolean; band: "day" | "evening" | "late"; perKm: number } {
+  if (km === null || km <= 0) return { fare: 0, fee: 0, total: 0, night: false, band: "day", perKm: BODA_PER_KM.day };
+  const band = bandOf(at ?? new Date());
+  const night = band === "late";
+  /* Late-night: 2,500 base AND 2,500 floor. Daytime/evening: 2,000 base / 2,000 floor. */
   const base = night ? BODA_LATE_BASE : BODA_BASE;
   const floor = night ? BODA_LATE_BASE : BODA_BASE;
-  const fare = Math.max(floor, Math.round(base + km * BODA_PER_KM));
-  const fee = Math.round((fare * 5) / 100);
-  return { fare, fee, total: fare + fee, night };
+  const perKm = BODA_PER_KM[band];
+  const fare = Math.max(floor, Math.round(base + km * perKm));
+  /* Flat UGX 250 boda service fee — the server charges via serviceFeeFor(..., "ride_boda"). */
+  const fee = BODA_SERVICE_FEE;
+  return { fare, fee, total: fare + fee, night, band, perKm };
 }
 
 type Addr = { place: string; lat: number; lng: number };
@@ -144,6 +168,15 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
     ? Number(ride.distance_km)
     : (ride.pickup_lat && ride.dropoff_lat ? distanceKm(pickup as { lat: number; lng: number }, drop as { lat: number; lng: number }) : 0);
   const distanceLabel = distanceKm > 0 ? `${distanceKm.toFixed(1)} km` : null;
+  /* Visible fare breakdown on the active-ride card — the customer can see the
+     base + distance × per-km math, not just the total. Derived from the stored
+     quote so it matches what was actually charged. */
+  const snapshot = ride.quote_snapshot as Record<string, unknown> | null;
+  const snapNum = (v: unknown): number => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const breakdownBase = snapNum(snapshot?.base_ugx) || Number(ride.base_ugx) || 0;
+  const breakdownDist = snapNum(snapshot?.distance_ugx) || Number(ride.distance_ugx) || 0;
+  const breakdownTime = snapNum(snapshot?.time_ugx) || Number(ride.time_ugx) || 0;
+  const hasBreakdown = breakdownBase > 0 || breakdownDist > 0 || breakdownTime > 0;
 
   const badges = (
     <>
@@ -192,6 +225,8 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
           roadRoute={roadCoords}
           maneuvers={null}
           showNavigation={false}
+          roadDistanceKm={distanceKm > 0 ? distanceKm : null}
+          roadDurationMin={ride.duration_min != null ? Number(ride.duration_min) : null}
           /* The card previously fell back to a distance-based ESTIMATE because
              no quote was passed, so a booked ride showed "FARE UGX 2,000" while
              the trip total below read UGX 4,049. Pass the fare actually agreed
@@ -222,6 +257,24 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
             </button>
           )}
         </div>
+        {hasBreakdown && (
+          <div className="mt-3 rounded-xl bg-elevated/60 p-3 text-[11px]">
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-dim">Fare breakdown</p>
+            <div className="space-y-1">
+              {breakdownBase > 0 && (
+                <div className="flex justify-between"><span className="text-muted">Base</span><span className="font-semibold tabular-nums">{formatUgx(breakdownBase)}</span></div>
+              )}
+              {breakdownDist > 0 && (
+                <div className="flex justify-between"><span className="text-muted">Distance{distanceLabel ? ` · ${distanceLabel}` : ""}</span><span className="font-semibold tabular-nums">{formatUgx(breakdownDist)}</span></div>
+              )}
+              {breakdownTime > 0 && (
+                <div className="flex justify-between"><span className="text-muted">Time</span><span className="font-semibold tabular-nums">{formatUgx(breakdownTime)}</span></div>
+              )}
+              <div className="flex justify-between"><span className="text-muted">Service fee</span><span className="font-semibold tabular-nums">{formatUgx(ride.service_fee_ugx)}</span></div>
+              <div className="flex justify-between border-t border-border pt-1"><span className="font-bold">Total</span><span className="font-bold tabular-nums">{formatUgx(ride.total_ugx)}</span></div>
+            </div>
+          </div>
+        )}
         {/* Declared waiting. Sits directly under the fare: if a rider starts a
             wait, the customer's next question is "what is this costing me",
             and the answer must be on the same screen as the total. */}
@@ -402,7 +455,7 @@ export default function RidePage() {
                   <p className="text-sm font-bold tabular-nums">{km !== null ? `${km.toFixed(1)} km` : "—"}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-dim">Fare{est.night ? " · late night" : ""}</p>
+                  <p className="text-[9px] uppercase tracking-wider text-dim">Fare · {est.perKm.toLocaleString("en-US")}/km{est.band === "late" ? " · late night" : est.band === "evening" ? " · evening" : ""}</p>
                   <p className="text-sm font-bold tabular-nums">{formatUgx(est.total)}</p>
                 </div>
                 <div>
@@ -410,7 +463,14 @@ export default function RidePage() {
                   <p className="flex items-center justify-center gap-1 text-sm font-bold"><Clock className="h-3 w-3 text-primary" /> ~10 min</p>
                 </div>
               </div>
-              <p className="px-3 pb-3 text-[10px] text-dim">{appliedFeePct(est.total, est.fee) ? `Includes ${appliedFeePct(est.total, est.fee)}% GoDoor service fee. Pay the rider directly (GoDoor Wallet).` : "Pay the rider directly (GoDoor Wallet)."}</p>
+              <div className="px-3 pb-3 text-[10px] text-dim">
+                <p>Pay the rider directly (GoDoor Wallet).</p>
+                <p className="mt-1 tabular-nums">
+                  Base {formatUgx(est.band === "late" ? BODA_LATE_BASE : BODA_BASE)}
+                  {" "}· Distance {formatUgx(Math.max(0, Math.round((km ?? 0) * est.perKm)))} ({(km ?? 0).toFixed(1)} km × {est.perKm.toLocaleString("en-US")})
+                  {" "}· Service {formatUgx(est.fee)}
+                </p>
+              </div>
             </div>
           )}
           </div>
