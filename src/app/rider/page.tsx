@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Truck, MapPin, Navigation, Phone, CheckCircle2, X, Clock,
   DollarSign, LogOut, ShieldCheck, Radio, Package, ChevronRight, ExternalLink, Store, History, Bike, User,
-  MessageCircle, AlertCircle, Bell
+  MessageCircle, AlertCircle, Bell, ShoppingBasket
 } from "lucide-react";
 import { useSession } from "@/lib/session-store";
 import { useNotifications, orderSummary, requestNotificationPermission } from "@/lib/notifications-store";
@@ -22,6 +22,7 @@ import { StopoverControl } from "@/components/StopoverControl";
 import dynamic from "next/dynamic";
 import { SetPasswordGate } from "@/components/SetPasswordGate";
 import GreetingCard from "@/components/GreetingCard";
+import { RiderGoMartPanel } from "@/components/RiderGoMartPanel";
 
 const LiveTrackingMap = dynamic(() => import("@/components/LiveTrackingMap").then(m => m.LiveTrackingMap), {
   ssr: false,
@@ -474,8 +475,9 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords, authReady, heading
 export default function RiderDashboard() {
   const { onboarded, role, profile, supabaseUser, authReady, reset } = useSession();
   const { coords, address, status: locStatus, accuracy, heading, speed, refresh: refreshLoc } = useGeolocation();
-  const [tab, setTab] = useState<"available" | "active" | "history" | "earnings" | "profile" | "stores">("available");
-  const [mode, setMode] = useState<"deliveries" | "boda">("deliveries");
+  const [tab, setTab] = useState<"available" | "active" | "history" | "earnings" | "profile" | "stores" | "gomart">("available");
+  const [mode, setMode] = useState<"deliveries" | "boda" | "gomart">("deliveries");
+  const [gomartOpenCount, setGomartOpenCount] = useState(0);
   const [available, setAvailable] = useState<DeliveryRequest[]>([]);
   const [activeDelivery, setActiveDelivery] = useState<DBOrder | null>(null);
   const [activeBodaRide, setActiveBodaRide] = useState<DBRide | null>(null);
@@ -1058,8 +1060,8 @@ export default function RiderDashboard() {
           <Navigation className="h-3.5 w-3.5 text-primary shrink-0" />
         </button>
 
-        {/* Mode switch — Deliveries vs Boda transport vertical */}
-        <div className="mt-3 grid grid-cols-2 gap-1 rounded-2xl bg-bg p-1">
+        {/* Mode switch — Deliveries vs Boda vs GoMart */}
+        <div className="mt-3 grid grid-cols-3 gap-1 rounded-2xl bg-bg p-1">
           <button type="button" onClick={() => setMode("deliveries")}
             className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "deliveries" ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
             <Package className="h-3.5 w-3.5" /> Deliveries
@@ -1067,6 +1069,15 @@ export default function RiderDashboard() {
           <button type="button" onClick={() => setMode("boda")}
             className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "boda" ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
             <Bike className="h-3.5 w-3.5" /> Boda
+          </button>
+          <button type="button" onClick={() => setMode("gomart")}
+            className={`relative flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "gomart" ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
+            <ShoppingBasket className="h-3.5 w-3.5" /> GoMart
+            {gomartOpenCount > 0 && (
+              <span className="num absolute -top-1 -right-1 flex min-w-5 h-5 items-center justify-center rounded-full bg-go px-1 text-[10px] font-bold text-white shadow">
+                {gomartOpenCount > 99 ? "99+" : gomartOpenCount}
+              </span>
+            )}
           </button>
         </div>
         </div>
@@ -1102,6 +1113,8 @@ export default function RiderDashboard() {
             heading={heading}
             accuracy={accuracy}
           />
+        ) : mode === "gomart" ? (
+          <RiderGoMartPanel onNewOpen={setGomartOpenCount} />
         ) : (<>
         <div className="px-4 pt-3">
         {/* Tabs — teal accent */}
@@ -1109,6 +1122,7 @@ export default function RiderDashboard() {
           {([
             { id: "available" as const, label: "Available", count: available.length },
             { id: "active" as const, label: "Active", count: activeDelivery ? 1 : 0 },
+            { id: "gomart" as const, label: "GoMart", count: gomartOpenCount },
             { id: "history" as const, label: "History", count: allDeliveries.length },
             { id: "earnings" as const, label: "Earnings", count: 0 },
             { id: "stores" as const, label: "Stores", count: affiliations.invites.length },

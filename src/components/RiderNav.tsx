@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Clock, Wallet, User, Map as MapIcon } from "lucide-react";
+import { Home, Clock, Wallet, User, Map as MapIcon, ShoppingBasket } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,6 +37,7 @@ const slabTabs = [
 
 const floatTabs = [
   { href: "/rider/history", label: "History", icon: Clock },
+  { href: "/rider#gomart", label: "GoMart", icon: ShoppingBasket },
   { href: "/account", label: "Profile", icon: User },
 ];
 

@@ -255,7 +255,55 @@ export async function listAllLists(sb: Sb, limit = 200): Promise<ShoppingListRow
   return all.sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, limit);
 }
 
-/** One list by id, or null. */
+/**
+ * GoMart lists a rider may claim: submitted/confirmed lists with no rider yet.
+ *
+ * This is the rider dispatch board for GoMart — one row per customer
+ * shopping list, claimable on a first-come basis. `rider_id` is NULL in the
+ * claimable states by definition; claim() enforces it server-side so two
+ * riders racing for the same list produce exactly one winner (the other
+ * gets 409 "already taken" instead of overwriting).
+ */
+export async function listOpenForRiders(sb: Sb, limit = 50): Promise<ShoppingListRow[]> {
+  await ensureShoppingListSchema(sb);
+  if (await tablesExist(sb)) {
+    const { data, error } = await sb
+      .from("shopping_lists")
+      .select("*")
+      .in("status", ["submitted", "confirmed"])
+      .is("rider_id", null)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!error && data) return data as ShoppingListRow[];
+  }
+  const all = await fallbackRead(sb);
+  return all
+    .filter((r) => ["submitted", "confirmed"].includes(r.status) && !r.rider_id)
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+    .slice(0, limit);
+}
+
+/** Lists the rider is carrying / has carried (newest first). */
+export async function listRiderLists(sb: Sb, riderId: string): Promise<ShoppingListRow[]> {
+  await ensureShoppingListSchema(sb);
+  if (await tablesExist(sb)) {
+    const { data, error } = await sb
+      .from("shopping_lists")
+      .select("*")
+      .eq("rider_id", riderId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (!error && data) return data as ShoppingListRow[];
+  }
+  const all = await fallbackRead(sb);
+  return all
+    .filter((r) => r.rider_id === riderId)
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+}
+
+/**
+ * One list by id, or null.
+ */
 export async function getList(sb: Sb, id: string): Promise<ShoppingListRow | null> {
   await ensureShoppingListSchema(sb);
   if (await tablesExist(sb)) {
@@ -393,7 +441,7 @@ export async function updateList(
   }
 
   const validItemCount = items.length;
-  const shoppingFeeUgx = SHOPPING_LIST_RUNNER_FEE_UGX;
+  const shoppingFeeUgx = validItemCount > 0 ? SHOPPING_LIST_RUNNER_FEE_UGX : 0;
   const merchandiseUgx =
     input.merchandiseUgx !== undefined
       ? Math.max(0, Math.trunc(input.merchandiseUgx))
@@ -454,6 +502,39 @@ export async function updateList(
   await fallbackWrite(sb, all);
   await logEvent(sb, id, input.actorRole, input.actorId, status, { shoppingFeeUgx });
   return { ok: true, list: all[idx] };
+}
+
+/**
+ * Rider claim — atomic "first rider wins" assignment for a GoMart list.
+ *
+ * Returns 409 when another rider holds the list, 403 when the caller is not
+ * a rider, 404 when missing. Status moves submitted/confirmed → assigned
+ * and logs the claim in the audit trail (actorRole "rider").
+ */
+export async function claimList(
+  sb: Sb,
+  id: string,
+  riderId: string,
+): Promise<{ ok: true; list: ShoppingListRow } | { ok: false; error: string; status: number }> {
+  const current = await getList(sb, id);
+  if (!current) return { ok: false, status: 404, error: "GoMart list not found" };
+  if (!["submitted", "confirmed", "shopping"].includes(current.status)) {
+    return { ok: false, status: 409, error: "This list is not open for riders" };
+  }
+  if (current.rider_id && current.rider_id !== riderId) {
+    return { ok: false, status: 409, error: "Another rider already took this list" };
+  }
+  if (current.rider_id === riderId) {
+    return { ok: true, list: current }; // idempotent re-claim
+  }
+  const result = await updateList(sb, id, {
+    status: "assigned",
+    riderId,
+    actorRole: "rider",
+    actorId: riderId,
+  });
+  if (!result.ok) return { ok: false, error: result.error, status: result.status };
+  return { ok: true, list: result.list };
 }
 
 /** Cancel / delete a list the caller owns. */
