@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
   const forwarded = req.headers.get("x-forwarded-for") || "";
   const xffIp = forwarded.split(",")[0]?.trim() || "";
   const clientIp = cfIp || realIp || xffIp || "";
+  const debug = req.nextUrl.searchParams.get("debug") === "1";
 
   const providers: Array<() => Promise<{ lat: number; lng: number } | null>> = [
     // Primary: ipwho.is — solid 200, Uganda correct.
@@ -46,6 +47,13 @@ export async function GET(req: NextRequest) {
   ];
 
   const results = await Promise.allSettled(providers.map((p) => p()));
+  if (debug) {
+    return NextResponse.json({
+      clientIp, cfIp, realIp, xffIp,
+      providers: results.map((r) => (r.status === "fulfilled" ? r.value : `rejected: ${String(r.reason).slice(0, 120)}`)),
+      headers: { "cf-connecting-ip": cfIp || "-", "x-real-ip": realIp || "-", "x-forwarded-for": xffIp || "-" },
+    });
+  }
   for (const r of results) {
     if (r.status === "fulfilled" && r.value) {
       return NextResponse.json(
