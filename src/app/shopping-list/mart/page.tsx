@@ -216,7 +216,7 @@ export default function GoMartShoppingListPage() {
     if (parts.length > room) flash("err", `Only ${room} more items fit — paste a second list for the rest.`);
   }
 
-  const runnerFee = SHOPPING_LIST_RUNNER_FEE_UGX + (extraStop ? SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX : 0);
+  const runnerFee = draft.length === 1 ? 1500 : Math.max(1, draft.length) * 500;
   const riderShare = shoppingListRiderShare(runnerFee);
   // Estimated items cost from the customer's own per-item prices (optional).
   // The rider may adjust the actual merchandise cost after shopping — the
@@ -500,7 +500,7 @@ export default function GoMartShoppingListPage() {
                 <dd className="font-semibold tabular-nums text-fg">{formatUgx(runnerFee)} UGX</dd>
               </div>
               <div className="flex items-center justify-between">
-                <dt className="text-muted">Rider earns (65%)</dt>
+                <dt className="text-muted">Rider earns (70%)</dt>
                 <dd className="font-semibold tabular-nums text-success">{formatUgx(riderShare)} UGX</dd>
               </div>
               <div className="flex items-center justify-between">
@@ -568,7 +568,7 @@ export default function GoMartShoppingListPage() {
                 </dd>
               </div>
               <div className="flex items-center justify-between">
-                <dt className="text-muted">Rider earns (65%)</dt>
+                <dt className="text-muted">Rider earns (70%)</dt>
                 <dd className="font-semibold tabular-nums text-success">
                   {formatUgx(shoppingListRiderShare(active.shopping_fee_ugx))} UGX
                 </dd>

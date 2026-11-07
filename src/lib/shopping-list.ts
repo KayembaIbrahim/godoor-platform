@@ -16,9 +16,11 @@
  *     never trusted.
  */
 
-export const SHOPPING_LIST_RUNNER_FEE_UGX = 3000;
-export const SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX = 3000;
-export const SHOPPING_LIST_RIDER_SHARE_PERCENT = 65;
+export const SHOPPING_LIST_SINGLE_ITEM_FEE_UGX = 1500;
+export const SHOPPING_LIST_PER_ITEM_FEE_UGX = 500;
+export const SHOPPING_LIST_RUNNER_FEE_UGX = 1500; // single-item fee (back-compat)
+export const SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX = 0;
+export const SHOPPING_LIST_RIDER_SHARE_PERCENT = 70;
 export const SHOPPING_FEE_PER_ITEM_UGX = 500;
 
 export function shoppingListRiderShare(feeUgx: number): number {
@@ -26,7 +28,7 @@ export function shoppingListRiderShare(feeUgx: number): number {
     (Math.max(0, feeUgx) * SHOPPING_LIST_RIDER_SHARE_PERCENT) / 100,
   );
 }
-export const SHOPPING_LIST_MIN_ITEMS = 5;
+export const SHOPPING_LIST_MIN_ITEMS = 1;
 export const SHOPPING_LIST_MAX_ITEMS = 100;
 export const SHOPPING_ITEM_MAX_QUANTITY = 99;
 export const SHOPPING_ITEM_NAME_MAX = 120;
@@ -222,6 +224,8 @@ export function validateShoppingList(
     };
   }
 
+  const errors: string[] = [];
+
   if (rawItems.length > SHOPPING_LIST_MAX_ITEMS) {
     errors.push(
       `A shopping list can contain at most ${SHOPPING_LIST_MAX_ITEMS} items.`,
@@ -243,10 +247,8 @@ export function validateShoppingList(
     );
   }
 
-  const shoppingFeeUgx = SHOPPING_LIST_RUNNER_FEE_UGX; // flat runner fee, validated by min-items gate
-  const extraStopSurchargeUgx = opts?.needsExtraStop
-    ? SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX
-    : 0;
+  const shoppingFeeUgx = validItemCount === 1 ? SHOPPING_LIST_SINGLE_ITEM_FEE_UGX : validItemCount * SHOPPING_LIST_PER_ITEM_FEE_UGX;
+  const extraStopSurchargeUgx = 0;
   const riderShareUgx = shoppingListRiderShare(
     shoppingFeeUgx + extraStopSurchargeUgx,
   );
@@ -280,10 +282,8 @@ export function validateShoppingList(
   };
 }
 /** Runner fee: 3,000 grocery-only, 6,000 with an extra stop. */
-export function shoppingListRunnerFee(needsExtraStop: boolean): number {
-  return needsExtraStop
-    ? SHOPPING_LIST_RUNNER_FEE_UGX + SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX
-    : SHOPPING_LIST_RUNNER_FEE_UGX;
+export function shoppingListRunnerFee(needsExtraStop: boolean, itemCount = 1): number {
+  return (itemCount <= 1 ? SHOPPING_LIST_SINGLE_ITEM_FEE_UGX : itemCount * SHOPPING_LIST_PER_ITEM_FEE_UGX) + (needsExtraStop ? SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX : 0);
 }
 
 

@@ -230,8 +230,8 @@ export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) =>
       {/* How it works */}
       <div className="rounded-xl bg-bg px-3.5 py-3 ring-1 ring-border/50">
         <p className="text-[11px] leading-relaxed text-muted">
-          <span className="font-semibold text-fg">Runner fee:</span> flat {formatUgx(3000)} UGX (6,000 with an
-          extra stop). You earn <span className="font-semibold text-success">65%</span> of it — the customer
+          <span className="font-semibold text-fg">Runner fee:</span> {formatUgx(1500)} UGX for 1 item, {formatUgx(500)} UGX per item if more than one.
+          You earn <span className="font-semibold text-success">70%</span> of it — the customer
           pays the items separately after you shop.
         </p>
       </div>
@@ -269,7 +269,7 @@ export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) =>
               <dd className="font-semibold tabular-nums text-fg">{formatUgx(activeMine.shopping_fee_ugx)} UGX</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-muted">You earn (65%)</dt>
+              <dt className="text-muted">You earn (70%)</dt>
               <dd className="font-bold tabular-nums text-success">{formatUgx(activeMine.rider_share_ugx)} UGX</dd>
             </div>
             <div className="flex justify-between">

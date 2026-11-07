@@ -63,11 +63,13 @@ export type FeeConfigShape = {
  */
 export const FLAT_SERVICE_FEE_RIDE_UGX = 250;
 export const FLAT_SERVICE_FEE_SHOPPING_UGX = 500;
-export const SHOPPING_LIST_RUNNER_FEE_UGX = 3000;
-export const SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX = 3000;
-export const SHOPPING_LIST_RIDER_SHARE_PERCENT = 65;
-export const SHOPPING_LIST_FEE_GROCERY_ONLY_UGX = 3000;
-export const SHOPPING_LIST_FEE_NON_GROCERY_UGX = 6000;
+export const SHOPPING_LIST_RUNNER_FEE_UGX = 1500;
+export const SHOPPING_LIST_SINGLE_ITEM_FEE_UGX = 1500;
+export const SHOPPING_LIST_PER_ITEM_FEE_UGX = 500;
+export const SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX = 0;
+export const SHOPPING_LIST_RIDER_SHARE_PERCENT = 70;
+export const SHOPPING_LIST_FEE_GROCERY_ONLY_UGX = 1500;
+export const SHOPPING_LIST_FEE_NON_GROCERY_UGX = 1500;
 
 const num = (v: unknown, fallback: number): number => {
   const n = Number(v);
@@ -129,10 +131,10 @@ export function serviceFeeFor(
  * GoMart runner fee: flat 3,000 when grocery-only (single shop), 6,000 when
  * the list needs sourcing beyond one location (extra stop). Rider earns 65%.
  */
-export function shoppingListRunnerFee(needsExtraStop: boolean): number {
-  return needsExtraStop
-    ? SHOPPING_LIST_FEE_NON_GROCERY_UGX
-    : SHOPPING_LIST_FEE_GROCERY_ONLY_UGX;
+export function shoppingListRunnerFee(needsExtraStop: boolean, itemCount = 1): number {
+  return itemCount <= 1
+    ? SHOPPING_LIST_SINGLE_ITEM_FEE_UGX
+    : itemCount * SHOPPING_LIST_PER_ITEM_FEE_UGX;
 }
 
 export function shoppingListRiderShare(feeUgx: number): number {
