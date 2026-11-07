@@ -60,10 +60,10 @@ const STAFF_TRANSITIONS: Record<string, ShoppingListStatus[]> = {
   // force the list through shopping/awaiting_approval/confirmed first (the
   // old table rejected submitted→assigned with "cannot become assigned").
   submitted: ["shopping", "assigned", "cancelled"],
-  shopping: ["awaiting_approval", "confirmed", "assigned", "cancelled"],
+  shopping: ["awaiting_approval", "confirmed", "assigned", "delivering", "cancelled"],
   awaiting_approval: ["confirmed", "shopping", "cancelled"],
   confirmed: ["assigned", "cancelled"],
-  assigned: ["delivering", "cancelled"],
+  assigned: ["shopping", "delivering", "cancelled"],
   delivering: ["delivered"],
   delivered: [],
   cancelled: [],

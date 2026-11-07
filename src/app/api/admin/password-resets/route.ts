@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
@@ -54,11 +55,60 @@ export async function POST(req: Request) {
     return NextResponse.json({ candidates });
   }
 
-  // ── Issue ─────────────────────────────────────────────────────────────────
   const userId = typeof body.user_id === "string" ? body.user_id.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const role = typeof body.role === "string" ? body.role : "customer";
+
+  // ── Issue ─────────────────────────────────────────────────────────────────
+  // A merchant without an auth user cannot receive a reset code (there is no
+  // user_id to set a password on). Provision the login on the spot — exactly
+  // what "Send a one-time login" means for a business like Asu Snacks. We
+  // create the auth user with a random placeholder, issue the reset code, and
+  // hand admin the link+code. The auth user's real password is set when it
+  // redeems the code at /api/password-reset.
+  if (!userId && email) {
+    const placeholder = `Gd!${randomBytes(9).toString("base64").replace(/[^A-Za-z0-9]/g, "").slice(0, 10)}A1#`;
+    try {
+      const { data: created, error: cErr } = await sb.auth.admin.createUser({
+        email,
+        password: placeholder,
+        email_confirm: true,
+        user_metadata: { name: name || "", role: "business", must_change_password: true },
+      });
+      if (cErr) {
+        return NextResponse.json({ error: "Could not create a login for this business: " + cErr.message }, { status: 400 });
+      }
+      const newId = created.user?.id;
+      if (!newId) return NextResponse.json({ error: "Could not create a login for this business." }, { status: 500 });
+      // Link the merchant to the new owner so the business dashboard resolves.
+      try {
+        await sb.from("merchants").update({ owner_id: newId }).eq("email", email.toLowerCase());
+      } catch {}
+      const issued = await issueResetCode(sb, {
+        user_id: newId,
+        email,
+        name: name || "",
+        role: "business",
+        issued_by: "admin",
+      });
+      if (!issued) return NextResponse.json({ error: "Could not issue the reset code. Try again." }, { status: 500 });
+      return NextResponse.json({
+        ok: true,
+        code: issued.code,
+        id: issued.record.id,
+        email: issued.record.email,
+        name: issued.record.name,
+        role: issued.record.role,
+        expires_at: issued.record.expires_at,
+        provisioned: true,
+        user_id: newId,
+      });
+    } catch (e: any) {
+      return NextResponse.json({ error: e?.message || "Could not provision a login for this business." }, { status: 500 });
+    }
+  }
+
   if (!userId || !email) {
     return NextResponse.json({ error: "Pick a person to issue a reset code for." }, { status: 400 });
   }

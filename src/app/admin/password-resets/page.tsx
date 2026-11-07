@@ -70,9 +70,10 @@ export default function AdminPasswordResets() {
   // Issue modal
   const [issueOpen, setIssueOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [candidates, setCandidates] = useState<{ id: string; email: string; name: string; role: string; source: "rider" | "user" }[]>([]);
-  const [selected, setSelected] = useState<{ id: string; email: string; name: string; role: string } | null>(null);
+  const [candidates, setCandidates] = useState<{ id: string; email: string; name: string; role: string; source: "rider" | "user" | "merchant" }[]>([]);
+  const [selected, setSelected] = useState<{ id: string; email: string; name: string; role: string; source?: string } | null>(null);
   const [newCode, setNewCode] = useState("");
+  const [newCodeId, setNewCodeId] = useState("");
   const [copiedMsg, setCopiedMsg] = useState(false);
   const [issueError, setIssueError] = useState("");
 
@@ -114,6 +115,10 @@ export default function AdminPasswordResets() {
       const d = await res.json().catch(() => ({}));
       if (res.ok && d?.ok && d.code) {
         setNewCode(d.code);
+        // The code record id is what /reset-password?token= needs — NOT the
+        // user id. Sending selected.id (the user id) made the redeem call
+        // look up pwd_reset:<userId> which never exists.
+        setNewCodeId(typeof d.id === "string" ? d.id : selected.id);
         setIssueOpen(true);
       } else {
         setIssueError(d?.error || "Could not issue a reset code.");
@@ -126,9 +131,10 @@ export default function AdminPasswordResets() {
 
   const copyMessage = async () => {
     if (!newCode || !selected) return;
+    const tokenId = newCodeId || selected.id;
     const text =
-      `GoDoor — Reset your password${selected.name ? `\n\nHi ${selected.name},` : ""}\n\n` +
-      `Link to reset your password: ${window.location.origin}/reset-password?token=${selected.id}\n` +
+      `GoDoor — Set your password${selected.name ? `\n\nHi ${selected.name},` : ""}\n\n` +
+      `Link to set your password: ${window.location.origin}/reset-password?token=${tokenId}\n` +
       `One-time code: ${newCode}\n` +
       `This code expires in 24 hours and can only be used once.\n\n` +
       `If you did not request this, ignore this message.`;
@@ -152,8 +158,8 @@ export default function AdminPasswordResets() {
     <div className="pb-20 md:pb-0 animate-fade-in">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold">Password Resets</h1>
-          <p className="mt-0.5 text-sm text-muted">One-time codes. Each is valid for 24 hours and usable once.</p>
+          <h1 className="font-display text-2xl font-bold">Password Resets & One-Time Logins</h1>
+          <p className="mt-0.5 text-sm text-muted">One-time codes. Each is valid for 24 hours and usable once. Businesses without a login get one created automatically.</p>
         </div>
         <Link
           href="/admin/users"
@@ -294,6 +300,7 @@ export default function AdminPasswordResets() {
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-muted">
               The code can be issued for a rider, customer or business owner. Search by name or email.
+              Businesses without a login yet will have one created for them automatically.
             </p>
             <input
               autoFocus
@@ -306,11 +313,11 @@ export default function AdminPasswordResets() {
               {candidates.length === 0 && <li className="py-3 text-center text-xs text-dim">No matches. Try again or pick an existing user.</li>}
               {candidates.map((c) => (
                 <li
-                  key={c.id}
-                  onClick={() => setSelected({ id: c.id, email: c.email, name: c.name, role: c.role })}
-                  className={`cursor-pointer px-3 py-2.5 transition ${selected?.id === c.id ? "bg-go/15" : "hover:bg-surface-2"}`}
+                  key={c.id + c.email}
+                  onClick={() => setSelected({ id: c.id, email: c.email, name: c.name, role: c.role, source: c.source })}
+                  className={`cursor-pointer px-3 py-2.5 transition ${selected?.id === c.id && selected?.email === c.email ? "bg-go/15" : "hover:bg-surface-2"}`}
                 >
-                  <span className="block text-sm font-medium">{c.name}</span>
+                  <span className="block text-sm font-medium">{c.name}{c.source === "merchant" && !c.id ? " · (no login yet)" : ""}</span>
                   <span className="block text-[11px] text-dim">{c.role} · {c.email}</span>
                 </li>
               ))}
@@ -333,7 +340,7 @@ export default function AdminPasswordResets() {
             <p className="mt-2 text-[11px] text-muted">Copy the message the rider needs to send to themselves.</p>
             <div className="my-3 rounded-xl bg-surface-2 p-3 text-xs">
               <p className="mb-1 text-muted">Link</p>
-              <code className="break-all">{window.location.origin}/reset-password?token={selected?.id}</code>
+              <code className="break-all">{window.location.origin}/reset-password?token={newCodeId}</code>
               <p className="mt-2 mb-1 text-muted">One-time code</p>
               <p className="font-mono tracking-wider text-fg">{newCode}</p>
               <p className="mt-3 text-[11px] text-dim">Valid for 24 hours · once only</p>
