@@ -92,7 +92,17 @@ type CredRequest = {
   phone: string;
   vehicle?: string;
   area?: string;
+  role?: "rider" | "business";
+  businessName?: string;
 };
+
+/**
+ * Generic provisioner for BOTH riders and business owners.
+ *
+ * Returns a fresh one-time password (plaintext, once-only in the response),
+ * creates or finds the Supabase auth user by email, sets must_change_password,
+ * and links the domain row (riders.id / merchants.owner_id).
+ */
 
 /**
  * Canonicalise a free-text category from the partner form into a CATEGORIES id.
@@ -139,6 +149,11 @@ function canonicalCategory(raw: string): string {
  * to a new one-time password and set the must-change flag again. This means an
  * already-approved application (e.g. approved before credentials existed) can
  * be re-approved to issue credentials without jamming.
+ *
+ * role="business" variant: same login provisioning for a business owner, but
+ * the linked row is `merchants.owner_id` (no riders row). This closes the
+ * Asu Snacks gap — an approved business with no auth user can never sign in,
+ * and the reset system cannot issue a code for a user_id that does not exist.
  */
 async function issueRiderCredentials(
   sb: NonNullable<ReturnType<typeof getServiceClient>>,
@@ -146,6 +161,7 @@ async function issueRiderCredentials(
 ): Promise<{ email: string; password: string; userId: string }> {
   const email = req.email.toLowerCase().trim();
   const password = generateTempPassword();
+  const acctRole: "rider" | "business" = req.role === "business" ? "business" : "rider";
   const found = async () => {
     const { data } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
     return (data?.users || []).find((u) => String(u.email || "").toLowerCase() === email) || null;
@@ -159,7 +175,7 @@ async function issueRiderCredentials(
       email,
       password,
       email_confirm: true,
-      user_metadata: { name: req.contactName, role: "rider", must_change_password: true },
+      user_metadata: { name: req.contactName, role: acctRole, must_change_password: true },
     });
     if (error) {
       // A race could still land on "already registered" — resolve by email.
@@ -172,17 +188,33 @@ async function issueRiderCredentials(
     userId = user?.id || "";
   }
 
-  if (!userId) throw new Error("Could not provision a rider account");
+  if (!userId) throw new Error(acctRole === "business" ? "Could not provision a business account" : "Could not provision a rider account");
 
   // User exists → reset to a fresh one-time password (keeps role, forces change).
   const prevMeta = user?.user_metadata || {};
   const { error: updErr } = await sb.auth.admin.updateUserById(userId, {
     password,
-    user_metadata: { ...prevMeta, name: req.contactName, role: "rider", must_change_password: true },
+    user_metadata: { ...prevMeta, name: req.contactName, role: acctRole, must_change_password: true },
   });
   if (updErr) throw new Error(updErr.message);
 
-  // Ensure the riders row exists (don't clobber an existing rider's data).
+  if (acctRole === "business") {
+    // Business login: link the auth user as merchants.owner_id (no riders row).
+    // Idempotent: only claim an un-owned merchant, or re-claim the same owner.
+    try {
+      const bizName = clamp(req.businessName || "", 200);
+      if (bizName) {
+        const { data: m } = await sb.from("merchants").select("id, owner_id").ilike("name", bizName).limit(1);
+        const row = (m || [])[0] as { id: string; owner_id: string | null } | undefined;
+        if (row && (!row.owner_id || row.owner_id === userId)) {
+          await sb.from("merchants").update({ owner_id: userId }).eq("id", row.id);
+        }
+      }
+    } catch {}
+    return { email, password, userId };
+  }
+
+  // Rider: ensure the riders row exists (don't clobber an existing rider's data).
   const { data: row } = await sb.from("riders").select("id").eq("id", userId).maybeSingle();
   if (!row) {
     await sb.from("riders").insert({
@@ -340,6 +372,114 @@ export async function GET() {
   return NextResponse.json({ requests: data || [] });
 }
 
+/**
+ * Admin → issue (or re-issue) the onboarding password-setup link for an
+ * ALREADY approved application whose user was never asked for a password.
+ * This is separate from POST /api/admin/password-resets, which is the
+ * forgotten-password flow: here the user has NO password yet, and the
+ * purpose="onboarding" code lands them on /setup-login where they also
+ * send documents (either licence OR owner ID for businesses).
+ */
+export async function PUT(req: NextRequest) {
+  const jar = await cookies();
+  const token = jar.get(ADMIN_COOKIE)?.value || "";
+  if (!(await verifySession(token))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const sb = getServiceClient();
+  if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
+
+  const body = await req.json().catch(() => ({}));
+  const id = String(body.application_id || body.id || "");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json({ error: "Invalid application id" }, { status: 400 });
+  }
+
+  await ensureTable(sb);
+  const { data: application } = await sb.from("partner_requests").select("*").eq("id", id).maybeSingle();
+  if (!application) return NextResponse.json({ error: "Application not found" }, { status: 404 });
+  if (application.status !== "approved") {
+    return NextResponse.json({ error: "Only approved applications can receive a setup link." }, { status: 400 });
+  }
+  if (!isEmail(String(application.email || ""))) {
+    return NextResponse.json({ error: "This application has no valid email to link a login to." }, { status: 400 });
+  }
+
+  try {
+    const email = String(application.email).toLowerCase().trim();
+    const acctRole = application.role === "business" ? "business" : "rider";
+    const { data: users } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    let user = (users?.users || []).find((u: any) => String(u.email || "").toLowerCase() === email) || null;
+    let userId = user?.id || "";
+    if (!user) {
+      const placeholder = `Gd!${randomBytes(9).toString("base64").replace(/[^A-Za-z0-9]/g, "").slice(0, 10)}A1#`;
+      const { data: created, error: cErr } = await sb.auth.admin.createUser({
+        email,
+        password: placeholder,
+        email_confirm: true,
+        user_metadata: {
+          name: clamp(application.contact_name, 120) || clamp(application.business_name, 200),
+          role: acctRole,
+          must_change_password: true,
+        },
+      });
+      if (cErr) throw new Error(cErr.message);
+      user = created.user || null;
+      userId = user?.id || "";
+    }
+    if (!userId) throw new Error("Could not provision the login account");
+
+    // Re-link domain row (idempotent)
+    if (acctRole === "rider") {
+      const { data: row } = await sb.from("riders").select("id").eq("id", userId).maybeSingle();
+      if (!row) {
+        await sb.from("riders").insert({
+          id: userId, name: clamp(application.contact_name, 120), email,
+          phone: clamp(application.phone, 40),
+          vehicle_type: clamp(application.category, 80) || "motorbike",
+          plate: "", service_area: clamp(application.area, 160) || "Uganda",
+          lat: 0, lng: 0, status: "offline", verified: false, total_deliveries: 0, rating: 4.5,
+        });
+      }
+    } else {
+      try {
+        const bizName = clamp(application.business_name, 200);
+        if (bizName) {
+          const { data: m } = await sb.from("merchants").select("id, owner_id").ilike("name", bizName).limit(1);
+          const row = (m || [])[0] as { id: string; owner_id: string | null } | undefined;
+          if (row && (!row.owner_id || row.owner_id === userId)) {
+            await sb.from("merchants").update({ owner_id: userId }).eq("id", row.id);
+          }
+        }
+      } catch {}
+    }
+
+    const { issueResetCode } = await import("@/lib/password-reset-server");
+    const issued = await issueResetCode(sb, {
+      user_id: userId,
+      email,
+      name: clamp(application.contact_name, 120) || clamp(application.business_name, 200),
+      role: acctRole,
+      issued_by: "admin",
+      purpose: "onboarding",
+      application_id: id,
+    });
+    if (!issued) return NextResponse.json({ error: "Could not issue the onboarding setup code." }, { status: 500 });
+    await sb.from("partner_requests").update({ credentials_issued: true }).eq("id", id);
+    return NextResponse.json({
+      ok: true,
+      onboarding_link: {
+        url: `https://godoor.site/setup-login?token=${issued.record.id}`,
+        code: issued.code,
+        id: issued.record.id,
+      },
+    });
+  } catch (e: any) {
+    console.error("[partner-request] onboarding link re-issue failed:", e?.message || e);
+    return NextResponse.json({ error: "Could not issue the setup link: " + (e?.message || "unknown error") }, { status: 500 });
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   const jar = await cookies();
   const token = jar.get(ADMIN_COOKIE)?.value || "";
@@ -376,26 +516,100 @@ export async function PATCH(req: NextRequest) {
   const { error } = await sb.from("partner_requests").update(patch).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Rider approval → create the login account + one-time password. The
-  // credentials are returned exactly once; credentials_issued guards re-runs.
+  // ── Onboarding password-setup link ────────────────────────────────────
+  // Purpose-tagged one-time code for an approved business/rider who was
+  // never asked for a password. The admin copies link+code and sends it by
+  // WhatsApp/SMS. The user opens /setup-login?token=<id>, sets their OWN
+  // password there, and then sends documents — no email round-trip needed.
+  //
+  // This is the real onboarding-credentials path. The old
+  // issueRiderCredentials() one-time password meant the helper had to tell
+  // the user the password; the link means the user chooses it, so it never
+  // travels in the clear.
+  let onboardingLink: { url: string; code: string; id: string } | null = null;
   let riderCreds: { email: string; password: string } | null = null;
   let merchantCreated: { id: string } | null = null;
-  if (patch.status === "approved" && application?.role === "rider") {
+  if (patch.status === "approved" && (application?.role === "rider" || application?.role === "business")) {
     if (!application?.credentials_issued && isEmail(String(application.email || ""))) {
       try {
-        const creds = await issueRiderCredentials(sb, {
-          contactName: clamp(application.contact_name, 120),
-          email: String(application.email),
-          phone: clamp(application.phone, 40),
-          vehicle: clamp(application.category, 80),
-          area: clamp(application.area, 160),
+        // Provision the auth user with a random placeholder (the user
+        // replaces it via the setup link). If the user already exists we
+        // keep them — we never overwrite a real password here; the link
+        // is how they set their own.
+        const email = String(application.email).toLowerCase().trim();
+        const acctRole = application.role === "business" ? "business" : "rider";
+        const { data: users } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        let user = (users?.users || []).find((u: any) => String(u.email || "").toLowerCase() === email) || null;
+        let userId = user?.id || "";
+        if (!user) {
+          const placeholder = `Gd!${randomBytes(9).toString("base64").replace(/[^A-Za-z0-9]/g, "").slice(0, 10)}A1#`;
+          const { data: created, error: cErr } = await sb.auth.admin.createUser({
+            email,
+            password: placeholder,
+            email_confirm: true,
+            user_metadata: {
+              name: clamp(application.contact_name, 120) || clamp(application.business_name, 200),
+              role: acctRole,
+              must_change_password: true,
+            },
+          });
+          if (cErr) throw new Error(cErr.message);
+          user = created.user || null;
+          userId = user?.id || "";
+        }
+        if (!userId) throw new Error("Could not provision the login account");
+
+        // Link the domain row (riders.id / merchants.owner_id) so the
+        // dashboard resolves on first sign-in.
+        if (acctRole === "rider") {
+          const { data: row } = await sb.from("riders").select("id").eq("id", userId).maybeSingle();
+          if (!row) {
+            await sb.from("riders").insert({
+              id: userId,
+              name: clamp(application.contact_name, 120),
+              email,
+              phone: clamp(application.phone, 40),
+              vehicle_type: clamp(application.category, 80) || "motorbike",
+              plate: "",
+              service_area: clamp(application.area, 160) || "Uganda",
+              lat: 0, lng: 0, status: "offline", verified: false,
+              total_deliveries: 0, rating: 4.5,
+            });
+          }
+        } else {
+          try {
+            const bizName = clamp(application.business_name, 200);
+            if (bizName) {
+              const { data: m } = await sb.from("merchants").select("id, owner_id").ilike("name", bizName).limit(1);
+              const row = (m || [])[0] as { id: string; owner_id: string | null } | undefined;
+              if (row && (!row.owner_id || row.owner_id === userId)) {
+                await sb.from("merchants").update({ owner_id: userId }).eq("id", row.id);
+              }
+            }
+          } catch {}
+        }
+
+        const { issueResetCode } = await import("@/lib/password-reset-server");
+        const issued = await issueResetCode(sb, {
+          user_id: userId,
+          email,
+          name: clamp(application.contact_name, 120) || clamp(application.business_name, 200),
+          role: acctRole,
+          issued_by: "admin",
+          purpose: "onboarding",
+          application_id: id,
         });
+        if (!issued) throw new Error("Could not issue the onboarding setup code");
+        onboardingLink = {
+          url: `https://godoor.site/setup-login?token=${issued.record.id}`,
+          code: issued.code,
+          id: issued.record.id,
+        };
         await sb.from("partner_requests").update({ credentials_issued: true }).eq("id", id);
-        riderCreds = { email: creds.email, password: creds.password };
       } catch (e: any) {
-        console.error("[partner-request] credential issuance failed:", e?.message || e);
+        console.error("[partner-request] onboarding credential issuance failed:", e?.message || e);
         return NextResponse.json(
-          { ok: true, error: "Application approved but provisioning failed. Try Approve again: " + (e?.message || "unknown error") },
+          { ok: true, error: "Application approved but onboarding link failed. Try Approve again: " + (e?.message || "unknown error") },
           { status: 500 },
         );
       }
@@ -461,10 +675,22 @@ export async function PATCH(req: NextRequest) {
     } catch (e: any) {
       console.error("[partner-request] business provisioning failed:", e?.message || e);
     }
+
   }
 
+  if (onboardingLink) {
+    return NextResponse.json({
+      ok: true,
+      onboarding_link: onboardingLink,
+      ...(merchantCreated ? { merchant_id: merchantCreated.id } : {}),
+    });
+  }
   if (riderCreds) {
-    return NextResponse.json({ ok: true, credentials: riderCreds });
+    return NextResponse.json({
+      ok: true,
+      credentials: riderCreds,
+      ...(merchantCreated ? { merchant_id: merchantCreated.id } : {}),
+    });
   }
   if (merchantCreated) {
     return NextResponse.json({ ok: true, merchant_id: merchantCreated.id });

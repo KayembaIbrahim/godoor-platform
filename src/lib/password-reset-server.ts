@@ -94,6 +94,13 @@ export type ResetCodeRecord = {
   used_at: string | null;
   revoked_at: string | null;
   issued_by: string;
+  /** Why this code exists: "reset" (forgot password) | "onboarding" (first-time
+   *  login for an approved business/rider who was never asked for a password). */
+  purpose: "reset" | "onboarding";
+  /** For onboarding codes: the approved application id it was issued for, and
+   *  whether the user has already uploaded at least one verification document. */
+  application_id: string | null;
+  documents_uploaded: boolean;
 };
 
 export type IssuedResetCode = {
@@ -115,6 +122,9 @@ export type ResetCodeListItem = {
   used_at: string | null;
   revoked_at: string | null;
   issued_by: string;
+  purpose?: "reset" | "onboarding";
+  application_id: string | null;
+  documents_uploaded?: boolean;
 };
 
 function hashCode(code: string, salt: string): string {
@@ -194,6 +204,9 @@ async function readRecord(sb: SupabaseClient, id: string): Promise<ResetCodeReco
       used_at: parsed.used_at || null,
       revoked_at: parsed.revoked_at || null,
       issued_by: parsed.issued_by || "admin",
+      purpose: parsed.purpose === "onboarding" ? "onboarding" : "reset",
+      application_id: parsed.application_id || null,
+      documents_uploaded: parsed.documents_uploaded === true,
     };
   } catch {
     return null;
@@ -220,6 +233,9 @@ export type IssueInput = {
   role: string;
   issued_by?: string;
   ttl_hours?: number;
+  /** "reset" = password reset | "onboarding" = first-time password setup link */
+  purpose?: "reset" | "onboarding";
+  application_id?: string | null;
 };
 
 /**
@@ -233,8 +249,14 @@ export type IssueInput = {
 export async function issueResetCode(sb: SupabaseClient, input: IssueInput): Promise<IssuedResetCode | null> {
   if (!input.user_id || !input.email) return null;
 
+  const purpose = input.purpose === "onboarding" ? "onboarding" : "reset";
   const existing = await listResetCodes(sb);
-  const mine = existing.filter((r) => r.user_id === input.user_id && r.status === "active");
+  // Only supersede codes of the same purpose — an onboarding link must not
+  // silently kill a password-reset code (and vice versa).
+  const mine = existing.filter(
+    (r) => r.user_id === input.user_id && r.status === "active" &&
+      (r.purpose === "onboarding" ? "onboarding" : "reset") === purpose,
+  );
   for (const old of mine) {
     await sb.from("app_settings").delete().eq("key", settingsKey(old.id)).then(() => {}, () => {});
   }
@@ -256,6 +278,9 @@ export async function issueResetCode(sb: SupabaseClient, input: IssueInput): Pro
     used_at: null,
     revoked_at: null,
     issued_by: input.issued_by || "admin",
+    purpose,
+    application_id: input.application_id || null,
+    documents_uploaded: false,
   };
   if (!(await writeRecord(sb, rec))) return null;
   return { record: rec, code };
@@ -266,6 +291,21 @@ export function statusOf(rec: ResetCodeRecord): ResetCodeStatus {
   if (rec.revoked_at) return "revoked";
   if (new Date(rec.expires_at).getTime() <= Date.now()) return "expired";
   return "active";
+}
+
+/**
+ * Marks an onboarding code as having had at least one document uploaded by
+ * the user. The code record already exists (issued by admin) — this just
+ * flips the flag so the admin can see the user "sent documents to us".
+ * Best-effort: never throws.
+ */
+export async function markOnboardingDocumentsUploaded(sb: SupabaseClient, codeId: string): Promise<void> {
+  try {
+    const rec = await readRecord(sb, codeId);
+    if (!rec || rec.used_at) return;
+    rec.documents_uploaded = true;
+    await writeRecord(sb, rec);
+  } catch {}
 }
 
 /**
@@ -305,6 +345,9 @@ export async function listResetCodes(sb: SupabaseClient): Promise<ResetCodeListI
         used_at: parsed.used_at || null,
         revoked_at: parsed.revoked_at || null,
         issued_by: parsed.issued_by || "admin",
+        purpose: parsed.purpose === "onboarding" ? "onboarding" : "reset",
+        application_id: parsed.application_id || null,
+        documents_uploaded: parsed.documents_uploaded === true,
       };
       out.push({
         id: rec.id,
@@ -319,6 +362,9 @@ export async function listResetCodes(sb: SupabaseClient): Promise<ResetCodeListI
         used_at: rec.used_at,
         revoked_at: rec.revoked_at,
         issued_by: rec.issued_by,
+        purpose: rec.purpose === "onboarding" ? "onboarding" : "reset",
+        application_id: rec.application_id ?? null,
+        documents_uploaded: rec.documents_uploaded === true,
       });
     }
     out.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
@@ -579,11 +625,11 @@ export async function markRequestUsed(sb: SupabaseClient, ticketId: string): Pro
  * the auth user list do not contain the same people.
  */
 export async function findResetCandidates(sb: SupabaseClient, query: string): Promise<
-  { id: string; email: string; name: string; role: string; source: "rider" | "user" }[]
+  { id: string; email: string; name: string; role: string; source: "rider" | "user" | "merchant" }[]
 > {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  const out: { id: string; email: string; name: string; role: string; source: "rider" | "user" }[] = [];
+  const out: { id: string; email: string; name: string; role: string; source: "rider" | "user" | "merchant" }[] = [];
   const seen = new Set<string>();
 
   try {
@@ -614,5 +660,50 @@ export async function findResetCandidates(sb: SupabaseClient, query: string): Pr
     }
   } catch {}
 
+  // Merchants (businesses) — an approved business whose owner never got an
+  // auth account (the Asu Snacks case) must still be findable so admin can
+  // provision the login / issue a reset flow for it.
+  try {
+    const { data } = await sb
+      .from("merchants")
+      .select("id, name, email, owner_id")
+      .or(`name.ilike.%${q}%,email.ilike.%${q}%`)
+      .limit(25);
+    for (const m of (data || []) as { id: string; name: string; email: string; owner_id: string | null }[]) {
+      const ownerId = m.owner_id || m.id;
+      // The merchant id is the Supabase auth id only when owner_id is set;
+      // otherwise mark it so the admin knows provisioning is needed.
+      const key = ownerId;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        id: m.owner_id || "",
+        email: m.email || "",
+        name: m.name || "",
+        role: "business",
+        source: "merchant",
+      });
+    }
+  } catch {}
+
   return out;
+}
+
+/**
+ * Totally unauthenticated lookup by email for the public "I have no password
+ * yet" flow. A business that was onboarded without a password can type its
+ * email here and request a one-time login link (same code flow) without
+ * needing a password — admin sees the request and issues the code.
+ *
+ * Only matches auth users; unknown emails create a request ticket only.
+ */
+export async function findUserByEmail(sb: SupabaseClient, email: string) {
+  const e = email.trim().toLowerCase();
+  if (!e) return null;
+  try {
+    const { data } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    return (data?.users || []).find((u) => String(u.email || "").toLowerCase() === e) || null;
+  } catch {
+    return null;
+  }
 }

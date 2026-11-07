@@ -48,8 +48,10 @@ export default function VerificationPage() {
       ]
     : [
         { type: "shop_photo", label: "Shop location photo", desc: "A clear photo of your shop/storefront", required: true },
-        { type: "trade_licence", label: "Trade Licence", desc: "Town/City council trade licence", required: true },
-        { type: "national_id", label: "National ID", desc: "Government-issued national ID", required: true },
+        // Either-or for businesses: licence OR owner national ID.
+        // Some businesses have certificates, some don't — we support both.
+        { type: "trade_licence", label: "Business licence / city certificate", desc: "Town/city council trade licence or business certificate — send this if your business has one", required: false },
+        { type: "national_id", label: "Business owner national ID", desc: "Government-issued national ID of the owner — send this instead of or in addition to the licence. Either one is accepted", required: false },
       ];
 
   const STATUS_UI = {

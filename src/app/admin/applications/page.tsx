@@ -19,7 +19,10 @@ type Request = {
   status: "new" | "contacted" | "approved" | "rejected";
   admin_note: string | null;
   created_at: string;
+  credentials_issued?: boolean;
 };
+
+type OnboardingLink = { url: string; code: string; id: string };
 
 const STATUS_STYLES: Record<string, string> = {
   new: "bg-warning/15 text-amber-600",
@@ -65,6 +68,8 @@ export default function AdminApplicationsPage() {
   const [copied, setCopied] = useState<string | null>(null);
   // One-time rider credentials returned by Approve — shown exactly once.
   const [creds, setCreds] = useState<Record<string, { email: string; password: string }>>({});
+  // Onboarding password-setup links (approve + re-issue) — shown once.
+  const [links, setLinks] = useState<Record<string, OnboardingLink>>({});
   const [issueError, setIssueError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -87,7 +92,11 @@ export default function AdminApplicationsPage() {
         body: JSON.stringify({ id, status, admin_note: notes[id] || "" }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data?.credentials) {
+      if (data?.onboarding_link) {
+        // Onboarding setup link — the copyable link+code for the user.
+        // This is the onboarding password link, not a password reset.
+        setLinks((prev) => ({ ...prev, [id]: data.onboarding_link }));
+      } else if (data?.credentials) {
         // One-time credentials for a freshly approved rider — show once.
         setCreds((prev) => ({ ...prev, [id]: data.credentials }));
       } else if (!res.ok && data?.error) {
@@ -117,6 +126,41 @@ export default function AdminApplicationsPage() {
       setCopied(r.id);
       setTimeout(() => setCopied(null), 2000);
     } catch {}
+  };
+
+  const copyLink = async (r: Request) => {
+    try {
+      const l = links[r.id];
+      if (!l) return;
+      const who = r.role === "business" ? `${r.business_name} (${r.contact_name})` : r.contact_name;
+      await navigator.clipboard.writeText(
+        `GoDoor — set up your login password\n\nHello ${who},\nGoDoor has approved you. Set up your own login password using link + one-time code:\n\nLink: ${l.url}\nCode: ${l.code}\n\nAfter setting your password, send us your documents: business licence OR owner national ID (either is accepted — some businesses have certificates, some don't; we support both). For riders: vehicle photo + national ID.\n\nThe link and code expire in 24 hours and work once.`,
+      );
+      setCopied(r.id);
+      setTimeout(() => setCopied(null), 2000);
+    } catch {}
+  };
+
+  const reissueLink = async (r: Request) => {
+    setBusyId(r.id);
+    setIssueError(null);
+    try {
+      const res = await fetch("/api/partner-request", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: r.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.onboarding_link) {
+        setLinks((prev) => ({ ...prev, [r.id]: data.onboarding_link }));
+      } else if (!res.ok && data?.error) {
+        setIssueError(data.error);
+      }
+    } catch {
+      setIssueError("Could not reach the server. Try again.");
+    }
+    await load();
+    setBusyId(null);
   };
 
   const filtered = tab === "all" ? items : items.filter((r) => r.status === tab);
@@ -219,14 +263,46 @@ export default function AdminApplicationsPage() {
                 <button type="button" disabled={busyId === r.id}
                   onClick={() => setStatus(r.id, "approved")}
                   className="shrink-0 rounded-xl bg-go/15 px-3 py-2 text-xs font-semibold text-go transition hover:bg-go/25 disabled:opacity-50">
-                  {r.role === "rider" && !creds[r.id] ? "Approve + create login" : "Approve"}
+                  {r.role === "rider" && !links[r.id] && !creds[r.id] ? "Approve + onboarding link" : "Approve"}
                 </button>
                 <button type="button" disabled={busyId === r.id}
                   onClick={() => setStatus(r.id, "rejected")}
                   className="shrink-0 rounded-xl bg-danger/15 px-3 py-2 text-xs font-semibold text-danger transition hover:bg-danger/25 disabled:opacity-50">
                   Decline
                 </button>
+                {r.status === "approved" && (
+                  <button type="button" disabled={busyId === r.id}
+                    onClick={() => reissueLink(r)}
+                    className="shrink-0 rounded-xl bg-primary/15 px-3 py-2 text-xs font-semibold text-primary transition hover:bg-primary/25 disabled:opacity-50">
+                    {busyId === r.id ? "Sending…" : "Send onboarding link"}
+                  </button>
+                )}
               </div>
+
+              {/* Onboarding password-setup link — shown once after Approve or re-issue */}
+              {links[r.id] && (
+                <div className="mt-3 rounded-2xl border border-go/30 bg-go/10 p-3.5">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-4 w-4 text-go" />
+                    <p className="text-xs font-bold text-fg">Onboarding link ready — send this to {isBusiness ? r.business_name : r.contact_name}</p>
+                  </div>
+                  <div className="mt-2 space-y-1 rounded-xl bg-bg p-3 text-xs">
+                    <p className="break-all text-muted">Link: <span className="font-mono text-fg">{links[r.id].url}</span></p>
+                    <p className="text-muted">One-time code: <span className="font-mono font-bold text-fg">{links[r.id].code}</span></p>
+                    <p className="text-muted">Email: <span className="font-semibold text-fg">{r.email}</span></p>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <button type="button" onClick={() => copyLink(r)}
+                      className="flex items-center gap-1.5 rounded-lg bg-go px-3 py-1.5 text-[10px] font-semibold text-white transition hover:bg-go-2">
+                      {copied === r.id ? <Check className="h-3 w-3" /> : <ClipboardCopy className="h-3 w-3" />}
+                      {copied === r.id ? "Copied" : "Copy link + code"}
+                    </button>
+                    <p className="text-[10px] text-dim flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" /> This is the ONBOARDING setup link (not password reset). User sets their own password, then sends documents (either licence OR owner ID). Expires in 24h, shown once.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Rider login credentials — one-time, shown only right after Approve */}
               {!isBusiness && creds[r.id] && (
