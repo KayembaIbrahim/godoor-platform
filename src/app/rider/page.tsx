@@ -1,7 +1,7 @@
 "use client";
 import { RiderNav } from "@/components/RiderNav";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -1739,5 +1739,13 @@ export default function RiderDashboard() {
       </>)}
       <RiderNav />
     </div>
+  );
+}
+
+export default function RiderPage() {
+  return (
+    <Suspense fallback={null}>
+      <RiderDashboard />
+    </Suspense>
   );
 }
