@@ -1,6 +1,7 @@
 "use client";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { fireAlert } from "@/lib/loud-alert";
 
 export type Notification = {
   id: string;
@@ -66,16 +67,16 @@ export const useNotifications = create<NotificationsState>()(
           createdAt: Date.now(),
         };
         set((s) => ({ items: [item, ...s.items].slice(0, 50) }));
-        // Fire a native browser notification when the tab is in the background so
-        // merchants/riders still hear about orders while working elsewhere.
+        // Loud ringtone alert — rings even when the tab is backgrounded or the
+        // user is away from the site. Uses the loud-alert module so riders and
+        // businesses hear about orders anywhere, not just in the app.
         try {
-          if (
-            typeof window !== "undefined" &&
-            "Notification" in window &&
-            Notification.permission === "granted" &&
-            document.visibilityState === "hidden"
-          ) {
-            new Notification(item.title.replace(/_/g, " "), { body: item.body, icon: DOOR_ICON });
+          if (typeof window !== "undefined") {
+            fireAlert({
+              title: item.title.replace(/_/g, " "),
+              body: item.body,
+              tag: `godoor-${item.id}`,
+            });
           }
         } catch {
           // Native notifications unavailable — bell covers it.

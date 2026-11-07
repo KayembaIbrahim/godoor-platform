@@ -33,10 +33,14 @@ function itemCount(s: string): number {
 
 function vehicleIcon(type?: string | null) {
   const t = (type || "motorbike").toLowerCase();
-  if (t.includes("car") || t.includes("suv")) return Car;
-  // Default: map pin, NOT motorcycle silhouette — the map tab shows a
-  // location pin even when the rider is on a motorbike.
-  return MapPin;
+  // Logical vehicle icons: motorcycle for boda/motorbike, car for car/suv,
+  // truck/van for van/truck. The map marker itself draws the SVG silhouette
+  // in vehicle-marks.ts; this is the small UI icon beside the rider name.
+  if (t.includes("truck") || t.includes("van") || t.includes("lorry")) return Truck;
+  if (t.includes("car") || t.includes("suv") || t.includes("taxi") || t.includes("jeep") || t.includes("saloon")) return Car;
+  if (t.includes("bicycle") || t.includes("cycle")) return Bike;
+  if (t.includes("walk") || t.includes("foot")) return MapPin;
+  return Bike;
 }
 
 // ── Delivery Rating ────────────────────────────────────────────

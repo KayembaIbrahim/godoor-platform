@@ -1062,7 +1062,7 @@ export default function RiderDashboard() {
 
         {/* Mode switch — Deliveries vs Boda vs GoMart */}
         <div className="mt-3 grid grid-cols-3 gap-1 rounded-2xl bg-bg p-1">
-          <button type="button" onClick={() => setMode("deliveries")}
+          <button type="button" onClick={() => { setMode("deliveries"); setTab("available"); }}
             className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "deliveries" ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
             <Package className="h-3.5 w-3.5" /> Deliveries
           </button>
@@ -1070,7 +1070,7 @@ export default function RiderDashboard() {
             className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "boda" ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
             <Bike className="h-3.5 w-3.5" /> Boda
           </button>
-          <button type="button" onClick={() => setMode("gomart")}
+          <button type="button" onClick={() => { setMode("gomart"); setTab("gomart"); }}
             className={`relative flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "gomart" ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
             <ShoppingBasket className="h-3.5 w-3.5" /> GoMart
             {gomartOpenCount > 0 && (
@@ -1128,7 +1128,7 @@ export default function RiderDashboard() {
             { id: "stores" as const, label: "Stores", count: affiliations.invites.length },
             { id: "profile" as const, label: "Profile", count: 0 },
           ]).map((t) => (
-            <button key={t.id} type="button" onClick={() => setTab(t.id)}
+            <button key={t.id} type="button" onClick={() => { if (t.id === "gomart") { setMode("gomart"); setTab("gomart"); } else { setTab(t.id); } }}
               className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-medium transition ${tab === t.id ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
               {t.label}
               {t.count > 0 && <span className="num ml-0.5 h-4 min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold text-white text-center">{t.count}</span>}
@@ -1531,6 +1531,11 @@ export default function RiderDashboard() {
             ))
           )}
         </div>
+      )}
+
+      {/* GoMart tab — render the RiderGoMartPanel when tab is gomart within deliveries mode */}
+      {tab === "gomart" && (
+        <RiderGoMartPanel onNewOpen={setGomartOpenCount} />
       )}
 
       {/* Stores */}

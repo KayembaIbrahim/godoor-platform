@@ -67,8 +67,9 @@ export function vehicleKind(type?: string | null): VehicleKind {
   if (/\b(foot|feet|walk|walker|walking|pedestrian|runner)\b/.test(t)) return "walking";
 
   /* Vans and lorries. "van" also appears in "vanguard"/"advantage", so the
-     word boundary is load-bearing here. */
-  if (/\b(van|vans|truck|trucks|pickup|pick-up|lorry|trailer|baggage|cargo)\b/.test(t)) return "van";
+     word boundary is load-bearing here. Truck / lorry / cargo get their own
+     van silhouette (the only boxy commercial-vehicle shape). */
+  if (/\b(van|vans|truck|trucks|pickup|pick-up|lorry|lorrys|trailer|baggage|cargo|cargotruck)\b/.test(t)) return "van";
 
   /* Cars. "car" appears in "cargo" (handled above) and "caravan", hence the
      boundary. */

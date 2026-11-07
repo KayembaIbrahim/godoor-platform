@@ -399,10 +399,12 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
   let shape: "teardrop" | "storefront" = "teardrop";
 
   if (isPickup) {
+    // Shop / pickup pin: GoDoor logo (the door mark), NOT a shopping-bag icon —
+    // the user wants the GoDoor logo marking each shop on the map.
     size = 47;
     light = "#F97316"; dark = "#EA580C";
-    icon = bagMark();
-    shape = "storefront";
+    icon = doorMark();
+    shape = "teardrop";
   } else if (isDest) {
     size = 48;
     light = "#22c55e"; dark = "#16a34a";
