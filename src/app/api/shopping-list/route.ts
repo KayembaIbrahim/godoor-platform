@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
     notes?: string;
     items?: unknown;
     needsExtraStop?: boolean;
+    budgetMaxUgx?: number | null;
   };
   try {
     body = await req.json();
@@ -94,6 +95,10 @@ export async function POST(req: NextRequest) {
     notes: typeof body.notes === "string" ? body.notes : null,
     rawItems: body.items,
     needsExtraStop: Boolean((body as { needsExtraStop?: unknown }).needsExtraStop),
+    budgetMaxUgx:
+      typeof body.budgetMaxUgx === "number" && Number.isFinite(body.budgetMaxUgx)
+        ? body.budgetMaxUgx
+        : null,
   });
 
   if (!result.ok) {

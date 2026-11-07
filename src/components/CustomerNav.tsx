@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, LayoutGrid, ShoppingBag, Wallet, User } from "lucide-react";
+import { Home, LayoutGrid, ShoppingBag, ShoppingBasket, Wallet, User } from "lucide-react";
 import { useActiveOrder } from "@/lib/use-active-order";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +38,7 @@ const slabTabs = [
 ];
 
 const floatTabs = [
+  { href: "/shopping-list/mart", label: "GoMart", icon: ShoppingBasket },
   { href: "/wallet", label: "Wallet", icon: Wallet },
   { href: "/account", label: "Account", icon: User },
 ];

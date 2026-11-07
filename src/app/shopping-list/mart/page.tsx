@@ -63,11 +63,14 @@ type ListRow = {
   merchandise_ugx: number;
   delivery_fee_ugx: number;
   total_ugx: number;
+  budget_max_ugx?: number | null;
+  actual_merchandise_ugx?: number | null;
+  extra_funded_ugx?: number | null;
   created_at: string;
   updated_at: string;
 };
 
-type DraftItem = { key: string; name: string; quantity: number };
+type DraftItem = { key: string; name: string; quantity: number; unitPriceUgx: number | null };
 
 export default function GoMartShoppingListPage() {
   const [lists, setLists] = useState<ListRow[]>([]);
@@ -75,6 +78,10 @@ export default function GoMartShoppingListPage() {
 
   const [draft, setDraft] = useState<DraftItem[]>([]);
   const [itemName, setItemName] = useState("");
+  const [budgetMax, setBudgetMax] = useState("");
+  const [topupAmount, setTopupAmount] = useState("");
+  const [chatText, setChatText] = useState("");
+  const [messages, setMessages] = useState<Array<{ id: string; sender_name: string; sender_role: string; text: string; kind: string; amount_ugx?: number | null; created_at: string }>>([]);
   const [extraStop, setExtraStop] = useState(false);
   const [notes, setNotes] = useState("");
 
@@ -85,7 +92,35 @@ export default function GoMartShoppingListPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+    // Poll active list detail every 5s for rider chat + extra-fund updates.
+    const id = window.setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const resList = await fetch("/api/shopping-list", {
+          cache: "no-store",
+          headers: await apiAuthHeaders(false),
+        });
+        if (resList.ok) {
+          const data = (await resList.json()) as { shoppingLists?: ListRow[] };
+          setLists(data.shoppingLists ?? []);
+        }
+        if (activeId) {
+          const res = await fetch(`/api/shopping-list/${encodeURIComponent(activeId)}`, {
+            cache: "no-store",
+            headers: await apiAuthHeaders(false),
+          });
+          if (res.ok) {
+            const d = (await res.json()) as { shoppingList?: ListRow; messages?: typeof messages };
+            if (d.shoppingList) {
+              setLists((l) => l.map((r) => (r.id === d.shoppingList!.id ? d.shoppingList! : r)));
+            }
+            if (d.messages) setMessages(d.messages as typeof messages);
+          }
+        }
+      } catch {}
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [activeId]);
 
   async function load() {
     try {
@@ -118,7 +153,7 @@ export default function GoMartShoppingListPage() {
       flash("err", `A list can hold at most ${SHOPPING_LIST_MAX_ITEMS} items.`);
       return;
     }
-    setDraft((d) => [...d, { key: `${Date.now()}-${d.length}-${Math.random().toString(36).slice(2, 6)}`, name, quantity: 1 }]);
+    setDraft((d) => [...d, { key: `${Date.now()}-${d.length}-${Math.random().toString(36).slice(2, 6)}`, name, quantity: 1, unitPriceUgx: null }]);
     setItemName("");
   }
 
@@ -146,6 +181,15 @@ export default function GoMartShoppingListPage() {
     setDraft((d) => d.filter((it) => it.key !== key));
   }
 
+  function changePrice(key: string, raw: string) {
+    const n = Number(raw.replace(/[^0-9]/g, ""));
+    setDraft((d) =>
+      d.map((it) =>
+        it.key === key ? { ...it, unitPriceUgx: raw === "" ? null : Number.isFinite(n) && n > 0 ? Math.trunc(n) : null } : it,
+      ),
+    );
+  }
+
   function splitAdd() {
     // Comma / newline separated paste → many items in one go. "2kg posho" stays
     // one item; the rider sees exactly what the customer typed.
@@ -165,6 +209,7 @@ export default function GoMartShoppingListPage() {
         key: `${Date.now()}-${d.length + i}-${Math.random().toString(36).slice(2, 6)}`,
         name,
         quantity: 1,
+        unitPriceUgx: null as number | null,
       })),
     ]);
     setItemName("");
@@ -173,8 +218,14 @@ export default function GoMartShoppingListPage() {
 
   const runnerFee = SHOPPING_LIST_RUNNER_FEE_UGX + (extraStop ? SHOPPING_LIST_EXTRA_STOP_SURCHARGE_UGX : 0);
   const riderShare = shoppingListRiderShare(runnerFee);
-  const merchandise = draft.reduce((s, it) => s + 0 * it.quantity, 0); // computed server-side after shopping
-  const draftTotal = runnerFee + merchandise;
+  // Estimated items cost from the customer's own per-item prices (optional).
+  // The rider may adjust the actual merchandise cost after shopping — the
+  // difference is settled via chat negotiation + escrow top-up.
+  const estimatedMerchandise = draft.reduce(
+    (s, it) => s + (it.unitPriceUgx ?? 0) * it.quantity,
+    0,
+  );
+  const draftTotal = runnerFee + estimatedMerchandise;
   const remaining = Math.max(0, SHOPPING_LIST_MIN_ITEMS - draft.length);
 
   async function submit() {
@@ -192,7 +243,12 @@ export default function GoMartShoppingListPage() {
           name: "GoMart shopping list",
           notes: notes.trim() || null,
           needsExtraStop: extraStop,
-          items: draft.map((it) => ({ name: it.name, quantity: it.quantity })),
+          budgetMaxUgx: budgetMax.trim() === "" ? null : Number(budgetMax.replace(/[^0-9]/g, "")) || null,
+          items: draft.map((it) => ({
+            name: it.name,
+            quantity: it.quantity,
+            unitPriceUgx: it.unitPriceUgx ?? null,
+          })),
         }),
       });
       if (!res.ok) throw new Error(await friendlyError(res));
@@ -204,6 +260,7 @@ export default function GoMartShoppingListPage() {
       setDraft([]);
       setExtraStop(false);
       setNotes("");
+      setBudgetMax("");
       flash("ok", "List sent to a nearby GoMart rider. You approve the final price before payment.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not submit the list");
@@ -346,11 +403,23 @@ export default function GoMartShoppingListPage() {
               {draft.map((it) => (
                 <li
                   key={it.key}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-surface-2 px-3 py-2.5"
+                  className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface-2 px-3 py-2.5"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-fg">{it.name}</p>
                     <p className="text-xs text-muted">GoMart runner shops this</p>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-bg px-2">
+                    <input
+                      value={it.unitPriceUgx == null ? "" : String(it.unitPriceUgx)}
+                      onChange={(e) => changePrice(it.key, e.target.value)}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="UGX est. price"
+                      aria-label={`Estimated price for ${it.name} (UGX)`}
+                      className="w-24 bg-transparent py-1.5 text-right text-xs tabular-nums text-fg placeholder:text-dim focus:outline-none"
+                    />
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-bg">
@@ -435,9 +504,10 @@ export default function GoMartShoppingListPage() {
                 <dd className="font-semibold tabular-nums text-success">{formatUgx(riderShare)} UGX</dd>
               </div>
               <div className="flex items-center justify-between">
-                <dt className="text-muted">Items cost</dt>
-                <dd className="text-xs text-muted">confirmed after shopping</dd>
+                <dt className="text-muted">Items cost (your estimate)</dt>
+                <dd className="font-semibold tabular-nums text-fg">{formatUgx(estimatedMerchandise)} UGX</dd>
               </div>
+              <p className="text-[11px] text-muted">Tap any item to put your estimated price. If the real cost is higher, the rider can chat and you approve the extra before paying.</p>
               <div className="flex items-center justify-between">
                 <dt className="text-muted">Delivery</dt>
                 <dd className="text-xs text-muted">quoted after shopping</dd>
@@ -484,6 +554,7 @@ export default function GoMartShoppingListPage() {
                   <span className="min-w-0 flex-1 truncate text-sm text-fg">{it.name}</span>
                   <span className="shrink-0 text-xs tabular-nums text-muted">
                     × {it.quantity}
+                    {it.unitPriceUgx ? ` · ~${formatUgx(it.unitPriceUgx)} UGX each` : ""}
                   </span>
                 </li>
               ))}
@@ -503,11 +574,36 @@ export default function GoMartShoppingListPage() {
                 </dd>
               </div>
               <div className="flex items-center justify-between">
-                <dt className="text-muted">Merchandise</dt>
+                <dt className="text-muted">Merchandise (estimate)</dt>
                 <dd className="font-semibold tabular-nums text-fg">
                   {formatUgx(active.merchandise_ugx)} UGX
                 </dd>
               </div>
+              {(active as { budget_max_ugx?: number | null }).budget_max_ugx != null && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted">Your max budget</dt>
+                  <dd className="font-semibold tabular-nums text-warning">
+                    {formatUgx((active as { budget_max_ugx?: number | null }).budget_max_ugx ?? 0)} UGX
+                  </dd>
+                </div>
+              )}
+              {(active as { actual_merchandise_ugx?: number | null }).actual_merchandise_ugx != null && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted">Rider actual cost</dt>
+                  <dd className="font-semibold tabular-nums text-fg">
+                    {formatUgx((active as { actual_merchandise_ugx?: number | null }).actual_merchandise_ugx ?? 0)} UGX
+                  </dd>
+                </div>
+              )}
+              {(active as { extra_funded_ugx?: number | null }).extra_funded_ugx != null &&
+                ((active as { extra_funded_ugx: number }).extra_funded_ugx ?? 0) > 0 && (
+                  <div className="flex items-center justify-between">
+                    <dt className="text-muted">Extra funds added</dt>
+                    <dd className="font-semibold tabular-nums text-success">
+                      {formatUgx((active as { extra_funded_ugx: number }).extra_funded_ugx)} UGX
+                    </dd>
+                  </div>
+                )}
               <div className="flex items-center justify-between">
                 <dt className="text-muted">Delivery</dt>
                 <dd className="font-semibold tabular-nums text-fg">
@@ -521,6 +617,126 @@ export default function GoMartShoppingListPage() {
                 </dd>
               </div>
             </dl>
+
+            {/* Negotiation: extra funds top-up */}
+            {["shopping", "awaiting_approval", "assigned", "submitted"].includes(active.status) && (
+              <div className="mt-3 rounded-xl border border-go/30 bg-go/5 p-3">
+                <p className="text-xs font-semibold text-fg">Need more funds?</p>
+                <p className="mt-0.5 text-[11px] text-muted">
+                  If the rider asks for extra after shopping, add it here. It debits your wallet instantly.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    value={topupAmount}
+                    onChange={(e) => setTopupAmount(e.target.value.replace(/[^0-9]/g, ""))}
+                    inputMode="numeric"
+                    placeholder="Amount (UGX)"
+                    aria-label="Extra funds amount in UGX"
+                    className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm tabular-nums"
+                  />
+                  <button
+                    type="button"
+                    disabled={busy || !topupAmount}
+                    onClick={async () => {
+                      const amt = Number(topupAmount);
+                      if (!amt || amt <= 0) return;
+                      setBusy(true);
+                      try {
+                        const res = await fetch("/api/shopping-list/topup", {
+                          method: "POST",
+                          headers: await apiAuthHeaders(true),
+                          body: JSON.stringify({ listId: active.id, amountUgx: amt }),
+                        });
+                        const json = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(json.error || "Top-up failed");
+                        setTopupAmount("");
+                        flash("ok", `Added ${formatUgx(amt)} UGX extra funds.`);
+                        await load();
+                      } catch (e) {
+                        flash("err", e instanceof Error ? e.message : "Top-up failed");
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    className="rounded-lg bg-go px-4 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                  >
+                    Add funds
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Rider / customer chat */}
+            <div className="mt-3 rounded-xl border border-border bg-surface p-3">
+              <p className="text-xs font-semibold text-fg">Chat with your rider</p>
+              <div className="mt-2 max-h-40 space-y-1.5 overflow-y-auto">
+                {messages.length === 0 ? (
+                  <p className="text-[11px] text-muted">No messages yet. Your rider can post the actual cost here.</p>
+                ) : (
+                  messages.map((m) => (
+                    <div key={m.id} className="text-xs">
+                      <span className="font-semibold text-fg">{m.sender_name}</span>
+                      <span className="ml-1 text-[10px] text-dim">{new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                      <p className="mt-0.5 text-muted">{m.text}</p>
+                      {m.amount_ugx != null && <p className="text-[11px] font-semibold text-go">{formatUgx(m.amount_ugx)} UGX</p>}
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={chatText}
+                  onChange={(e) => setChatText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    if (!chatText.trim() || !active) return;
+                    void (async () => {
+                      try {
+                        const res = await fetch("/api/shopping-list/messages", {
+                          method: "POST",
+                          headers: await apiAuthHeaders(true),
+                          body: JSON.stringify({ listId: active.id, text: chatText.trim(), kind: "chat" }),
+                        });
+                        if (!res.ok) throw new Error("Message failed");
+                        setChatText("");
+                        await load();
+                      } catch (e) {
+                        flash("err", e instanceof Error ? e.message : "Message failed");
+                      }
+                    })();
+                  }}
+                  placeholder="Type a message…"
+                  aria-label="Message your rider"
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={!chatText.trim() || busy}
+                  onClick={async () => {
+                    if (!chatText.trim() || !active) return;
+                    setBusy(true);
+                    try {
+                      const res = await fetch("/api/shopping-list/messages", {
+                        method: "POST",
+                        headers: await apiAuthHeaders(true),
+                        body: JSON.stringify({ listId: active.id, text: chatText.trim(), kind: "chat" }),
+                      });
+                      if (!res.ok) throw new Error("Message failed");
+                      setChatText("");
+                      await load();
+                    } catch (e) {
+                      flash("err", e instanceof Error ? e.message : "Message failed");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  className="rounded-lg bg-go px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
 
             {["submitted", "shopping", "awaiting_approval"].includes(active.status) && (
               <button

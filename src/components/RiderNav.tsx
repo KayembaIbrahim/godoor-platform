@@ -37,7 +37,7 @@ const slabTabs = [
 
 const floatTabs = [
   { href: "/rider/history", label: "History", icon: Clock },
-  { href: "/rider#gomart", label: "GoMart", icon: ShoppingBasket },
+  { href: "/rider?tab=gomart", label: "GoMart", icon: ShoppingBasket },
   { href: "/account", label: "Profile", icon: User },
 ];
 

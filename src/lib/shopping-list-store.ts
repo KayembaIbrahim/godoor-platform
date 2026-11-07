@@ -79,11 +79,30 @@ export type ShoppingListRow = {
   merchandise_ugx: number;
   delivery_fee_ugx: number;
   total_ugx: number;
+  /** Customer's max budget (UGX). null/0 = no cap. Rider actual cost above this needs customer approval + extra escrow top-up. */
+  budget_max_ugx?: number | null;
+  /** Actual merchandise cost posted by the rider after shopping. */
+  actual_merchandise_ugx?: number | null;
+  /** Extra amount the customer agreed to on top of the estimate (escrow top-up). */
+  extra_funded_ugx?: number | null;
   notes: string | null;
   merchant_id: string | null;
   rider_id: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/** Rider negotiation message in shopping_list_messages. */
+export type ShoppingListMessage = {
+  id: string;
+  shopping_list_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_role: string;
+  text: string;
+  kind: "chat" | "price_offer" | "extra_request" | "approval" | "fund_topup";
+  amount_ugx?: number | null;
+  created_at: string;
 };
 
 let SCHEMA_READY: Promise<void> | null = null;
@@ -130,15 +149,43 @@ export function ensureShoppingListSchema(sb: Sb): Promise<void> {
               created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
 
+            -- Rider ↔ customer negotiation chat (GoMart). Separate from
+            -- chat_messages (order-scoped) because a GoMart list has no order yet.
+            CREATE TABLE IF NOT EXISTS shopping_list_messages (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              shopping_list_id UUID NOT NULL REFERENCES shopping_lists(id) ON DELETE CASCADE,
+              sender_id UUID,
+              sender_name TEXT NOT NULL DEFAULT '',
+              sender_role TEXT NOT NULL DEFAULT 'customer',
+              text TEXT NOT NULL DEFAULT '',
+              kind TEXT NOT NULL DEFAULT 'chat' CHECK (kind IN ('chat','price_offer','extra_request','approval','fund_topup')),
+              amount_ugx INTEGER,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+
+            -- Budget + actual-cost columns for estimated-price negotiation.
+            DO $$ BEGIN
+              ALTER TABLE shopping_lists ADD COLUMN IF NOT EXISTS budget_max_ugx INTEGER;
+            EXCEPTION WHEN OTHERS THEN NULL; END $$;
+            DO $$ BEGIN
+              ALTER TABLE shopping_lists ADD COLUMN IF NOT EXISTS actual_merchandise_ugx INTEGER;
+            EXCEPTION WHEN OTHERS THEN NULL; END $$;
+            DO $$ BEGIN
+              ALTER TABLE shopping_lists ADD COLUMN IF NOT EXISTS extra_funded_ugx INTEGER NOT NULL DEFAULT 0;
+            EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
             CREATE INDEX IF NOT EXISTS idx_shopping_lists_customer
               ON shopping_lists(customer_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_shopping_lists_status
               ON shopping_lists(status, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_shopping_list_events_list
               ON shopping_list_events(shopping_list_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_shopping_list_messages_list
+              ON shopping_list_messages(shopping_list_id, created_at ASC);
 
             ALTER TABLE shopping_lists ENABLE ROW LEVEL SECURITY;
             ALTER TABLE shopping_list_events ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE shopping_list_messages ENABLE ROW LEVEL SECURITY;
 
             DO $$ BEGIN
               CREATE POLICY "Customers read own shopping lists" ON shopping_lists
@@ -159,6 +206,26 @@ export function ensureShoppingListSchema(sb: Sb): Promise<void> {
                   EXISTS (
                     SELECT 1 FROM shopping_lists sl
                     WHERE sl.id = shopping_list_events.shopping_list_id
+                      AND sl.customer_id = auth.uid()
+                  )
+                );
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+            DO $$ BEGIN
+              CREATE POLICY "Customers read own list messages" ON shopping_list_messages
+                FOR SELECT USING (
+                  EXISTS (
+                    SELECT 1 FROM shopping_lists sl
+                    WHERE sl.id = shopping_list_messages.shopping_list_id
+                      AND sl.customer_id = auth.uid()
+                  )
+                );
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+            DO $$ BEGIN
+              CREATE POLICY "Customers insert own list messages" ON shopping_list_messages
+                FOR INSERT WITH CHECK (
+                  EXISTS (
+                    SELECT 1 FROM shopping_lists sl
+                    WHERE sl.id = shopping_list_messages.shopping_list_id
                       AND sl.customer_id = auth.uid()
                   )
                 );
@@ -324,6 +391,8 @@ export type CreateListInput = {
   notes?: string | null;
   rawItems: unknown;
   needsExtraStop?: boolean;
+  /** Customer-declared max budget for items (UGX). null = uncapped. */
+  budgetMaxUgx?: number | null;
 };
 
 /**
@@ -367,6 +436,9 @@ export async function createList(
     merchandise_ugx: validation.merchandiseUgx,
     delivery_fee_ugx: 0,
     total_ugx: validation.shoppingFeeUgx + validation.merchandiseUgx,
+    budget_max_ugx: input.budgetMaxUgx != null && input.budgetMaxUgx > 0 ? Math.trunc(input.budgetMaxUgx) : null,
+    actual_merchandise_ugx: null,
+    extra_funded_ugx: 0,
     notes: input.notes ? String(input.notes).slice(0, 500) : null,
     merchant_id: null,
     rider_id: null,
@@ -410,6 +482,12 @@ export type UpdateListInput = {
   items?: ShoppingItem[];
   merchandiseUgx?: number;
   deliveryFeeUgx?: number;
+  /** Rider posts the actual items cost after shopping (staff/rider only). */
+  actualMerchandiseUgx?: number | null;
+  /** Customer caps budget on create; rider may raise via extra funding flow. */
+  budgetMaxUgx?: number | null;
+  /** Extra funds the customer has added (escrow top-up delta). */
+  extraFundedUgx?: number;
   actorRole: "customer" | "staff" | "admin" | "rider";
   actorId: string | null;
 };
@@ -485,6 +563,17 @@ export async function updateList(
   if (input.notes !== undefined) patch.notes = input.notes ? String(input.notes).slice(0, 500) : null;
   if (input.merchantId !== undefined) patch.merchant_id = input.merchantId;
   if (input.riderId !== undefined) patch.rider_id = input.riderId;
+  if (input.actualMerchandiseUgx !== undefined) {
+    patch.actual_merchandise_ugx =
+      input.actualMerchandiseUgx == null ? null : Math.max(0, Math.trunc(input.actualMerchandiseUgx));
+  }
+  if (input.budgetMaxUgx !== undefined) {
+    patch.budget_max_ugx =
+      input.budgetMaxUgx == null || input.budgetMaxUgx <= 0 ? null : Math.trunc(input.budgetMaxUgx);
+  }
+  if (input.extraFundedUgx !== undefined) {
+    patch.extra_funded_ugx = Math.max(0, Math.trunc(input.extraFundedUgx));
+  }
 
   await ensureShoppingListSchema(sb);
   if (await tablesExist(sb)) {
@@ -566,6 +655,54 @@ export async function deleteList(
   const all = await fallbackRead(sb);
   await fallbackWrite(sb, all.filter((r) => r.id !== id));
   return { ok: true };
+}
+
+/** List negotiation messages for a GoMart list (oldest first). */
+export async function listMessages(
+  sb: Sb,
+  listId: string,
+): Promise<ShoppingListMessage[]> {
+  try {
+    await ensureShoppingListSchema(sb);
+    const { data, error } = await sb
+      .from("shopping_list_messages")
+      .select("id, shopping_list_id, sender_id, sender_name, sender_role, text, kind, amount_ugx, created_at")
+      .eq("shopping_list_id", listId)
+      .order("created_at", { ascending: true })
+      .limit(200);
+    if (!error && data) return data as ShoppingListMessage[];
+  } catch {}
+  return [];
+}
+
+/** Append a negotiation message. */
+export async function addMessage(
+  sb: Sb,
+  listId: string,
+  senderId: string,
+  senderName: string,
+  senderRole: string,
+  text: string,
+  kind: ShoppingListMessage["kind"] = "chat",
+  amountUgx?: number | null,
+): Promise<ShoppingListMessage> {
+  const row = {
+    id: randomId(),
+    shopping_list_id: listId,
+    sender_id: senderId,
+    sender_name: senderName,
+    sender_role: senderRole,
+    text: text.slice(0, 1000),
+    kind,
+    amount_ugx: amountUgx ?? null,
+    created_at: new Date().toISOString(),
+  };
+  try {
+    await ensureShoppingListSchema(sb);
+    const { data, error } = await sb.from("shopping_list_messages").insert(row).select("*").maybeSingle();
+    if (!error && data) return data as ShoppingListMessage;
+  } catch {}
+  return row as ShoppingListMessage;
 }
 
 /** Append an audit event. Never throws — auditing must not break a write. */

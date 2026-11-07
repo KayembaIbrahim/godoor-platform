@@ -6,6 +6,7 @@ import {
   updateList,
   deleteList,
   listEvents,
+  addMessage,
 } from "@/lib/shopping-list-store";
 import type { ShoppingItem, ShoppingListStatus } from "@/lib/shopping-list";
 export const runtime = "nodejs";
@@ -22,9 +23,15 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-async function canRead(actor: { kind: string; id?: string }, row: { customer_id: string | null }): Promise<boolean> {
+async function canRead(
+  actor: { kind: string; id?: string; role?: string },
+  row: { customer_id: string | null; rider_id: string | null },
+): Promise<boolean> {
   if (actor.kind === "admin") return true;
-  if (actor.kind === "user") return row.customer_id === actor.id;
+  if (actor.kind === "user") {
+    if (row.customer_id === actor.id) return true;
+    if (row.rider_id === actor.id) return true;
+  }
   return false;
 }
 
@@ -44,8 +51,14 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   }
 
   const events = await listEvents(sb, id);
+  // Messages are available to customer + assigned rider + admin only.
+  let messages: unknown[] = [];
+  try {
+    const { listMessages } = await import("@/lib/shopping-list-store");
+    messages = await listMessages(sb, id);
+  } catch {}
   return NextResponse.json(
-    { shoppingList: row, events },
+    { shoppingList: row, events, messages },
     { headers: { "Cache-Control": "no-store, max-age=0" } },
   );
 }
@@ -85,6 +98,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     items?: ShoppingItem[];
     merchandiseUgx?: number;
     deliveryFeeUgx?: number;
+    actualMerchandiseUgx?: number | null;
+    budgetMaxUgx?: number | null;
     merchantId?: string | null;
     riderId?: string | null;
   };
@@ -96,12 +111,25 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   // A customer may not set the money or route the list.
   const staffOnly = isStaff && !isOwner;
-  if (!staffOnly && (body.merchandiseUgx !== undefined || body.deliveryFeeUgx !== undefined)) {
+  if (
+    !staffOnly &&
+    (body.merchandiseUgx !== undefined ||
+      body.deliveryFeeUgx !== undefined ||
+      body.actualMerchandiseUgx !== undefined)
+  ) {
     return NextResponse.json(
       { error: "Only staff can set the confirmed costs" },
       { status: 403 },
     );
   }
+
+  // Rider posting the actual cost after shopping → negotiation artifact.
+  const actualMerchandiseUgx =
+    typeof body.actualMerchandiseUgx === "number" && Number.isFinite(body.actualMerchandiseUgx)
+      ? Math.max(0, Math.trunc(body.actualMerchandiseUgx))
+      : body.actualMerchandiseUgx === null
+        ? null
+        : undefined;
 
   const result = await updateList(sb, id, {
     status: body.status,
@@ -109,11 +137,40 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     items: body.items,
     merchandiseUgx: body.merchandiseUgx,
     deliveryFeeUgx: body.deliveryFeeUgx,
+    actualMerchandiseUgx,
+    budgetMaxUgx:
+      typeof body.budgetMaxUgx === "number" && Number.isFinite(body.budgetMaxUgx)
+        ? body.budgetMaxUgx
+        : body.budgetMaxUgx === null
+          ? null
+          : undefined,
     merchantId: body.merchantId,
     riderId: body.riderId,
     actorRole: actor.kind === "admin" ? "admin" : staffOnly ? "staff" : "customer",
     actorId: actor.kind === "user" ? actor.id : null,
   });
+
+  // Log a price_offer message when a rider posts a new actual cost.
+  if (result.ok && actualMerchandiseUgx !== undefined && staffOnly) {
+    try {
+      const name =
+        (actor as { name?: string }).name ||
+        (actor as { email?: string }).email ||
+        "Rider";
+      await addMessage(
+        sb,
+        id,
+        actor.kind === "user" ? actor.id : null,
+        name,
+        (actor as { role?: string }).role || "rider",
+        actualMerchandiseUgx == null
+          ? "Actual items cost cleared"
+          : `Actual items cost: ${actualMerchandiseUgx.toLocaleString()} UGX`,
+        actualMerchandiseUgx == null ? "chat" : "price_offer",
+        actualMerchandiseUgx ?? null,
+      );
+    } catch {}
+  }
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });

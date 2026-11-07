@@ -62,6 +62,9 @@ export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) =>
   const [actingId, setActingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionOk, setActionOk] = useState<string | null>(null);
+  const [actualCost, setActualCost] = useState<Record<string, string>>({});
+  const [chatText, setChatText] = useState<Record<string, string>>({});
+  const [chatMessages, setChatMessages] = useState<Record<string, Array<{ id: string; sender_name: string; sender_role: string; text: string; kind: string; amount_ugx?: number | null; created_at: string }>>>({});
 
   const load = useCallback(() => {
     return (async () => {
@@ -162,6 +165,28 @@ export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) =>
 
   const activeMine = mine.find((l) => ["assigned", "shopping", "delivering"].includes(l.status));
 
+  // Chat poll for active job (rider ↔ customer negotiation).
+  useEffect(() => {
+    if (!activeMine) return;
+    const listId = activeMine.id;
+    const loadChat = async () => {
+      try {
+        const res = await fetch(`/api/shopping-list/messages?id=${encodeURIComponent(listId)}`, {
+          cache: "no-store",
+          headers: await apiAuthHeaders(false),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setChatMessages((prev) => ({ ...prev, [listId]: data.messages ?? [] }));
+      } catch {}
+    };
+    void loadChat();
+    const id = setInterval(() => {
+      if (!document.hidden) void loadChat();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [activeMine?.id]);
+
   return (
     <div className="px-4 pt-4 pb-6 space-y-3">
       {/* Header */}
@@ -247,7 +272,141 @@ export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) =>
               <dt className="text-muted">You earn (65%)</dt>
               <dd className="font-bold tabular-nums text-success">{formatUgx(activeMine.rider_share_ugx)} UGX</dd>
             </div>
+            <div className="flex justify-between">
+              <dt className="text-muted">Customer estimate</dt>
+              <dd className="font-semibold tabular-nums text-fg">{formatUgx(activeMine.merchandise_ugx)} UGX</dd>
+            </div>
           </dl>
+
+          {/* Post actual cost → chat negotiation */}
+          <div className="mt-3 rounded-xl border border-border bg-bg p-3">
+            <label className="text-[11px] font-semibold text-fg" htmlFor={`actual-${activeMine.id}`}>
+              Actual items cost (UGX) — after shopping
+            </label>
+            <div className="mt-1.5 flex gap-2">
+              <input
+                id={`actual-${activeMine.id}`}
+                value={actualCost[activeMine.id] ?? ""}
+                onChange={(e) => setActualCost((p) => ({ ...p, [activeMine.id]: e.target.value.replace(/[^0-9]/g, "") }))}
+                inputMode="numeric"
+                placeholder="e.g. 45000"
+                className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm tabular-nums"
+              />
+              <button
+                type="button"
+                disabled={actingId === activeMine.id || !(actualCost[activeMine.id] ?? "").trim()}
+                onClick={async () => {
+                  const amt = Number(actualCost[activeMine.id]);
+                  if (!amt || amt <= 0) return;
+                  setActingId(activeMine.id);
+                  try {
+                    const res = await fetch(`/api/shopping-list/${encodeURIComponent(activeMine.id)}`, {
+                      method: "PATCH",
+                      headers: await apiAuthHeaders(true),
+                      body: JSON.stringify({ actualMerchandiseUgx: amt }),
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok || !json.success) throw new Error(json.error || "Could not post cost");
+                    setActionOk(`Actual cost posted: ${formatUgx(amt)} UGX. Customer can approve or add funds.`);
+                    setActualCost((p) => ({ ...p, [activeMine.id]: "" }));
+                    void load();
+                  } catch (e) {
+                    setActionError(e instanceof Error ? e.message : "Could not post cost");
+                  } finally {
+                    setActingId(null);
+                  }
+                }}
+                className="rounded-lg bg-go px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+              >
+                Post cost
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-muted">Above the estimate? The customer can add extra funds from chat.</p>
+          </div>
+
+          {/* Rider ↔ customer chat */}
+          <div className="mt-3 rounded-xl border border-border bg-bg p-3">
+            <p className="text-[11px] font-semibold text-fg">Chat with customer</p>
+            <div className="mt-2 max-h-32 space-y-1.5 overflow-y-auto">
+              {(chatMessages[activeMine.id] ?? []).length === 0 ? (
+                <p className="text-[11px] text-muted">No messages yet.</p>
+              ) : (
+                (chatMessages[activeMine.id] ?? []).map((m) => (
+                  <div key={m.id} className="text-xs">
+                    <span className="font-semibold text-fg">{m.sender_name}</span>
+                    <span className="ml-1 text-[10px] text-dim">{new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    <p className="mt-0.5 text-muted">{m.text}</p>
+                    {m.amount_ugx != null && <p className="text-[11px] font-semibold text-go">{formatUgx(m.amount_ugx)} UGX</p>}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={chatText[activeMine.id] ?? ""}
+                onChange={(e) => setChatText((p) => ({ ...p, [activeMine.id]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  const text = (chatText[activeMine.id] ?? "").trim();
+                  if (!text) return;
+                  void (async () => {
+                    try {
+                      const res = await fetch("/api/shopping-list/messages", {
+                        method: "POST",
+                        headers: await apiAuthHeaders(true),
+                        body: JSON.stringify({ listId: activeMine.id, text, kind: "chat" }),
+                      });
+                      if (!res.ok) throw new Error("Message failed");
+                      setChatText((p) => ({ ...p, [activeMine.id]: "" }));
+                      const r2 = await fetch(`/api/shopping-list/messages?id=${encodeURIComponent(activeMine.id)}`, {
+                        cache: "no-store",
+                        headers: await apiAuthHeaders(false),
+                      });
+                      if (r2.ok) {
+                        const d = await r2.json();
+                        setChatMessages((prev) => ({ ...prev, [activeMine.id]: d.messages ?? [] }));
+                      }
+                    } catch (err) {
+                      setActionError(err instanceof Error ? err.message : "Message failed");
+                    }
+                  })();
+                }}
+                placeholder="Message customer…"
+                aria-label="Message customer"
+                className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                disabled={!(chatText[activeMine.id] ?? "").trim()}
+                onClick={async () => {
+                  const text = (chatText[activeMine.id] ?? "").trim();
+                  if (!text) return;
+                  try {
+                    const res = await fetch("/api/shopping-list/messages", {
+                      method: "POST",
+                      headers: await apiAuthHeaders(true),
+                      body: JSON.stringify({ listId: activeMine.id, text, kind: "chat" }),
+                    });
+                    if (!res.ok) throw new Error("Message failed");
+                    setChatText((p) => ({ ...p, [activeMine.id]: "" }));
+                    const r2 = await fetch(`/api/shopping-list/messages?id=${encodeURIComponent(activeMine.id)}`, {
+                      cache: "no-store",
+                      headers: await apiAuthHeaders(false),
+                    });
+                    if (r2.ok) {
+                      const d = await r2.json();
+                      setChatMessages((prev) => ({ ...prev, [activeMine.id]: d.messages ?? [] }));
+                    }
+                  } catch (err) {
+                    setActionError(err instanceof Error ? err.message : "Message failed");
+                  }
+                }}
+                className="rounded-lg bg-go px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+              >
+                Send
+              </button>
+            </div>
+          </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2">
             {activeMine.status === "assigned" && (

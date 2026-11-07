@@ -2,6 +2,7 @@
 import { RiderNav } from "@/components/RiderNav";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Truck, MapPin, Navigation, Phone, CheckCircle2, X, Clock,
@@ -473,6 +474,7 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords, authReady, heading
 }
 
 export default function RiderDashboard() {
+  const searchParams = useSearchParams();
   const { onboarded, role, profile, supabaseUser, authReady, reset } = useSession();
   const { coords, address, status: locStatus, accuracy, heading, speed, refresh: refreshLoc } = useGeolocation();
   const [tab, setTab] = useState<"available" | "active" | "history" | "earnings" | "profile" | "stores" | "gomart">("available");
@@ -531,6 +533,15 @@ export default function RiderDashboard() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [isOnline, supabaseUser?.id]);
+
+  // Deep-link from the bottom-nav GoMart button (?tab=gomart). The old
+  // /rider#gomart hash did nothing — the component never listened for it.
+  useEffect(() => {
+    if (searchParams?.get("tab") === "gomart") {
+      setMode("gomart");
+      setTab("gomart");
+    }
+  }, [searchParams]);
 
   const [verified, setVerified] = useState<"none" | "pending" | "approved" | "rejected">("none");
   // Effective verification: use whichever says "approved" — riderRecord from DB or the async check
