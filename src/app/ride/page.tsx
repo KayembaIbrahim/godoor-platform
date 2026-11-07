@@ -11,6 +11,7 @@ import { useRoadRoute } from "@/lib/routing";
 import { formatUgx } from "@/lib/utils";
 import { createRide, fetchMyRides, fetchRideById, rideAction, subscribeToRide, fetchRiderLocation, subscribeToRiderLocation, type DBRide } from "@/lib/db";
 import { StopoverAlert } from "@/components/StopoverAlert";
+import { SosButton } from "@/components/SosButton";
 import FareBreakdown from "@/components/FareBreakdown";
 function FareBreakdownWrapper({ quote }: { quote: Parameters<typeof FareBreakdown>[0]["quote"] }) { return <FareBreakdown quote={quote} compact />; }
 
@@ -251,6 +252,7 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
             <StopoverAlert rideId={ride.id} active />
           </div>
         )}
+        <SosButton rideId={ride.id} />
       </div>
     </div>
   );

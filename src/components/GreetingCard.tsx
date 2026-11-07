@@ -69,7 +69,7 @@ const GREETING_ICON: Record<GreetingKey, typeof Sunrise> = {
   night: Moon,
 };
 
-export default function GreetingCard({ nameCandidates = [], signedIn = true, className = "", compact = false }: Props) {
+export default function GreetingCard({ nameCandidates = [], signedIn = false, className = "", compact = false }: Props) {
   const [greeting, setGreeting] = useState<GreetingKey>("morning");
   const [mounted, setMounted] = useState(false);
   const [artwork, setArtwork] = useState<{

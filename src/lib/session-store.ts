@@ -178,16 +178,21 @@ export const useSession = create<SessionState>()(
               profile: {
                 ...freshProfile,
                 email: user.email || freshProfile.email,
-                name: (meta.name as string) || get().profile.name,
-                displayName: get().profile.displayName || (meta.display_name as string) || (meta.name as string) || get().profile.name,
-                phone: (meta.phone as string) || get().profile.phone || "",
+                // Server auth metadata is the ONLY name source on a fresh sign-in.
+                // Previously this fell back to the persisted local profile, so a
+                // stale name from a different account on the same device leaked
+                // into the greeting. Server metadata is authoritative — local
+                // profile names are only used when there is no server value.
+                name: (meta.name as string) || (meta.display_name as string) || freshProfile.name || "",
+                displayName: (meta.display_name as string) || (meta.name as string) || freshProfile.displayName || freshProfile.name || "",
+                phone: (meta.phone as string) || freshProfile.phone || "",
                 avatarUrl: profileAvatarUrl,
                 morseTag: profileMorseTag,
                 mustChangePassword: meta.must_change_password === true,
                 // The account registration date. Supabase's `created_at` is the
                 // authoritative "when was this account made" value, so it wins
                 // over anything cached locally.
-                createdAt: user.created_at || get().profile.createdAt || "",
+                createdAt: user.created_at || freshProfile.createdAt || "",
               },
               // The server is the only authority on role. The persisted value
               // used to win here, which meant a stale role — left behind by the
@@ -251,9 +256,9 @@ set({
               profile: {
                 ...freshProfile,
                 email: user.email || mail,
-                name: (user.user_metadata?.name as string) || get().profile.name,
-                displayName: get().profile.displayName || (user.user_metadata?.display_name as string) || (user.user_metadata?.name as string) || get().profile.name,
-                phone: (user.user_metadata?.phone as string) || get().profile.phone || "",
+                name: (user.user_metadata?.name as string) || freshProfile.name || "",
+                displayName: (user.user_metadata?.display_name as string) || (user.user_metadata?.name as string) || freshProfile.displayName || freshProfile.name || "",
+                phone: (user.user_metadata?.phone as string) || freshProfile.phone || "",
                 createdAt: user.created_at || freshProfile.createdAt || new Date().toISOString(),
               },
               role: (user.user_metadata?.role as Role) || role,
@@ -293,9 +298,9 @@ set({
             profile: {
               ...freshProfile,
               email: user.email || email,
-              name: (user.user_metadata?.name as string) || get().profile.name,
-              displayName: get().profile.displayName || (user.user_metadata?.display_name as string) || (user.user_metadata?.name as string) || get().profile.name,
-              phone: (user.user_metadata?.phone as string) || get().profile.phone || "",
+              name: (user.user_metadata?.name as string) || freshProfile.name || "",
+              displayName: (user.user_metadata?.display_name as string) || (user.user_metadata?.name as string) || freshProfile.displayName || freshProfile.name || "",
+              phone: (user.user_metadata?.phone as string) || freshProfile.phone || "",
               mustChangePassword: user.user_metadata?.must_change_password === true,
               createdAt: user.created_at || freshProfile.createdAt || "",
             },
