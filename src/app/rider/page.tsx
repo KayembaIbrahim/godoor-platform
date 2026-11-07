@@ -473,7 +473,7 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords, authReady, heading
   );
 }
 
-export default function RiderDashboard() {
+function RiderDashboard() {
   const searchParams = useSearchParams();
   const { onboarded, role, profile, supabaseUser, authReady, reset } = useSession();
   const { coords, address, status: locStatus, accuracy, heading, speed, refresh: refreshLoc } = useGeolocation();
