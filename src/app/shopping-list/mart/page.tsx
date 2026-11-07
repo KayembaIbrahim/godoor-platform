@@ -930,7 +930,7 @@ async function friendlyError(res: Response): Promise<string> {
   } catch {
     /* fall through */
   }
-  if (res.status === 401) return "Sign in to continue";
+  if (res.status === 401 || res.status === 403) return "You are not signed in. Sign in to continue.";
   return `Request failed (${res.status})`;
 }
 

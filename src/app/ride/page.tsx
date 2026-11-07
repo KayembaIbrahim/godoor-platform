@@ -259,7 +259,7 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
 }
 
 export default function RidePage() {
-  const { onboarded, profile } = useSession();
+  const { onboarded, profile, supabaseUser, hasRealAccount, authReady } = useSession();
   const { coords } = useGeolocation();
   const [pickup, setPickup] = useState<Addr | null>(null);
   const [dropoff, setDropoff] = useState<Addr | null>(null);
@@ -287,7 +287,7 @@ export default function RidePage() {
      blocked behind a trip that no longer existed. Realtime can also silently
      drop, so a poll is the guarantee; it pauses on a hidden tab. */
   useEffect(() => {
-    if (!onboarded) return;
+    if (!hasRealAccount()) return;
     loadMine();
     const tick = () => { if (!document.hidden) loadMine(); };
     const id = setInterval(tick, 10000);
@@ -298,7 +298,7 @@ export default function RidePage() {
       document.removeEventListener("visibilitychange", tick);
       window.removeEventListener("focus", tick);
     };
-  }, [onboarded, loadMine]);
+  }, [hasRealAccount(), loadMine]);
 
   const activeRide = myRides.find((r) => r.id === activeId) || null;
 
@@ -331,6 +331,10 @@ export default function RidePage() {
 
   const request = async () => {
     if (!pickup || !dropoff || busy) return;
+    if (!hasRealAccount()) {
+      setError("You are not signed in. Sign in to book a ride.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -347,7 +351,14 @@ export default function RidePage() {
       setActiveId(ride.id);
       loadMine();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not request ride");
+      const msg = e instanceof Error ? e.message : "Could not request ride";
+      setError(msg);
+      // A real auth failure means the local session is a phantom. Clear it
+      // so the next render shows the sign-in CTA instead of a dead button.
+      if (/not signed in/i.test(msg) && supabaseUser) {
+        const { signOut } = useSession.getState();
+        await signOut();
+      }
     } finally {
       setBusy(false);
     }
@@ -368,9 +379,16 @@ export default function RidePage() {
       </div>
 
       {error && (
-        <div className="mt-3 rounded-xl border border-danger/20 bg-danger/10 px-3 py-2.5 flex items-center gap-2">
-          <X className="h-4 w-4 text-danger shrink-0" />
-          <p className="text-xs text-danger">{error}</p>
+        <div className="mt-3 rounded-xl border border-danger/20 bg-danger/10 px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <X className="h-4 w-4 text-danger shrink-0" />
+            <p className="text-xs text-danger">{error}</p>
+          </div>
+          {/not signed in/i.test(error) && (
+            <Link href="/signin" className="mt-2 inline-block rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white">
+              Go to sign in
+            </Link>
+          )}
         </div>
       )}
 
@@ -454,11 +472,30 @@ export default function RidePage() {
           </div>
           </div>
 
-          <button type="button" onClick={request} disabled={busy || !pickup || !dropoff || !onboarded}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-white hover:bg-primary-2 transition disabled:opacity-50">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bike className="h-4 w-4" />}
-            {busy ? "Requesting…" : !onboarded ? "Sign in to request a ride" : "Request boda ride"}
-          </button>
+          {/* Booking gate — three distinct states, each with a working path:
+              1. not a real account (no Supabase user): tapping sign-in sends
+                 the user to /signin, not to a disabled dead end;
+              2. a real account whose session is still loading: wait, don't
+                 flash a sign-in prompt at a user who is already signed in;
+              3. a real account: the normal request button. */}
+          {!authReady ? (
+            <div className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-surface py-3.5 text-sm font-semibold text-muted">
+              <Loader2 className="h-4 w-4 animate-spin" /> Checking your session…
+            </div>
+          ) : !hasRealAccount() ? (
+            <Link
+              href="/signin"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-white hover:bg-primary-2 transition"
+            >
+              <Bike className="h-4 w-4" /> Sign in to request a ride
+            </Link>
+          ) : (
+            <button type="button" onClick={request} disabled={busy || !pickup || !dropoff}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-white hover:bg-primary-2 transition disabled:opacity-50">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bike className="h-4 w-4" />}
+              {busy ? "Requesting…" : "Request boda ride"}
+            </button>
+          )}
 
           {/* Past rides */}
           {myRides.length > 0 && (

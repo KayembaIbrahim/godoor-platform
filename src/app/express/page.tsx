@@ -79,7 +79,7 @@ async function fetchServerQuote(p: Addr, d: Addr): Promise<ServerQuote | null> {
 const LIVE_RIDE_STATUSES: readonly string[] = ["requested", "accepted", "in_progress"];
 
 export default function GoExpressPage() {
-  const { onboarded, profile } = useSession();
+  const { onboarded, profile, supabaseUser, hasRealAccount, authReady } = useSession();
   const { coords } = useGeolocation();
 
   const [pickup, setPickup] = useState<Addr | null>(null);
@@ -118,7 +118,7 @@ export default function GoExpressPage() {
   };
 
   useEffect(() => {
-    if (!onboarded) return;
+    if (!hasRealAccount()) return;
     loadMine();
     const id = setInterval(() => { if (!document.hidden) loadMine(); }, 10000);
     document.addEventListener("visibilitychange", loadMine);
@@ -128,7 +128,7 @@ export default function GoExpressPage() {
       document.removeEventListener("visibilitychange", loadMine);
       window.removeEventListener("focus", loadMine);
     };
-  }, [onboarded]);
+  }, [hasRealAccount()]);
 
   const km = pickup && dropoff ? distanceKm(pickup, dropoff) : null;
   const route = useRoadRoute(
@@ -159,6 +159,10 @@ export default function GoExpressPage() {
 
   const request = async () => {
     if (!pickup || !dropoff || busy) return;
+    if (!hasRealAccount()) {
+      setError("You are not signed in. Sign in to send a parcel.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -177,7 +181,12 @@ export default function GoExpressPage() {
       setActiveId(ride.id);
       loadMine();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not request parcel");
+      const msg = e instanceof Error ? e.message : "Could not request parcel";
+      setError(msg);
+      if (/not signed in/i.test(msg) && supabaseUser) {
+        const { signOut } = useSession.getState();
+        await signOut();
+      }
     } finally {
       setBusy(false);
     }
@@ -211,9 +220,16 @@ export default function GoExpressPage() {
       </div>
 
       {error && (
-        <div className="mt-3 rounded-xl border border-danger/20 bg-danger/10 px-3 py-2.5 flex items-center gap-2">
-          <span className="h-4 w-4 text-danger shrink-0">!</span>
-          <p className="text-xs text-danger">{error}</p>
+        <div className="mt-3 rounded-xl border border-danger/20 bg-danger/10 px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <span className="h-4 w-4 text-danger shrink-0">!</span>
+            <p className="text-xs text-danger">{error}</p>
+          </div>
+          {/not signed in/i.test(error) && (
+            <Link href="/signin" className="mt-2 inline-block rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white">
+              Go to sign in
+            </Link>
+          )}
         </div>
       )}
 
@@ -370,15 +386,28 @@ export default function GoExpressPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={request}
-            disabled={busy || !pickup || !dropoff || !onboarded}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8B5CF6] py-3.5 text-sm font-semibold text-white hover:bg-[#7c3aed] transition disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
-            {busy ? "Requesting…" : !onboarded ? "Sign in to send parcel" : "Request Express Rider"}
-          </button>
+          {!authReady ? (
+            <div className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-surface py-3.5 text-sm font-semibold text-muted">
+              <Loader2 className="h-4 w-4 animate-spin" /> Checking your session…
+            </div>
+          ) : !hasRealAccount() ? (
+            <Link
+              href="/signin"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8B5CF6] py-3.5 text-sm font-semibold text-white hover:bg-[#7c3aed] transition"
+            >
+              <Package className="h-4 w-4" /> Sign in to send a parcel
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={request}
+              disabled={busy || !pickup || !dropoff}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8B5CF6] py-3.5 text-sm font-semibold text-white hover:bg-[#7c3aed] transition disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
+              {busy ? "Requesting…" : "Request Express Rider"}
+            </button>
+          )}
 
           {/* My parcels */}
           {myRides.length > 0 && (

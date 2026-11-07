@@ -1172,12 +1172,55 @@ export type RideInput = {
 };
 
 export async function createRide(input: RideInput): Promise<DBRide> {
-  const res = await fetch("/api/rides", {
-    method: "POST",
-    headers: await apiAuthHeaders(true),
-    body: JSON.stringify(input),
-  });
+  // One place to answer "are we signed in and do we have a token?". The ride
+  // page used to gate its button on the persisted `onboarded` boolean alone,
+  // so a user who had only completed the local onboarding wizard — or whose
+  // session had expired and been overwritten — saw "Request boda ride", got a
+  // 401 from the server, and the tap did the same thing forever. Now the save
+  // itself refuses before the network when there is no real token.
+  const hasToken = Boolean((await apiAuthHeaders(false)).Authorization);
+  if (!hasToken) {
+    throw new Error("You are not signed in. Please sign in to book a ride.");
+  }
+  const send = async () =>
+    fetch("/api/rides", {
+      method: "POST",
+      headers: await apiAuthHeaders(true),
+      body: JSON.stringify(input),
+    });
+  let res = await send();
+  // A rider/customer who left the app open for more than the token's ~1 hour
+  // life gets a 401 that is a stale credential, not a sign-out. Refresh once
+  // and retry — a second 401 below is the real "signed out" answer.
+  if (res.status === 401 || res.status === 403) {
+    try { await getSupabase()?.auth.refreshSession(); } catch {}
+    res = await send();
+  }
   const json = await res.json().catch(() => ({}));
+  if (res.status === 401 || res.status === 403) {
+    // Genuinely signed out (token rejected even after a refresh). Clear the
+    // phantom local session — both the SDK storage (so the next
+    // apiAuthHeaders() sends nothing, not the same dead JWT again) and the
+    // persisted Zustand snapshot (so booking gates drop to the sign-in CTA
+    // instead of a dead "Request boda ride" button). A second booking inside
+    // the same page load is how this was found: without the clear, the
+    // retry fired another request with the same rejected token.
+    try {
+      await getSupabase()?.auth.signOut();
+      localStorage.removeItem("godoor-session");
+    } catch {}
+    try {
+      const { useSession } = await import("./session-store");
+      const { supabaseUser, signOut } = useSession.getState();
+      if (supabaseUser) await signOut();
+    } catch {}
+    const detail = String(json.error || "").trim();
+    throw new Error(
+      detail
+        ? `Could not book — ${detail} Please sign in again or sign out and sign back in.`
+        : "Could not book — you are not signed in. Please sign in and try again.",
+    );
+  }
   if (!res.ok || !json.ride) throw new Error(json.error || "Could not request ride");
   return json.ride as DBRide;
 }

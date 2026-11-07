@@ -59,6 +59,8 @@ export type SessionState = {
   profile: OnboardingData;
   onboarded: boolean;
   supabaseUser: { id: string; email: string } | null;
+  /** True only when `supabaseUser` is a real Supabase user id (not the `local_*` placeholder used when Supabase is unconfigured). Booking/quote gates use this, not `onboarded`, to decide whether the app may talk to the API. */
+  hasRealAccount: () => boolean;
   /* True once loadAuthSession has finished — i.e. "we now know whether there
      is a signed-in user", as opposed to `supabaseUser` being null merely
      because Supabase has not read localStorage yet. The two were conflated, so
@@ -247,6 +249,18 @@ export const useSession = create<SessionState>()(
             return friendlyError(signInErr.message);
           }
 
+          // Prove the account actually exists on the server before claiming
+          // success. The admin-create call can report success while leaving
+          // an account in a half-confirmed state (email_confirm raced the
+          // sign-in), which previously scored a user as "signed in" locally
+          // with a token the API then rejects — a "sign-in error" the user
+          // can never recover from without signing out. A getUser() that
+          // returns a user means the JWT is genuine.
+          const verified = await sb.auth.getUser(signInData.session?.access_token);
+          if (!verified.data?.user) {
+            return { error: "Your account was created but could not be activated. Please sign in with your email and password." };
+          }
+
           const user = signInData.user;
           const prevUserId = get().supabaseUser?.id;
           const freshProfile = prevUserId && prevUserId !== user.id ? {} : { ...get().profile };
@@ -270,6 +284,15 @@ set({
           return friendlyError(e?.message || "Something went wrong. Try again.");
         }
       },
+
+      /* The onboarded flag on its own is localStorage fiction: the customer
+         wizard (`/onboarding/customer`) sets it without ever creating an auth
+         account, so a user who only walked the wizard could book, reach the
+         API without a token, and collect a 401 forever. The opposite is also
+         true: `loadAuthSession` sets onboarded:true on every signed-in user,
+         which used to be the only proof we had that the session was real.
+         Every booking gate now asks BOTH questions. */
+      hasRealAccount: () => Boolean(get().supabaseUser?.id && !get().supabaseUser!.id.startsWith("local_")),
 
       signIn: async (email, password) => {
         const sb = getSupabase();
