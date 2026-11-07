@@ -56,8 +56,11 @@ export const SHOPPING_LIST_STATUSES: ShoppingListStatus[] = [
 
 /** Statuses staff may move a list into, and who may do it. */
 const STAFF_TRANSITIONS: Record<string, ShoppingListStatus[]> = {
-  submitted: ["shopping", "cancelled"],
-  shopping: ["awaiting_approval", "confirmed", "cancelled"],
+  // A rider claiming a submitted list assigns it directly — claiming must NOT
+  // force the list through shopping/awaiting_approval/confirmed first (the
+  // old table rejected submitted→assigned with "cannot become assigned").
+  submitted: ["shopping", "assigned", "cancelled"],
+  shopping: ["awaiting_approval", "confirmed", "assigned", "cancelled"],
   awaiting_approval: ["confirmed", "shopping", "cancelled"],
   confirmed: ["assigned", "cancelled"],
   assigned: ["delivering", "cancelled"],
@@ -621,6 +624,31 @@ export async function claimList(
   }
   if (current.rider_id === riderId) {
     return { ok: true, list: current }; // idempotent re-claim
+  }
+  // Atomic claim: update only while the row is still unclaimed AND in an open
+  // status. If another rider won the race between our read and this write,
+  // the guarded UPDATE matches 0 rows and we return a clean 409 instead of
+  // silently stealing (or bouncing off) the list. This path deliberately
+  // bypasses updateList's state-machine check — claim semantics are owned by
+  // claimList, not by the generic PATCH transition table.
+  await ensureShoppingListSchema(sb);
+  if (await tablesExist(sb)) {
+    const { data, error } = await sb
+      .from("shopping_lists")
+      .update({
+        status: "assigned",
+        rider_id: riderId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .is("rider_id", null)
+      .in("status", ["submitted", "confirmed", "shopping"])
+      .select("*")
+      .maybeSingle();
+    if (error) return { ok: false, status: 500, error: "Could not claim this list" };
+    if (!data) return { ok: false, status: 409, error: "Another rider already took this list" };
+    await logEvent(sb, id, "rider", riderId, "assigned", {});
+    return { ok: true, list: data as ShoppingListRow };
   }
   const result = await updateList(sb, id, {
     status: "assigned",

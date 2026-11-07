@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Truck, MapPin, Navigation, Phone, CheckCircle2, X, Clock,
-  DollarSign, LogOut, ShieldCheck, Radio, Package, ChevronRight, ExternalLink, Store, History, Bike, User,
+  ShieldCheck, Radio, Package, ChevronRight, ExternalLink, Store, History, Bike, User,
   MessageCircle, AlertCircle, Bell, ShoppingBasket
 } from "lucide-react";
 import { useSession } from "@/lib/session-store";
@@ -475,9 +475,12 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords, authReady, heading
 
 function RiderDashboard() {
   const searchParams = useSearchParams();
-  const { onboarded, role, profile, supabaseUser, authReady, reset } = useSession();
+  const { onboarded, role, profile, supabaseUser, authReady } = useSession();
   const { coords, address, status: locStatus, accuracy, heading, speed, refresh: refreshLoc } = useGeolocation();
-  const [tab, setTab] = useState<"available" | "active" | "history" | "earnings" | "profile" | "stores" | "gomart">("available");
+  // No "gomart" / "profile" tabs here: GoMart already has the bottom-nav
+  // button plus the mode switch above, and Profile lives at /account.
+  // Keeping them as tabs too put three doors to the same room in one row.
+  const [tab, setTab] = useState<"available" | "active" | "history" | "earnings" | "stores">("available");
   const [mode, setMode] = useState<"deliveries" | "boda" | "gomart">("deliveries");
   const [gomartOpenCount, setGomartOpenCount] = useState(0);
   const [available, setAvailable] = useState<DeliveryRequest[]>([]);
@@ -536,10 +539,10 @@ function RiderDashboard() {
 
   // Deep-link from the bottom-nav GoMart button (?tab=gomart). The old
   // /rider#gomart hash did nothing — the component never listened for it.
+  // Mode-only: "gomart" is no longer a tab state (see above).
   useEffect(() => {
     if (searchParams?.get("tab") === "gomart") {
       setMode("gomart");
-      setTab("gomart");
     }
   }, [searchParams]);
 
@@ -1081,7 +1084,7 @@ function RiderDashboard() {
             className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "boda" ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
             <Bike className="h-3.5 w-3.5" /> Boda
           </button>
-          <button type="button" onClick={() => { setMode("gomart"); setTab("gomart"); }}
+          <button type="button" onClick={() => setMode("gomart")}
             className={`relative flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-semibold transition ${mode === "gomart" ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
             <ShoppingBasket className="h-3.5 w-3.5" /> GoMart
             {gomartOpenCount > 0 && (
@@ -1128,18 +1131,18 @@ function RiderDashboard() {
           <RiderGoMartPanel onNewOpen={setGomartOpenCount} />
         ) : (<>
         <div className="px-4 pt-3">
-        {/* Tabs — teal accent */}
+        {/* Tabs — teal accent. GoMart and Profile are intentionally NOT here:
+            GoMart has the bottom-nav button + the mode switch above, and
+            Profile lives at /account in the bottom nav. */}
         <div className="flex gap-1 rounded-xl bg-bg p-1">
           {([
             { id: "available" as const, label: "Available", count: available.length },
             { id: "active" as const, label: "Active", count: activeDelivery ? 1 : 0 },
-            { id: "gomart" as const, label: "GoMart", count: gomartOpenCount },
             { id: "history" as const, label: "History", count: allDeliveries.length },
             { id: "earnings" as const, label: "Earnings", count: 0 },
             { id: "stores" as const, label: "Stores", count: affiliations.invites.length },
-            { id: "profile" as const, label: "Profile", count: 0 },
           ]).map((t) => (
-            <button key={t.id} type="button" onClick={() => { if (t.id === "gomart") { setMode("gomart"); setTab("gomart"); } else { setTab(t.id); } }}
+            <button key={t.id} type="button" onClick={() => setTab(t.id)}
               className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-medium transition ${tab === t.id ? "bg-surface text-primary shadow-xs" : "text-muted"}`}>
               {t.label}
               {t.count > 0 && <span className="num ml-0.5 h-4 min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold text-white text-center">{t.count}</span>}
@@ -1544,11 +1547,6 @@ function RiderDashboard() {
         </div>
       )}
 
-      {/* GoMart tab — render the RiderGoMartPanel when tab is gomart within deliveries mode */}
-      {tab === "gomart" && (
-        <RiderGoMartPanel onNewOpen={setGomartOpenCount} />
-      )}
-
       {/* Stores */}
       {tab === "stores" && (
         <div className="px-4 pt-4 space-y-3">
@@ -1693,49 +1691,6 @@ function RiderDashboard() {
         </div>
       )}
 
-      {/* Profile */}
-      {tab === "profile" && (
-        <div className="px-4 pt-4 space-y-3">
-          <div className="tile shadow-xs p-4 animate-spring-in">
-            <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-full bg-primary/15 ring-1 ring-primary/30">
-                <span className="text-lg font-bold text-primary">{riderName.charAt(0)}</span>
-              </div>
-              <div>
-                <p className="font-semibold">{riderName}</p>
-                <p className="text-xs text-muted">{profile.email}</p>
-                <span className="chip mt-1 bg-primary/15 text-primary">
-                  <Truck className="h-2.5 w-2.5" /> {vehicleType}
-                </span>
-                {effectiveVerified === "approved" && (
-                  <span className="chip mt-1 bg-success/15 text-success">
-                    <ShieldCheck className="h-2.5 w-2.5" /> Verified
-                  </span>
-                )}
-                {effectiveVerified === "pending" && (
-                  <span className="chip mt-1 bg-warning/15 text-warning">
-                    <ShieldCheck className="h-2.5 w-2.5" /> Pending
-                  </span>
-                )}
-                {effectiveVerified === "rejected" && (
-                  <span className="chip mt-1 bg-danger/15 text-danger">
-                    <ShieldCheck className="h-2.5 w-2.5" /> Rejected
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="tile shadow-xs p-4 space-y-2">
-            <div className="flex justify-between rounded-xl bg-bg px-3 py-2.5"><span className="text-xs text-muted">Vehicle</span><span className="text-xs font-semibold">{vehicleType}</span></div>
-            <div className="flex justify-between rounded-xl bg-bg px-3 py-2.5"><span className="text-xs text-muted">Plate</span><span className="text-xs font-semibold">{profile.plate || "—"}</span></div>
-            <div className="flex justify-between rounded-xl bg-bg px-3 py-2.5"><span className="text-xs text-muted">Service area</span><span className="text-xs font-semibold">{serviceArea}</span></div>
-          </div>
-          <button type="button" onClick={() => { reset(); window.location.href = "/"; }}
-            className="btn btn-danger w-full">
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
-        </div>
-      )}
       </>)}
       <RiderNav />
     </div>
