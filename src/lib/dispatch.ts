@@ -11,6 +11,35 @@ import { distanceKm, type LatLng } from "@/lib/location";
 
 export const DISPATCH_SPEED_KMH = 25;
 
+/**
+ * Rider visibility radius (km) — a rider only sees/claims jobs whose PICKUP
+ * is within 3 km of their live GPS position. This is the Uber/Glovo dispatch
+ * rule: no rider from another city (or >3 km away) can even SEE the order, so
+ * the nearest rider wins it and the pickup leg is never absurd.
+ *
+ * Applied on all three boards: Boda rides (`ride_requests`), Deliveries
+ * (`orders` → merchant pickup), GoMart (`shopping_lists` → customer pickup).
+ *
+ * No GPS fix = no board at all. A rider without a position cannot be placed
+ * on the map and must never receive every nationwide job.
+ *
+ * Note: the map that shows "nearest pickup" on the Boda panel uses straight-
+ * line distance ONLY to pick a label — the dealbreaker is this rider→pickup
+ * proximity gate, not that label.
+ */
+export const RIDER_VISIBILITY_RADIUS_KM = 3;
+
+/** True only when the rider has GPS AND the pickup is within the radius. */
+export function jobVisibleToRider(
+  rider: LatLng | null | undefined,
+  pickup: LatLng | null | undefined,
+  radiusKm: number = RIDER_VISIBILITY_RADIUS_KM,
+): boolean {
+  if (!rider || rider.lat == null || rider.lng == null) return false;
+  if (!pickup || pickup.lat == null || pickup.lng == null) return false;
+  return distanceKm(rider, pickup) <= radiusKm;
+}
+
 export type DispatchInput = {
   rider?: LatLng | null;
   pickup?: LatLng | null;

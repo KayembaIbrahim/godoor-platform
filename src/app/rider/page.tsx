@@ -15,7 +15,7 @@ import { fetchOrders, updateOrder, fetchFeeConfig, updateRiderLocation, updateRi
 import { getSupabase } from "@/lib/supabase";
 import { useGeolocation, formatAccuracy, distanceKm, type LatLng } from "@/lib/location";
 import { useRoadRoute, summarizeTraffic } from "@/lib/routing";
-import { dispatchScore } from "@/lib/dispatch";
+import { dispatchScore, RIDER_VISIBILITY_RADIUS_KM } from "@/lib/dispatch";
 import { useRideAlert } from "@/lib/ride-alert";
 import { formatUgx, cn, storedDeliveryFee } from "@/lib/utils";
 import { Price } from "@/components/Price";
@@ -100,7 +100,21 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords, authReady, heading
 
   /* A new request has to be loud. The board is already live; what was missing
      was any signal the rider could perceive while riding. */
-  const { fresh: newRideIds, dismiss: dismissRideAlert } = useRideAlert(rides, !activeRide);
+  /* 3km visibility gate (Uber/Glovo dispatch rule): a rider only sees rides
+     whose pickup is within RIDER_VISIBILITY_RADIUS_KM of their live GPS. No
+     GPS = no rides — never "every nationwide job". */
+  const visibleRides = useMemo(() => {
+    if (!coords) return [];
+    return rides.filter((r) => {
+      if (r.pickup_lat == null || r.pickup_lng == null) return false;
+      return distanceKm(
+        { lat: Number(coords.lat), lng: Number(coords.lng) },
+        { lat: Number(r.pickup_lat), lng: Number(r.pickup_lng) },
+      ) <= RIDER_VISIBILITY_RADIUS_KM;
+    });
+  }, [rides, coords]);
+
+  const { fresh: newRideIds, dismiss: dismissRideAlert } = useRideAlert(visibleRides, !activeRide);
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -378,7 +392,7 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords, authReady, heading
                 {newRideIds.length === 1 ? "New ride request" : `${newRideIds.length} new ride requests`}
               </p>
               <p className="mt-0.5 text-xs text-muted">
-                {rides
+                {visibleRides
                   .filter((r) => newRideIds.some((f) => f.id === r.id))
                   .slice(0, 3)
                   .map((r) => `${r.customer_name || "Passenger"} · ${r.distance_km} km · ${formatUgx(r.total_ugx)}`)
@@ -406,19 +420,25 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords, authReady, heading
         </p>
       )}
 
-        <h3 className="text-sm font-semibold">Passenger requests {rides.length > 0 && <span className="text-muted">({rides.length})</span>}</h3>
+        <h3 className="text-sm font-semibold">Passenger requests {visibleRides.length > 0 && <span className="text-muted">({visibleRides.length})</span>}</h3>
         <span className="flex items-center gap-1 text-[10px] text-muted"><span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" /> Live</span>
       </div>
       {loading ? (
         <div className="h-24 rounded-2xl bg-surface animate-pulse" />
-      ) : rides.length === 0 ? (
+      ) : visibleRides.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-6 text-center">
           <Bike className="mx-auto h-7 w-7 text-dim" />
           <p className="mt-2 text-sm font-medium">No passengers waiting</p>
-          <p className="text-xs text-muted">New ride requests appear here instantly.</p>
+          <p className="text-xs text-muted">
+            {!coords
+              ? "Turn on GPS to see rides near you. Rides appear only within 3 km of your location."
+              : rides.length > 0
+                ? "Rides are waiting, but none within 3 km of you. Move closer to a pickup to see them."
+                : "New ride requests within 3 km appear here instantly."}
+          </p>
         </div>
       ) : (
-        rides.map((r) => (
+        visibleRides.map((r) => (
           <div key={r.id} className="rounded-2xl border border-border bg-surface p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
@@ -567,25 +587,37 @@ function RiderDashboard() {
         o.rider_id === uid && o.status === "delivered"
       );
 
-      setAvailable(deliverable.map((o) => {
-        const m = merchantsById[o.merchant_id];
-        const pickup = m ? { lat: m.lat, lng: m.lng } : null;
-        const dropoff = o.customer_lat && o.customer_lng
-          ? { lat: o.customer_lat, lng: o.customer_lng }
-          : coords || null;
-        const score = dispatchScore({ rider: coords ?? null, pickup, dropoff });
-        return {
-          order: o,
-          distanceKm: score.totalKm,
-          fareUgx: storedDeliveryFee(o.delivery_fee_ugx),
-          etaMin: score.etaMin,
-          pickupMin: coords && score.pickupKm > 0 ? Math.round((score.pickupKm / 25) * 60) : 0,
-          pickupKm: score.pickupKm,
-          pickupName: m?.name || o.merchant_name || "Pickup",
-          customerPhone: o.customer_phone || "",
-        };
-      }).sort((a, b) => a.distanceKm - b.distanceKm)
-        .filter((d) => !coords || d.pickupMin <= 15));
+      /* 3km visibility gate: only orders whose PICKUP (store) is within
+         RIDER_VISIBILITY_RADIUS_KM of the rider's GPS are shown. No GPS =
+         empty board. An order with no known store coordinates cannot be placed
+         on the map, so it is not shown either — never "every nationwide job". */
+      setAvailable(
+        coords
+          ? deliverable
+              .map((o) => {
+                const m = merchantsById[o.merchant_id];
+                const pickup = m ? { lat: m.lat, lng: m.lng } : null;
+                if (!pickup) return null;
+                const dropoff = o.customer_lat && o.customer_lng
+                  ? { lat: o.customer_lat, lng: o.customer_lng }
+                  : null;
+                const score = dispatchScore({ rider: coords ?? null, pickup, dropoff });
+                if (score.pickupKm > RIDER_VISIBILITY_RADIUS_KM) return null;
+                return {
+                  order: o,
+                  distanceKm: score.totalKm,
+                  fareUgx: storedDeliveryFee(o.delivery_fee_ugx),
+                  etaMin: score.etaMin,
+                  pickupMin: Math.round((score.pickupKm / 25) * 60),
+                  pickupKm: score.pickupKm,
+                  pickupName: m?.name || o.merchant_name || "Pickup",
+                  customerPhone: o.customer_phone || "",
+                };
+              })
+              .filter((d): d is NonNullable<typeof d> => d !== null)
+              .sort((a, b) => a.distanceKm - b.distanceKm) as ReturnType<typeof useState<DeliveryRequest[]>>[0]
+          : [],
+      );
       setActiveDelivery(myActive || null);
       setAllDeliveries(myHistory);
       setMyOrders(orders.filter((o) => o.rider_id === uid && o.status !== 'delivered'));
@@ -649,9 +681,9 @@ function RiderDashboard() {
       const isAvailable = ["payment_confirmed", "preparing", "ready"].includes(updated.status) && !updated.rider_id;
       const uid = supabaseUser?.id || profile.email || "";
       if (isAvailable) {
-        // Only buzz for orders reasonably close to the rider's GPS position
+        // Only buzz for orders within 3 km. The pickup is rider -> store; customer coords are the proxy.
         const dist = coords && updated.customer_lat != null && updated.customer_lng != null ? distanceKm(coords, { lat: updated.customer_lat, lng: updated.customer_lng }) : null;
-        if (dist === null || dist <= 30) {
+        if (dist !== null && dist <= RIDER_VISIBILITY_RADIUS_KM) {
           if (!known.has(updated.id)) {
             known.add(updated.id);
             addNotification({
@@ -1128,7 +1160,7 @@ function RiderDashboard() {
             accuracy={accuracy}
           />
         ) : mode === "gomart" ? (
-          <RiderGoMartPanel onNewOpen={setGomartOpenCount} />
+          <RiderGoMartPanel onNewOpen={setGomartOpenCount} coords={coords} />
         ) : (<>
         <div className="px-4 pt-3">
         {/* Tabs — teal accent. GoMart and Profile are intentionally NOT here:
@@ -1221,7 +1253,7 @@ function RiderDashboard() {
                 <Package className="h-6 w-6 text-dim" />
               </div>
               <p className="text-sm font-medium text-fg">No deliveries available</p>
-              <p className="mt-1 text-xs text-muted">{coords ? "New orders within 15 min of your location will appear here" : "New orders will appear here automatically"}</p>
+              <p className="mt-1 text-xs text-muted">{coords ? `New orders within ${RIDER_VISIBILITY_RADIUS_KM} km of your location will appear here` : "Turn on GPS to see deliveries near you. Orders appear only within 3 km of your location."}</p>
             </div>
           ) : (
             available.map((d) => (

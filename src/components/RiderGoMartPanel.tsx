@@ -52,7 +52,7 @@ function StatusPill({ status }: { status: string }) {
 
 /* ── Panel ──────────────────────────────────────────────────────────────── */
 
-export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) => void } = {}) {
+export function RiderGoMartPanel({ onNewOpen, coords }: { onNewOpen?: (count: number) => void; coords?: { lat: number; lng: number } | null } = {}) {
   const [open, setOpen] = useState<GoMartList[]>([]);
   const [mine, setMine] = useState<GoMartList[]>([]);
   const [history, setHistory] = useState<GoMartList[]>([]);
@@ -65,6 +65,12 @@ export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) =>
   const [actualCost, setActualCost] = useState<Record<string, string>>({});
   const [chatText, setChatText] = useState<Record<string, string>>({});
   const [chatMessages, setChatMessages] = useState<Record<string, Array<{ id: string; sender_name: string; sender_role: string; text: string; kind: string; amount_ugx?: number | null; created_at: string }>>>({});
+
+  /* 3km visibility gate: GoMart lists carry no store coordinates — the
+     pickup IS the customer's location. So the rider's GPS is the only thing
+     that can place them. No GPS = empty board, never "every list nationwide". */
+  const [visibleOpen, setVisibleOpen] = useState<GoMartList[]>([]);
+  const [totalOpen, setTotalOpen] = useState(0);
 
   const load = useCallback(() => {
     return (async () => {
@@ -84,7 +90,11 @@ export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) =>
         const data = await res.json();
         const openList = Array.isArray(data.open) ? data.open : [];
         setOpen(openList);
-        onNewOpen?.(openList.length);
+        /* The board the rider sees is gated at render time by GPS (see below).
+           onNewOpen reports the GPS-visible count so the badge never counts
+           lists this rider cannot see. */
+        setTotalOpen(openList.length);
+        onNewOpen?.(coords ? openList.length : 0);
         setMine(Array.isArray(data.mine) ? data.mine : []);
         setHistory(Array.isArray(data.history) ? data.history : []);
         setError(null);
@@ -103,6 +113,11 @@ export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) =>
     }, 15000);
     return () => clearInterval(id);
   }, [load]);
+
+  /* GPS arrived after the fetch — re-derive the visible board. */
+  useEffect(() => {
+    setVisibleOpen(coords ? open : []);
+  }, [coords, open]);
 
   async function claim(listId: string) {
     setClaimingId(listId);
@@ -443,9 +458,9 @@ export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) =>
         </div>
       )}
 
-      {/* Open jobs */}
+      {/* Open jobs — only GPS-visible lists count. No GPS = empty board. */}
       <div className="flex items-center justify-between pt-1">
-        <h3 className="text-sm font-semibold">Shopping lists waiting {open.length > 0 && <span className="text-muted">({open.length})</span>}</h3>
+        <h3 className="text-sm font-semibold">Shopping lists waiting {visibleOpen.length > 0 && <span className="text-muted">({visibleOpen.length})</span>}</h3>
         <span className="flex items-center gap-1 text-[10px] text-muted">
           <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" /> Live
         </span>
@@ -457,16 +472,22 @@ export function RiderGoMartPanel({ onNewOpen }: { onNewOpen?: (count: number) =>
             <div key={i} className="skeleton h-32 w-full rounded-2xl" />
           ))}
         </div>
-      ) : open.length === 0 ? (
+      ) : visibleOpen.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-6 text-center">
           <ShoppingBasket className="mx-auto h-7 w-7 text-dim" />
           <p className="mt-2 text-sm font-medium">No GoMart lists waiting</p>
           <p className="text-xs text-muted">
-            {activeMine ? "Finish your current job — a new list will be claimable next." : "Customer shopping lists appear here instantly."}
+            {!coords
+              ? "Turn on GPS to see GoMart lists near you. Lists appear only when you are within 3 km of the customer."
+              : activeMine
+                ? "Finish your current job — a new list will be claimable next."
+                : totalOpen > 0
+                  ? "Lists are waiting, but none within 3 km of you. Move closer to a customer to see them."
+                  : "Customer shopping lists appear here instantly."}
           </p>
         </div>
       ) : (
-        open.map((l) => (
+        visibleOpen.map((l) => (
           <div key={l.id} className="tile shadow-xs p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
