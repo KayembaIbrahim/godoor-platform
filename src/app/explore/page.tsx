@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Smartphone, Wallet, Zap, ShieldCheck, ArrowRight, Truck, ShoppingBag, MapPin, Star, ChevronRight, Check, Clock, UtensilsCrossed, Pill, Package, MapPinned, ChevronDown, Play, Download, Wifi, Globe, Users, BadgePercent, Flame, Bike, Store, Search, Menu, PackageCheck, CreditCard } from "lucide-react";
 import { categoryVisual } from "@/lib/visuals";
+import { useCatalogueLocation, filterMerchantsForLocation, bannerCity } from "@/lib/catalogue-location";
+import { getLastAddress } from "@/components/AddressSearchModal";
 import { Logo } from "@/components/Logo";
 import { MorseLogo } from "@/components/MorseLogo";
 import DarkHero from "@/components/home/DarkHero";
@@ -263,7 +265,7 @@ export default function ExplorePage() {
   const { ref: statsRef, visible: statsVisible } = useInView();
 
   // Real data from DB
-  const [merchants, setMerchants] = useState<any[]>([]);
+  const [allMerchants, setAllMerchants] = useState<any[]>([]);
   const [totalMerchants, setTotalMerchants] = useState(0);
   const [totalOrders, setTotalOrders] = useState(0);
   const [merchantCount, setMerchantCount] = useState(0);
@@ -271,13 +273,25 @@ export default function ExplorePage() {
   const [districts, setDistricts] = useState<string[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
+  const { loc: userLoc, isFallback } = useCatalogueLocation();
+  const [savedPlace, setSavedPlace] = useState<string | null>(null);
+  useEffect(() => {
+    try { setSavedPlace(getLastAddress()?.place ?? null); } catch {}
+  }, []);
+
+  const merchants = useMemo(
+    () => filterMerchantsForLocation(allMerchants, userLoc, savedPlace, isFallback),
+    [allMerchants, userLoc, savedPlace, isFallback],
+  );
+  const city = useMemo(() => bannerCity(merchants, savedPlace), [merchants, savedPlace]);
+
   useEffect(() => {
     // Fetch real merchant data on mount
     fetch("/api/merchants")
       .then((r) => r.json())
       .then((data) => {
         const list = data?.merchants || [];
-        setMerchants(list);
+        setAllMerchants(list);
         setTotalMerchants(list.length);
         setMerchantCount(list.length);
         // Count unique districts
@@ -362,7 +376,9 @@ export default function ExplorePage() {
                 <Flame className="h-3 w-3" /> {merchants.length > 0 ? "Trending now" : "Launching soon"}
               </div>
               <h2 className="mt-3 font-display text-2xl font-bold">
-                {merchants.length > 0 ? "Popular near you" : "Shops on GoDoor"}
+                {merchants.length > 0
+                  ? (city ? `Popular in ${city}` : "Popular near you")
+                  : "Shops on GoDoor"}
               </h2>
               <p className="mt-1 text-sm text-muted">
                 {merchants.length > 0

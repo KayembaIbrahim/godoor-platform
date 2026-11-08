@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Search, Store, SlidersHorizontal } from "lucide-react";
 
 import { useMerchants } from "@/lib/hooks";
+import { useCatalogueLocation, filterMerchantsForLocation } from "@/lib/catalogue-location";
+import { getLastAddress } from "@/components/AddressSearchModal";
 import { CATEGORIES, matchCategory } from "@/lib/categories";
 import { CORE_RAIL_CATEGORIES, RAIL_LABELS } from "@/lib/service-tiles";
 import { browseHref } from "@/lib/service-slugs";
@@ -43,11 +45,17 @@ function discRgb(id: string): string {
 
 export default function CategoriesPage() {
   const { merchants, loading } = useMerchants();
+  const { loc: userLoc, isFallback } = useCatalogueLocation();
+  const [savedPlace, setSavedPlace] = useState<string | null>(null);
+  useEffect(() => {
+    try { setSavedPlace(getLastAddress()?.place ?? null); } catch {}
+  }, []);
   const [q, setQ] = useState("");
 
   const rows = useMemo(() => {
+    const nearby = filterMerchantsForLocation(merchants, userLoc, savedPlace, isFallback);
     const counts: Record<string, number> = {};
-    for (const m of merchants) {
+    for (const m of nearby) {
       if (!m.category) continue;
       const id = matchCategory(m.category)?.id ?? m.category;
       counts[id] = (counts[id] || 0) + 1;
@@ -77,7 +85,7 @@ export default function CategoriesPage() {
         label: RAIL_LABELS[id] ?? id,
         count: counts[id] ?? 0,
       }));
-  }, [merchants, q]);
+  }, [merchants, q, userLoc, savedPlace, isFallback]);
 
   const openCount = rows.filter((r) => r.count > 0).length;
 

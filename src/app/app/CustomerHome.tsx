@@ -210,7 +210,12 @@ export default function CustomerHome() {
         // Rating is the dominant term; distance only breaks ties between
         // comparably-rated businesses, which is what "popular near you" means.
         const proximity = dist === null ? 1 : Math.max(0, 1 - dist / 25);
-        return { m, score: rating * 2 + proximity + (m.verified ? 0.25 : 0) };
+        return { m, score: rating * 2 + proximity + (m.verified ? 0.25 : 0), dist: dist ?? null };
+      })
+      .filter(({ dist }) => {
+        // Beyond the delivery radius these shops cannot be ridden to — exclude
+        // rather than rank down, so Kampala never shows Masaka (119 km away).
+        return dist === null ? true : dist <= 25;
       })
       .sort((a, b) => b.score - a.score);
     return scored.slice(0, 6).map((s) => s.m);

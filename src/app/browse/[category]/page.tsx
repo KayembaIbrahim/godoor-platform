@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -9,6 +9,9 @@ import {
 } from "lucide-react";
 
 import { useMerchants } from "@/lib/hooks";
+import { useCatalogueLocation, filterMerchantsForLocation, bannerCity } from "@/lib/catalogue-location";
+import { distanceKm, formatDistance } from "@/lib/location";
+import { getLastAddress } from "@/components/AddressSearchModal";
 import { getCategoryEmoji } from "@/lib/categories";
 import { browseMeta, canonicalCategoryForSlug, merchantInSlug } from "@/lib/service-slugs";
 import { Price } from "@/components/Price";
@@ -39,6 +42,11 @@ export default function BrowseServicePage() {
   const canonical = canonicalCategoryForSlug(slug);
   const meta = browseMeta(slug, canonical);
   const { merchants, loading } = useMerchants();
+  const { loc: userLoc, isFallback } = useCatalogueLocation();
+  const [savedPlace, setSavedPlace] = useState<string | null>(null);
+  useEffect(() => {
+    try { setSavedPlace(getLastAddress()?.place ?? null); } catch {}
+  }, []);
 
   const [sort, setSort] = useState<SortMode>("rating");
   const [minRating, setMinRating] = useState(0);
@@ -53,9 +61,16 @@ export default function BrowseServicePage() {
    * then discard, which is wasted work on a low-end Android, and it makes the
    * "Showing N" count a lie while a filter is active.
    */
+  const city = useMemo(
+    () => bannerCity(filterMerchantsForLocation(merchants.filter((m) => merchantInSlug(m.category, slug)), userLoc, savedPlace, isFallback), savedPlace),
+    [merchants, userLoc, savedPlace, isFallback, slug],
+  );
+
   const list = useMemo(() => {
     if (!canonical) return [];
-    const base = merchants.filter((m) => merchantInSlug(m.category, slug));
+    const inSlug = merchants.filter((m) => merchantInSlug(m.category, slug));
+    const nearby = filterMerchantsForLocation(inSlug, userLoc, savedPlace, isFallback);
+    const base = nearby;
 
     const filtered = base.filter((m) => {
       if (minRating > 0 && (m.rating || 0) < minRating) return false;
@@ -79,7 +94,7 @@ export default function BrowseServicePage() {
       sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     }
     return sorted;
-  }, [merchants, canonical, slug, sort, minRating, verifiedOnly, freeDeliveryOnly]);
+  }, [merchants, canonical, slug, sort, minRating, verifiedOnly, freeDeliveryOnly, userLoc, savedPlace, isFallback]);
 
   const activeFilterCount = [minRating > 0, verifiedOnly, freeDeliveryOnly].filter(Boolean).length;
 
@@ -147,6 +162,7 @@ export default function BrowseServicePage() {
                 <>
                   <span className="num font-semibold text-fg">{list.length}</span>
                   {list.length === 1 ? " business" : " businesses"}
+                  {city ? <> in <span className="font-semibold text-fg">{city}</span></> : null}
                   {activeFilterCount > 0 ? " match your filters" : ""}
                 </>
               )}
@@ -321,12 +337,17 @@ export default function BrowseServicePage() {
                     <Star className="h-3 w-3 fill-current" />
                     {m.rating || "New"}
                   </span>
-                  {m.district && (
+                  {userLoc && typeof m.lat === "number" && typeof m.lng === "number" && m.lat !== 0 ? (
+                    <span className="inline-flex items-center gap-1 text-muted">
+                      <MapPinned className="h-2.5 w-2.5 shrink-0" />
+                      {formatDistance(distanceKm(userLoc, { lat: m.lat, lng: m.lng }))}
+                    </span>
+                  ) : m.district ? (
                     <span className="inline-flex items-center gap-1 truncate text-muted">
                       <MapPinned className="h-2.5 w-2.5 shrink-0" />
                       {m.area ? `${m.area}, ${m.district}` : m.district}
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 <div className="mt-2 flex items-center justify-between text-[11px]">
                   <span className="text-muted">
@@ -360,7 +381,9 @@ export default function BrowseServicePage() {
             <p className="mx-auto mt-1 max-w-xs text-sm text-muted leading-relaxed">
               {activeFilterCount > 0
                 ? "Try clearing a filter — there may still be businesses here."
-                : `We're onboarding ${meta.title.toLowerCase()} partners now. Check another service.`}
+                : city
+                  ? `We're onboarding ${meta.title.toLowerCase()} partners in ${city} now. Check another service.`
+                  : `We're onboarding ${meta.title.toLowerCase()} partners now. Check another service.`}
             </p>
             {activeFilterCount > 0 ? (
               <button
