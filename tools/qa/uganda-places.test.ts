@@ -13,6 +13,7 @@ import {
   TOWNS,
   searchUgandaPlaces,
   nearestUgandaPlace,
+  nearestSubPlace,
   districtForPoint,
   gazetteerPlaceName,
   placeLabel,
@@ -93,6 +94,49 @@ check(
   gazetteerPlaceName({ lat: 0.3589, lng: 32.6417 }),
   "Kawempe, Kampala",
 );
+
+console.log("\n── parts of Masaka are named by area, not just 'Masaka' ──");
+/* BUG (user report): "am in different part of masaka but the auto
+   location shows me masaka only". The old gazetteer fallback used
+   `nearestUgandaPlace`, which includes the DISTRICT row (one point at the
+   Masaka town centre). Anyone standing in Nyendo / Kyabakuza / Bukakata /
+   Kisijjo was still closest to that centre, so every part of the district
+   produced the bare name "Masaka". These points would have all failed
+   before the fix: they are 5-15 km from the Masaka town centre and had no
+   sub-place within range. */
+for (const [label, point, expected] of [
+  ["Nyendo point → 'Nyendo, Masaka'", { lat: -0.3250, lng: 31.6600 }, "Nyendo, Masaka"],
+  ["Kyabakuza point → 'Kyabakuza, Masaka'", { lat: -0.3400, lng: 31.7800 }, "Kyabakuza, Masaka"],
+  ["Bukakata point → 'Bukakata, Masaka'", { lat: -0.4300, lng: 31.7600 }, "Bukakata, Masaka"],
+  ["Kisijjo point → 'Kisijjo, Masaka'", { lat: -0.3150, lng: 31.8000 }, "Kisijjo, Masaka"],
+  ["Masaka Town centre → sub-area, not bare district", { lat: -0.3356, lng: 31.7341 }, "Masaka Town, Masaka"],
+] as const) {
+  const actual = gazetteerPlaceName(point as { lat: number; lng: number });
+  check(label, actual, expected);
+  check(
+    `${label} — never collapses to the bare district name`,
+    actual === "Masaka",
+    false,
+  );
+}
+// nearestSubPlace must exclude district rows entirely.
+check(
+  "nearestSubPlace at Nyendo is Nyendo (not the Masaka district row)",
+  nearestSubPlace({ lat: -0.3250, lng: 31.6600 }, 20)?.place.name,
+  "Nyendo",
+);
+check(
+  "nearestSubPlace far outside any sub-area is null",
+  nearestSubPlace({ lat: 0.0, lng: 34.9 }, 20),
+  null,
+);
+// districtForPoint is still the correct source for the district name.
+for (const [label, point] of [
+  ["Nyendo point district → Masaka", { lat: -0.3250, lng: 31.6600 }],
+  ["Bukakata point district → Masaka", { lat: -0.4300, lng: 31.7600 }],
+] as const) {
+  check(label, districtForPoint(point as { lat: number; lng: number }), "Masaka");
+}
 
 console.log("\n── no raw coordinates for a place we know ──");
 const near = nearestUgandaPlace({ lat: 0.3589, lng: 32.6417 });

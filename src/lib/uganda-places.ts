@@ -263,6 +263,15 @@ export const TOWNS: UgandaPlace[] = [
   { name: "Gombe", lat: 0.3600, lng: 32.5900, district: "Kampala", kind: "neighbourhood" },
 
   // ── Masaka and the southern towns ───────────────────────────────────────
+  // Masaka's sub-areas. Before this block Masaka had only 6 neighbourhoods
+  // clustered within ~2 km of the town centre (-0.3356, 31.7341). A customer
+  // standing in Nyendo, Kyabakuza, Bukakata, Kisijjo or any other part of the
+  // district was 5-15 km from the nearest gazetteered sub-place, so
+  // `nearestUgandaPlace` collapsed every one of them to the district row and
+  // the header read "Masaka" everywhere in the district — the bug reported.
+  // These points spread the TOWNS coverage across the whole greater-Masaka
+  // area so `nearestSubPlace` can name the actual part of Masaka the
+  // customer is standing in.
   { name: "Masaka Town", lat: -0.3356, lng: 31.7341, district: "Masaka", kind: "town" },
   { name: "Kalibata", lat: -0.3400, lng: 31.7300, district: "Masaka", kind: "neighbourhood" },
   { name: "Kizimwaro", lat: -0.3350, lng: 31.7400, district: "Masaka", kind: "neighbourhood" },
@@ -270,6 +279,18 @@ export const TOWNS: UgandaPlace[] = [
   { name: "Kiwatule", lat: -0.3450, lng: 31.7300, district: "Masaka", kind: "neighbourhood" },
   { name: "Kabare", lat: -0.3200, lng: 31.7600, district: "Masaka", kind: "neighbourhood" },
   { name: "Ssaza", lat: -0.3100, lng: 31.7100, district: "Masaka", kind: "neighbourhood" },
+  // Greater Masaka sub-areas (all still in Masaka district).
+  { name: "Nyendo", lat: -0.3250, lng: 31.6600, district: "Masaka", kind: "neighbourhood", aliases: ["nyendo trading centre", "nyendo market"] },
+  { name: "Kyabakuza", lat: -0.3400, lng: 31.7800, district: "Masaka", kind: "neighbourhood", aliases: ["kyabakuza trading centre"] },
+  { name: "Bukakata", lat: -0.4300, lng: 31.7600, district: "Masaka", kind: "neighbourhood", aliases: ["bukakata landing site"] },
+  { name: "Kisijjo", lat: -0.3150, lng: 31.8000, district: "Masaka", kind: "neighbourhood" },
+  { name: "Kijabijo", lat: -0.3700, lng: 31.7000, district: "Masaka", kind: "neighbourhood" },
+  { name: "Kaabule", lat: -0.2850, lng: 31.7000, district: "Masaka", kind: "neighbourhood" },
+  { name: "Mukungwe", lat: -0.3600, lng: 31.7600, district: "Masaka", kind: "neighbourhood" },
+  { name: "Katenge", lat: -0.3000, lng: 31.7700, district: "Masaka", kind: "neighbourhood" },
+  { name: "Mateete", lat: -0.3800, lng: 31.7200, district: "Masaka", kind: "neighbourhood" },
+  { name: "Kimanya", lat: -0.3100, lng: 31.6900, district: "Masaka", kind: "neighbourhood" },
+  { name: "Bukomansimbi Town", lat: -0.1280, lng: 31.7010, district: "Bukomansimbi", kind: "town" },
   { name: "Mbarara Town", lat: -0.6072, lng: 30.6545, district: "Mbarara", kind: "town" },
   { name: "Ntungamo Town", lat: -1.1360, lng: 30.0750, district: "Ntungamo", kind: "town" },
   { name: "Kabale Town", lat: -1.2490, lng: 29.9899, district: "Kabale", kind: "town" },
@@ -407,6 +428,47 @@ export function nearestUgandaPlace(
 }
 
 /**
+ * The nearest *sub-district* place (town / neighbourhood / landmark) to a
+ * coordinate, bounded by `maxKm`.
+ *
+ * Why this exists (user report: "am in different part of masaka but the auto
+ * location shows me masaka only"):
+ * `gazetteerPlaceName` and `fallbackAddress` used `nearestUgandaPlace`, which
+ * searches ALL places including DISTICT rows. A district row is a single point
+ * at its administrative centre — Masaka town centre at -0.3356, 31.7341.
+ * Someone standing in Nyendo (7 km west), Kisijjo (10 km east) or Bukakata
+ * (12 km south) is closer to that centre than to any other gazetteered point,
+ * so the answer collapsed to the bare district name "Masaka" for the whole
+ * district — the same failure as the old 67-centroid list, where an unnamed
+ * district yielded a neighbour's name.
+ *
+ * This helper excludes district rows entirely and returns only a
+ * named sub-place. Callers combine it with `districtForPoint` so the label
+ * becomes "Nyendo, Masaka" instead of "Masaka" for a customer who is NOT in
+ * Masaka town. When no sub-place is within `maxKm` it returns null and the
+ * caller falls back to the district name — that is the correct answer for a
+ * truly rural point.
+ */
+export function nearestSubPlace(
+  c: { lat: number; lng: number },
+  maxKm = 20,
+): { place: UgandaPlace; km: number } | null {
+  let best: UgandaPlace | null = null;
+  let bestKm = Infinity;
+  for (const p of TOWNS) {
+    const dx = (p.lng - c.lng) * 111.32 * Math.cos(((p.lat + c.lat) / 2) * (Math.PI / 180));
+    const dy = (p.lat - c.lat) * 110.57;
+    const km = Math.sqrt(dx * dx + dy * dy);
+    if (km < bestKm) {
+      bestKm = km;
+      best = p;
+    }
+  }
+  if (!best || bestKm > maxKm) return null;
+  return { place: best, km: bestKm };
+}
+
+/**
  * The district a coordinate falls in, judged by the gazetteer.
  *
  * District centres are preferred over towns for this, because a point in
@@ -439,16 +501,31 @@ export function districtForPoint(
  * neighbourhood, and just the district otherwise. Used as the last-resort
  * fallback in `reverseGeocode` so a customer is never shown raw coordinates
  * for a position inside a place GoDoor knows about.
+ *
+ * BUG FIX — "different part of masaka only shows masaka": the previous
+ * version called `nearestUgandaPlace`, which includes DISTRICT rows. A
+ * district row is a single point at its administrative centre (Masaka town
+ * centre — one point for the whole district). A customer standing in Nyendo
+ * is still closest to *that* point, so the answer collapsed to the bare
+ * name "Masaka" for every part of the district, and the header never said
+ * *which* part they were in.
+ *
+ * Order now:
+ *   1. nearest SUB-PLACE (town / neighbourhood / landmark) within 20 km
+ *      → "Nyendo, Masaka";
+ *   2. otherwise the district name, via `districtForPoint` — the correct
+ *      answer for a truly rural point with no named sub-place nearby.
  */
 export function gazetteerPlaceName(c: { lat: number; lng: number }): string | null {
-  const near = nearestUgandaPlace(c, 45);
-  if (!near) return null;
-  const { place, km } = near;
-  if (place.kind === "district") return place.name;
-  if (place.district && place.district !== place.name) {
-    return `${place.name}, ${place.district}`;
+  const sub = nearestSubPlace(c, 20);
+  if (sub) {
+    const { place } = sub;
+    const district = place.district && place.district !== place.name
+      ? place.district
+      : districtForPoint(c, 45);
+    return district ? `${place.name}, ${district}` : place.name;
   }
-  return place.name;
+  return districtForPoint(c, 45);
 }
 
 /** Every district name, for callers that need a plain list. */

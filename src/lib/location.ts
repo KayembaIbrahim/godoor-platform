@@ -8,6 +8,7 @@ import {
   districtForPoint,
   gazetteerPlaceName,
   nearestUgandaPlace,
+  nearestSubPlace,
   placeLabel,
   searchUgandaPlaces,
 } from "./uganda-places";
@@ -301,7 +302,31 @@ function fallbackAddress(c: LatLng): string {
      nearest one is almost always the right answer. If the point is genuinely
      outside anything it knows — a farm on a hill, a vehicle on a highway —
      the district is still better than nothing, and a raw coordinate is the
-     honest last resort. */
+     honest last resort.
+
+     BUG FIX — "am in different part of masaka but the auto location shows
+     me masaka only": the previous version called `nearestUgandaPlace`,
+     which searches ALL places *including* district rows. A district row is
+     a single point at the administrative centre (Masaka town centre,
+     -0.3356, 31.7341). Anyone standing in Nyendo / Kyabakuza / Bukakata /
+     Kisijjo was closer to that centre than to any other gazetteered point,
+     so every part of the district produced the bare name "Masaka" — the
+     header could never say *which part* of Masaka the customer was in.
+
+     Order now:
+       1. nearest SUB-PLACE (town / neighbourhood / landmark) within 20 km
+          — the specific area, labelled "Nyendo, Masaka";
+       2. nearest district within 60 km — for a genuinely rural point;
+       3. wider district, then raw coordinates. */
+  const sub = nearestSubPlace(c, 20);
+  if (sub) {
+    const { place } = sub;
+    const district = place.district && place.district !== place.name
+      ? place.district
+      : districtForPoint(c, 45);
+    return district ? `${place.name}, ${district}, Uganda` : `${place.name}, Uganda`;
+  }
+
   const near = nearestUgandaPlace(c, 60);
   if (near) {
     const { place } = near;
