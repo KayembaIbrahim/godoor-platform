@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 :root {
+  /* Tell the browser (and the Android WebView) which scheme native form
+     controls must follow. Without this, a phone in OS dark mode makes
+     Chrome darken <input> backgrounds while the app's light-theme text
+     stays dark — typed text becomes dark-on-dark and invisible, which
+     is exactly the GoMart chat "writing pad" complaint. */
+  color-scheme: light;
   /* ─── Official GoDoor Design Tokens (Spec-compliant) ─── */
   --godoor-purple: #7C3AED;
   --godoor-purple-dark: #5B21B6;
@@ -208,6 +214,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   /* ─── GoDoor Design Tokens (dark mode) ─────────────────────────────────
      TRUE BLACK, NOT DEEP NAVY.
      These were the slate ramp — --godoor-background #0F172A, surface #1E293B,
@@ -1056,6 +1063,21 @@ h1, h2, h3 {
 }
 .input::placeholder { color: var(--text-muted); }
 .input:hover { border-color: var(--text-muted); }
+
+/* Always-visible field text. Some inputs are hand-rolled (no `.input`
+   class) and get their colour from a parent container; if that class is
+   missing, typo'd, or the browser re-renders with an OS dark-mode
+   background, the typed text renders dark-on-dark and looks blank — the
+   GoMart chat pad. Pin the text colour ON the field itself for every
+   editable form control, not just `.input`. */
+input, textarea, select { color: var(--text); }
+input::placeholder, textarea::placeholder { color: var(--text-muted); }
+input:autofill, textarea:autofill {
+  -webkit-text-fill-color: var(--text);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg) inset;
+  caret-color: var(--primary);
+}
+input, textarea { caret-color: var(--primary); }
 .input:focus {
   outline: none;
   border-color: var(--primary);

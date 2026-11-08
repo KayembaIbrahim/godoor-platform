@@ -17,6 +17,7 @@ const config: Config = {
         bg: "rgb(var(--rgb-bg) / <alpha-value>)",
         fg: "rgb(var(--rgb-text) / <alpha-value>)",
         surface: "rgb(var(--rgb-surface) / <alpha-value>)",
+        "surface-2": "rgb(var(--rgb-surface-2) / <alpha-value>)",
         elevated: "rgb(var(--rgb-surface-2) / <alpha-value>)",
         panel: "rgb(var(--rgb-primary-light) / <alpha-value>)",
         primary: "rgb(var(--rgb-primary) / <alpha-value>)",

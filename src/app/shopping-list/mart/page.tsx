@@ -648,7 +648,7 @@ export default function GoMartShoppingListPage() {
                     inputMode="numeric"
                     placeholder="Amount (UGX)"
                     aria-label="Extra funds amount in UGX"
-                    className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm tabular-nums"
+                    className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm tabular-nums text-fg placeholder:text-muted focus:border-go focus:outline-none focus:ring-2 focus:ring-go/25"
                   />
                   <button
                     type="button"
@@ -732,7 +732,7 @@ export default function GoMartShoppingListPage() {
                   }}
                   placeholder="Type a message…"
                   aria-label="Message your rider"
-                  className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm"
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg placeholder:text-muted focus:border-go focus:outline-none focus:ring-2 focus:ring-go/25"
                 />
                 <button
                   type="button"
