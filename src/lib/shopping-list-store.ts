@@ -89,6 +89,10 @@ export type ShoppingListRow = {
   actual_merchandise_ugx?: number | null;
   /** Extra amount the customer agreed to on top of the estimate (escrow top-up). */
   extra_funded_ugx?: number | null;
+  customer_lat?: number | null;
+  customer_lng?: number | null;
+  customer_address?: string | null;
+  customer_phone?: string | null;
   notes: string | null;
   merchant_id: string | null;
   rider_id: string | null;
@@ -176,6 +180,18 @@ export function ensureShoppingListSchema(sb: Sb): Promise<void> {
             EXCEPTION WHEN OTHERS THEN NULL; END $$;
             DO $$ BEGIN
               ALTER TABLE shopping_lists ADD COLUMN IF NOT EXISTS extra_funded_ugx INTEGER NOT NULL DEFAULT 0;
+            EXCEPTION WHEN OTHERS THEN NULL; END $$;
+            DO $$ BEGIN
+              ALTER TABLE shopping_lists ADD COLUMN IF NOT EXISTS customer_lat DOUBLE PRECISION;
+            EXCEPTION WHEN OTHERS THEN NULL; END $$;
+            DO $$ BEGIN
+              ALTER TABLE shopping_lists ADD COLUMN IF NOT EXISTS customer_lng DOUBLE PRECISION;
+            EXCEPTION WHEN OTHERS THEN NULL; END $$;
+            DO $$ BEGIN
+              ALTER TABLE shopping_lists ADD COLUMN IF NOT EXISTS customer_address TEXT;
+            EXCEPTION WHEN OTHERS THEN NULL; END $$;
+            DO $$ BEGIN
+              ALTER TABLE shopping_lists ADD COLUMN IF NOT EXISTS customer_phone TEXT;
             EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
             CREATE INDEX IF NOT EXISTS idx_shopping_lists_customer
@@ -397,6 +413,10 @@ export type CreateListInput = {
   needsExtraStop?: boolean;
   /** Customer-declared max budget for items (UGX). null = uncapped. */
   budgetMaxUgx?: number | null;
+  customerLat?: number | null;
+  customerLng?: number | null;
+  customerAddress?: string | null;
+  customerPhone?: string | null;
 };
 
 /**
@@ -443,6 +463,10 @@ export async function createList(
     budget_max_ugx: input.budgetMaxUgx != null && input.budgetMaxUgx > 0 ? Math.trunc(input.budgetMaxUgx) : null,
     actual_merchandise_ugx: null,
     extra_funded_ugx: 0,
+    customer_lat: input.customerLat != null && Number.isFinite(input.customerLat) ? Number(input.customerLat) : null,
+    customer_lng: input.customerLng != null && Number.isFinite(input.customerLng) ? Number(input.customerLng) : null,
+    customer_address: input.customerAddress ? String(input.customerAddress).slice(0, 300) : null,
+    customer_phone: input.customerPhone ? String(input.customerPhone).replace(/[^0-9+]/g, "").slice(0, 24) || null : null,
     notes: input.notes ? String(input.notes).slice(0, 500) : null,
     merchant_id: null,
     rider_id: null,

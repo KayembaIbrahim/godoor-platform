@@ -1382,12 +1382,12 @@ function RiderDashboard() {
                     type="button"
                     onClick={pickupDelivery}
                     disabled={deliveryBusy === activeDelivery.id}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3.5 text-sm font-semibold text-white shadow-glow transition active:scale-[0.98] disabled:opacity-60"
+                    className="mt-3 flex min-h-[56px] w-full items-center justify-center gap-2.5 rounded-2xl bg-primary px-4 py-4 text-base font-bold text-white shadow-glow transition active:scale-[0.98] disabled:opacity-60"
                   >
                     {deliveryBusy === activeDelivery.id ? (
-                      <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Confirming…</>
+                      <><span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> Confirming…</>
                     ) : (
-                      <><Package className="h-4 w-4" /> I have picked it up</>
+                      <><Package className="h-5 w-5 shrink-0" /> <span>I have picked it up — tap when you collect the order</span></>
                     )}
                   </button>
                 ) : (
@@ -1395,12 +1395,12 @@ function RiderDashboard() {
                     type="button"
                     onClick={completeDelivery}
                     disabled={deliveryBusy === activeDelivery.id}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-success px-4 py-3.5 text-sm font-semibold text-white shadow-glow transition active:scale-[0.98] disabled:opacity-60"
+                    className="mt-3 flex min-h-[56px] w-full items-center justify-center gap-2.5 rounded-2xl bg-success px-4 py-4 text-base font-bold text-white shadow-glow transition active:scale-[0.98] disabled:opacity-60"
                   >
                     {deliveryBusy === activeDelivery.id ? (
-                      <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Confirming…</>
+                      <><span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> Confirming…</>
                     ) : (
-                      <><CheckCircle2 className="h-4 w-4" /> Delivered</>
+                      <><CheckCircle2 className="h-5 w-5 shrink-0" /> <span>Mark delivered — tap when you hand the order to the customer</span></>
                     )}
                   </button>
                 )}

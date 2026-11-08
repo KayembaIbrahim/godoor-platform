@@ -1,37 +1,54 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldAlert, Phone } from "lucide-react";
+import { ShieldAlert, Phone, MapPin, MessageCircle } from "lucide-react";
 import { apiAuthHeaders } from "@/lib/db";
 
 /**
  * One-tap SOS for an active ride or delivery.
  *
- * On tap:
- * 1) POST /api/sos — records the incident server-side and pushes an
- *    urgent alert to the other trip participant.
- * 2) Immediately offers a tel: link to the emergency line plus a
- *    Google Maps share link with the caller's live coordinates.
+ * Professional flow:
+ * 1) POST /api/sos — records the incident server-side, resolves the OTHER
+ *    party's phone number, and pushes an urgent alert to them.
+ * 2) After the server confirms, the UI shows two in-app actions:
+ *    - "Call [rider/customer]" → tel: link, opens the phone dialer directly.
+ *    - "Share my location" → tel: fallback link if no peer phone exists.
+ *
+ * No Google Maps. The user never leaves GoDoor to solve an emergency.
  *
  * Location is captured at tap time (one short GPS read) — no always-on
  * tracking, no screen change. The user stays on the trip screen.
  */
-export function SosButton({ rideId, orderId }: { rideId?: string; orderId?: string }) {
+export function SosButton({
+  rideId,
+  orderId,
+  peerPhone,
+  peerName,
+}: {
+  rideId?: string;
+  orderId?: string;
+  /** Other party's phone (rider for a customer, customer for a rider). */
+  peerPhone?: string | null;
+  peerName?: string;
+}) {
   const [busy, setBusy] = useState(false);
   const [emergencyPhone, setEmergencyPhone] = useState<string | null>(null);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [peerResolvedPhone, setPeerResolvedPhone] = useState<string | null>(peerPhone ?? null);
   const [sent, setSent] = useState(false);
+  const [peerLabel, setPeerLabel] = useState<string | null>(peerName ?? null);
 
   const trigger = async () => {
     if (busy || sent) return;
     setBusy(true);
     try {
-      let lat: number | null = null, lng: number | null = null;
+      let lat: number | null = null,
+        lng: number | null = null;
       try {
         const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 })
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 }),
         );
-        lat = pos.coords.latitude; lng = pos.coords.longitude;
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
       } catch {}
 
       const r = await fetch("/api/sos", {
@@ -42,10 +59,14 @@ export function SosButton({ rideId, orderId }: { rideId?: string; orderId?: stri
       const j = await r.json().catch(() => ({}));
       if (j?.ok) {
         setEmergencyPhone(j.emergencyPhone || null);
-        setShareUrl(j.shareUrl || null);
+        const resolved = j.peerPhone || peerPhone || null;
+        setPeerResolvedPhone(resolved);
+        setPeerLabel(j.peerName || peerName || null);
         setSent(true);
       }
-    } catch {} finally { setBusy(false); }
+    } catch {} finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -55,28 +76,45 @@ export function SosButton({ rideId, orderId }: { rideId?: string; orderId?: stri
           type="button"
           onClick={trigger}
           disabled={busy}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-danger/15 px-4 py-3 text-sm font-bold text-danger transition active:scale-[0.98] disabled:opacity-60"
+          className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-danger/15 px-4 py-3.5 text-base font-bold text-danger shadow-sm transition active:scale-[0.98] disabled:opacity-60"
           aria-label="SOS emergency"
         >
-          <ShieldAlert className="h-4 w-4" />
+          <ShieldAlert className="h-5 w-5 shrink-0" />
           {busy ? "Alerting…" : "SOS — Emergency help"}
+          <span className="text-xs font-normal opacity-70">Tap for help</span>
         </button>
       ) : (
-        <div className="rounded-xl border border-danger/30 bg-danger/10 p-3">
-          <p className="text-center text-xs font-bold text-danger">SOS sent — help is coming.</p>
-          <div className="mt-2 flex gap-2">
-            {emergencyPhone && (
-              <a href={`tel:${emergencyPhone}`}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-danger px-3 py-2.5 text-xs font-bold text-white">
-                <Phone className="h-3.5 w-3.5" /> Call emergency line
+        <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4">
+          <p className="text-center text-sm font-bold text-danger">
+            SOS sent — {peerLabel ? `${peerLabel} has been alerted` : "help is coming"}.
+          </p>
+
+          {/* Call the other party — primary action, opens phone dialer */}
+          <div className="mt-3 space-y-2">
+            {peerResolvedPhone ? (
+              <a
+                href={`tel:${peerResolvedPhone.replace(/[^0-9]/g, "")}`}
+                className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-danger px-4 py-3.5 text-base font-bold text-white shadow-glow transition active:scale-[0.98]"
+              >
+                <Phone className="h-5 w-5 shrink-0" />
+                Call {peerLabel || "the other party"}
+                <span className="text-xs font-normal opacity-80">Tap to call</span>
               </a>
-            )}
-            {shareUrl && (
-              <a href={shareUrl} target="_blank" rel="noreferrer"
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-surface px-3 py-2.5 text-xs font-bold text-fg border border-border">
-                Share my location
+            ) : emergencyPhone ? (
+              <a
+                href={`tel:${emergencyPhone.replace(/[^0-9]/g, "")}`}
+                className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-danger px-4 py-3.5 text-base font-bold text-white shadow-glow transition active:scale-[0.98]"
+              >
+                <Phone className="h-5 w-5 shrink-0" />
+                Call emergency line
+                <span className="text-xs font-normal opacity-80">Tap to call</span>
               </a>
-            )}
+            ) : null}
+
+            <p className="flex items-center justify-center gap-1.5 text-[11px] text-muted">
+              <MapPin className="h-3.5 w-3.5" />
+              Your location was shared with {peerLabel || "them"} automatically — no extra step needed.
+            </p>
           </div>
         </div>
       )}

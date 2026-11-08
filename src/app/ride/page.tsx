@@ -252,7 +252,7 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
             <StopoverAlert rideId={ride.id} active />
           </div>
         )}
-        <SosButton rideId={ride.id} />
+        <SosButton rideId={ride.id} peerPhone={ride.customer_phone} peerName={ride.rider_name || "your rider"} />
       </div>
     </div>
   );

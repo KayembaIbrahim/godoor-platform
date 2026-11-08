@@ -79,6 +79,10 @@ export async function POST(req: NextRequest) {
     items?: unknown;
     needsExtraStop?: boolean;
     budgetMaxUgx?: number | null;
+    customerLat?: number | null;
+    customerLng?: number | null;
+    customerAddress?: string | null;
+    customerPhone?: string | null;
   };
   try {
     body = await req.json();
@@ -99,6 +103,10 @@ export async function POST(req: NextRequest) {
       typeof body.budgetMaxUgx === "number" && Number.isFinite(body.budgetMaxUgx)
         ? body.budgetMaxUgx
         : null,
+    customerLat: typeof body.customerLat === "number" && Number.isFinite(body.customerLat) ? body.customerLat : null,
+    customerLng: typeof body.customerLng === "number" && Number.isFinite(body.customerLng) ? body.customerLng : null,
+    customerAddress: typeof body.customerAddress === "string" ? body.customerAddress : null,
+    customerPhone: typeof body.customerPhone === "string" ? body.customerPhone : null,
   });
 
   if (!result.ok) {

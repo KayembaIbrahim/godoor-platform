@@ -51,22 +51,52 @@ export async function POST(req: NextRequest) {
     });
   } catch {}
 
-  // Alert the other party immediately via push.
+  // Alert the other party immediately via push, and resolve their phone
+  // so the SOS UI can offer a one-tap "Call" link without leaving the app.
   const notifyIds: string[] = [];
+  let peerPhone: string | null = null;
+  let peerName: string | null = null;
   try {
     if (rideId) {
-      const { data: ride } = await sb.from("ride_requests").select("customer_id, rider_id").eq("id", rideId).maybeSingle();
+      const { data: ride } = await sb.from("ride_requests").select("customer_id, rider_id, customer_phone, rider_name").eq("id", rideId).maybeSingle();
       if (ride) {
-        const peer = actor.kind === "admin" ? null : (actor.id === ride.customer_id ? ride.rider_id : ride.customer_id);
-        if (peer) notifyIds.push(peer);
+        const peerId = actor.kind === "admin" ? null : (actor.id === ride.customer_id ? ride.rider_id : ride.customer_id);
+        if (peerId) {
+          notifyIds.push(peerId);
+          // The rider's phone lives in riders.phone; the customer's is on the ride row.
+          if (peerId === ride.rider_id) {
+            const { data: r } = await sb.from("riders").select("phone, name").eq("id", peerId).maybeSingle();
+            peerPhone = (r as { phone?: string | null } | null)?.phone || null;
+            peerName = ride.rider_name || (r as { name?: string | null } | null)?.name || "your rider";
+          } else {
+            peerPhone = ride.customer_phone || null;
+            peerName = "your customer";
+          }
+        }
       }
     }
     if (orderId) {
-      const { data: ord } = await sb.from("orders").select("customer_id, rider_id, merchant_id").eq("id", orderId).maybeSingle();
+      const { data: ord } = await sb.from("orders").select("customer_id, rider_id, merchant_id, customer_phone, rider_phone").eq("id", orderId).maybeSingle();
       if (ord) {
         const mine = actor.kind === "admin" ? null : actor.id;
         for (const pid of [ord.customer_id, ord.rider_id, ord.merchant_id]) {
           if (pid && pid !== mine) notifyIds.push(String(pid));
+        }
+        // Primary peer: the party the caller is riding/delivering with.
+        const peerId =
+          mine === ord.customer_id ? ord.rider_id : mine === ord.rider_id ? ord.customer_id : ord.rider_id || ord.customer_id;
+        if (peerId) {
+          if (peerId === ord.rider_id) {
+            peerPhone = (ord as { rider_phone?: string | null }).rider_phone || null;
+            if (!peerPhone) {
+              const { data: r } = await sb.from("riders").select("phone, name").eq("id", peerId).maybeSingle();
+              peerPhone = (r as { phone?: string | null } | null)?.phone || null;
+              peerName = (r as { name?: string | null } | null)?.name || "your rider";
+            } else peerName = "your rider";
+          } else {
+            peerPhone = (ord as { customer_phone?: string | null }).customer_phone || null;
+            peerName = "your customer";
+          }
         }
       }
     }
@@ -85,9 +115,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     emergencyPhone: EMERGENCY_PHONE,
-    shareUrl: lat != null && lng != null
-      ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
-      : null,
+    peerPhone,
+    peerName,
+    // In-app share link removed — the server already alerted the other party
+    // with the caller's coordinates. The client shows an in-app "Call" action
+    // instead of dumping the user onto Google Maps.
+    shareUrl: null,
     recordedAt: at,
   });
 }

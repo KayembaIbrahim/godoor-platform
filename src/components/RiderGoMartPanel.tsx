@@ -7,6 +7,12 @@ import {
 } from "lucide-react";
 import { apiAuthHeaders } from "@/lib/db";
 import { formatUgx, cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
+
+const LiveTrackingMap = dynamic(
+  () => import("@/components/LiveTrackingMap").then((m) => m.LiveTrackingMap),
+  { ssr: false, loading: () => <div className="h-64 rounded-2xl bg-surface animate-pulse" /> },
+);
 
 /* ── Types ──────────────────────────────────────────────────────────────── */
 
@@ -24,6 +30,10 @@ type GoMartList = {
   total_ugx: number;
   customer_id: string | null;
   customer_name: string;
+  customer_lat?: number | null;
+  customer_lng?: number | null;
+  customer_address?: string | null;
+  customer_phone?: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -423,15 +433,33 @@ export function RiderGoMartPanel({ onNewOpen, coords }: { onNewOpen?: (count: nu
             </div>
           </div>
 
+          {/* Rider map — rider pin + customer destination pin (when coords exist) */}
+          {activeMine.customer_lat != null && activeMine.customer_lng != null && coords && (
+            <div className="mt-3 rounded-2xl border border-border bg-surface overflow-hidden" data-testid="gomart-map">
+              <LiveTrackingMap
+                riderLoc={{ lat: coords.lat, lng: coords.lng }}
+                dropoffLoc={{ lat: activeMine.customer_lat, lng: activeMine.customer_lng }}
+                pickupLoc={null}
+                customerName={activeMine.customer_name || "Customer"}
+                label="Customer delivery location"
+              />
+              <div className="flex items-center justify-between border-t border-border px-4 py-2 text-xs text-muted">
+                <span className="font-semibold text-fg">Customer location</span>
+                <span>{activeMine.customer_address || "Waiting for address…"}</span>
+              </div>
+            </div>
+          )}
+
           <div className="mt-3 grid grid-cols-2 gap-2">
+            {/* Main action row */}
             {activeMine.status === "assigned" && (
               <button
                 type="button"
                 onClick={() => advance(activeMine.id, "shopping")}
                 disabled={actingId === activeMine.id}
-                className="btn col-span-2 bg-primary text-white hover:bg-primary-2 disabled:opacity-60"
+                className="col-span-2 flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3.5 text-base font-bold text-white shadow-glow transition active:scale-[0.98] disabled:opacity-60"
               >
-                {actingId === activeMine.id ? "Working…" : (<><Store className="h-3.5 w-3.5" /> Start shopping</>)}
+                {actingId === activeMine.id ? "Working…" : (<><Store className="h-5 w-5 shrink-0" /> <span>Start shopping — tap when you reach a shop</span></>)}
               </button>
             )}
             {activeMine.status === "shopping" && (
@@ -439,9 +467,9 @@ export function RiderGoMartPanel({ onNewOpen, coords }: { onNewOpen?: (count: nu
                 type="button"
                 onClick={() => advance(activeMine.id, "delivering")}
                 disabled={actingId === activeMine.id}
-                className="btn col-span-2 bg-primary text-white hover:bg-primary-2 disabled:opacity-60"
+                className="col-span-2 flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3.5 text-base font-bold text-white shadow-glow transition active:scale-[0.98] disabled:opacity-60"
               >
-                {actingId === activeMine.id ? "Working…" : (<><Navigation className="h-3.5 w-3.5" /> Out for delivery</>)}
+                {actingId === activeMine.id ? "Working…" : (<><Navigation className="h-5 w-5 shrink-0" /> <span>Out for delivery — tap when you have the items</span></>)}
               </button>
             )}
             {activeMine.status === "delivering" && (
@@ -449,9 +477,30 @@ export function RiderGoMartPanel({ onNewOpen, coords }: { onNewOpen?: (count: nu
                 type="button"
                 onClick={() => advance(activeMine.id, "delivered")}
                 disabled={actingId === activeMine.id}
-                className="btn col-span-2 bg-success text-white hover:bg-success/90 disabled:opacity-60"
+                className="col-span-2 flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-success px-4 py-3.5 text-base font-bold text-white shadow-glow transition active:scale-[0.98] disabled:opacity-60"
               >
-                {actingId === activeMine.id ? "Working…" : (<><CheckCircle2 className="h-3.5 w-3.5" /> Delivered</>)}
+                {actingId === activeMine.id ? "Marking delivered…" : (<><CheckCircle2 className="h-5 w-5 shrink-0" /> <span>Mark delivered — tap when you hand items to the customer</span></>)}
+              </button>
+            )}
+            {/* Secondary actions */}
+            {activeMine.customer_phone && (
+              <a
+                href={`tel:${activeMine.customer_phone.replace(/[^0-9]/g, "")}`}
+                className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-surface px-4 py-3 text-sm font-semibold text-muted border border-border"
+              >
+                <Phone className="h-4 w-4 shrink-0" /> Call customer
+              </a>
+            )}
+            {activeMine.customer_lat != null && activeMine.customer_lng != null && (
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.querySelector('[data-testid="gomart-map"]');
+                  el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }}
+                className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-primary/15 px-4 py-3 text-sm font-semibold text-primary border border-primary/30"
+              >
+                <Navigation className="h-4 w-4 shrink-0" /> Navigate to customer
               </button>
             )}
           </div>
@@ -511,14 +560,14 @@ export function RiderGoMartPanel({ onNewOpen, coords }: { onNewOpen?: (count: nu
               type="button"
               onClick={() => claim(l.id)}
               disabled={claimingId === l.id || Boolean(activeMine)}
-              className="btn mt-3 w-full bg-primary text-white hover:bg-primary-2 disabled:opacity-55"
+              className="mt-3 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3.5 text-base font-bold text-white shadow-glow transition active:scale-[0.98] disabled:opacity-55"
             >
               {claimingId === l.id ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Claiming…</>
+                <><Loader2 className="h-5 w-5 animate-spin" /> Claiming…</>
               ) : activeMine ? (
                 <>Finish your current job first</>
               ) : (
-                <>Claim this list <ChevronRight className="h-3.5 w-3.5" /></>
+                <>Claim this list — tap to accept the job <ChevronRight className="h-5 w-5 shrink-0" /></>
               )}
             </button>
           </div>

@@ -25,6 +25,8 @@ import {
   type ShoppingListStatus,
 } from "@/lib/shopping-list";
 import { apiAuthHeaders } from "@/lib/db";
+import { useGeolocation } from "@/lib/location";
+import { useSession } from "@/lib/session-store";
 
 /**
  * GoMart — customer shopping list.
@@ -66,6 +68,10 @@ type ListRow = {
   budget_max_ugx?: number | null;
   actual_merchandise_ugx?: number | null;
   extra_funded_ugx?: number | null;
+  customer_lat?: number | null;
+  customer_lng?: number | null;
+  customer_address?: string | null;
+  customer_phone?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -73,6 +79,8 @@ type ListRow = {
 type DraftItem = { key: string; name: string; quantity: number; unitPriceUgx: number | null };
 
 export default function GoMartShoppingListPage() {
+  const { coords } = useGeolocation();
+  const { profile } = useSession();
   const [lists, setLists] = useState<ListRow[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -260,6 +268,10 @@ export default function GoMartShoppingListPage() {
           notes: notes.trim() || null,
           needsExtraStop: extraStop,
           budgetMaxUgx: budgetMax.trim() === "" ? null : Number(budgetMax.replace(/[^0-9]/g, "")) || null,
+          customerLat: coords?.lat ?? null,
+          customerLng: coords?.lng ?? null,
+          customerAddress: (profile as { address?: string }).address ?? null,
+          customerPhone: (profile as { phone?: string }).phone ?? null,
           items: draft.map((it) => ({
             name: it.name,
             quantity: it.quantity,
