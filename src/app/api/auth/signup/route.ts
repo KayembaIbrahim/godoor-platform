@@ -26,6 +26,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Server not configured" }, { status: 500 });
     }
 
+    // Block the exact failure that trapped Asu Snacks (nashiraf412@gmail.com):
+    // a business owner first created a CUSTOMER account with their business
+    // email, and the customer row then shadowed the approved business — every
+    // sign-in resolved role="customer" and the owner landed on the customer
+    // home even though their merchant was active. One Supabase auth row holds
+    // ONE role, so the wrong first account means the right one can never
+    // exist. Guard: email must never be reused across roles.
+    const mail = (email || "").trim().toLowerCase();
+    const { data: byEmail } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const existing = (byEmail?.users || []).find(
+      (x) => String(x.email || "").toLowerCase() === mail,
+    );
+    if (existing) {
+      const existingRole = (existing.user_metadata?.role as string) || "customer";
+      return NextResponse.json({
+        error: "This email is already registered. Please sign in instead, or if this is about a business/rider account, use /partner to apply and the GoDoor team will link the business to this login.",
+        hint: "already_registered",
+        existingRole,
+      }, { status: 409 });
+    }
+
     // Create user with auto-confirm (bypasses email rate limit)
     const { data, error } = await sb.auth.admin.createUser({
       email,
@@ -35,7 +56,6 @@ export async function POST(req: Request) {
     });
 
     if (error) {
-      // If user already exists, that's OK — they can sign in
       if (error.message?.includes("already") || error.message?.includes("exists")) {
         return NextResponse.json({ ok: true, alreadyExists: true });
       }

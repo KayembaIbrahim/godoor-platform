@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Search, ShieldCheck, User, Mail, Calendar, Ban, Shield, Loader2 } from "lucide-react";
+import { Users, Search, ShieldCheck, User, Mail, Calendar, Ban, Shield, Loader2, Trash2, AlertTriangle, ArrowUpCircle } from "lucide-react";
 import { fetchUsers, type DBUser } from "@/lib/db";
 
 const ROLE_COLORS: Record<string, string> = {
@@ -62,6 +62,27 @@ export default function AdminUsers() {
     setActing(null);
   };
 
+  const deleteUser = async (userId: string, email: string) => {
+    if (!confirm(`Permanently delete ${email}?\n\nThis frees the email so they can re-register in the correct role. This cannot be undone.`)) return;
+    setActing(userId);
+    try {
+      await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: userId, action: "delete" }) });
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+    } catch {}
+    setActing(null);
+  };
+
+  const upgradeRole = async (userId: string, role: string) => {
+    setActing(userId);
+    try {
+      await fetch("/api/admin/users", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: userId, action: "update_role", role }) });
+      setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, role } : u));
+    } catch {}
+    setActing(null);
+  };
+
   return (
     <div className="pb-24 md:pb-0 animate-fade-in">
       <div className="flex items-center gap-3">
@@ -69,6 +90,13 @@ export default function AdminUsers() {
         <span className="rounded-full bg-go/15 px-2.5 py-0.5 text-xs font-bold text-go">{users.length}</span>
       </div>
       <p className="mt-1 text-sm text-muted">All registered users on the GoDoor platform.</p>
+
+      {users.some((u) => u.role === "customer" && u.email && u.email.includes(" ")) && (
+        <div className="mt-3 rounded-xl bg-amber-500/10 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30">
+          <p className="flex items-center gap-1.5 font-semibold"><AlertTriangle className="h-4 w-4" /> Email conflict risk</p>
+          <p className="mt-1 text-xs">One email = one role. If a business applied with a customer email, approve it again (or upgrade the role here) so their sign-in lands on the business dashboard — the approval now upgrades customer logins automatically.</p>
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {(["all", "customer", "business", "rider", "admin"] as const).map((f) => (
@@ -130,7 +158,10 @@ export default function AdminUsers() {
                         {["customer","business","rider","admin"].map((r) => <option key={r} value={r}>{r}</option>)}
                       </select>
                       {acting === u.id ? <Loader2 className="h-3 w-3 animate-spin text-muted" />
-                        : u.role !== "admin" && <button type="button" onClick={() => banUser(u.id)} title="Ban user" className="rounded-md p-1.5 text-danger transition hover:bg-danger/10"><Ban className="h-3.5 w-3.5" /></button>}
+                        : u.role !== "admin" && <>
+                          <button type="button" onClick={() => banUser(u.id)} title="Ban user" className="rounded-md p-1.5 text-danger transition hover:bg-danger/10"><Ban className="h-3.5 w-3.5" /></button>
+                          <button type="button" onClick={() => deleteUser(u.id, u.email)} title="Delete user (frees email)" className="rounded-md p-1.5 text-dim transition hover:bg-danger/10 hover:text-danger"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </>}
                     </div>
                   </td>
                 </tr>

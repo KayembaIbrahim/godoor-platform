@@ -68,7 +68,21 @@ export async function PATCH(req: Request) {
     if (typeof role !== "string" || !ROLES.includes(role)) {
       return NextResponse.json({ error: "Unknown role" }, { status: 400 });
     }
-    const { error } = await sb.auth.admin.updateUserById(id, { user_metadata: { role } });
+    const prevMeta = (target?.user?.user_metadata || {}) as Record<string, unknown>;
+    const { error } = await sb.auth.admin.updateUserById(id, {
+      user_metadata: { ...prevMeta, role },
+    });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "delete") {
+    // Hard delete. The admin role is already blocked above, so an admin can
+    // never delete another admin. No data cascade here — deleting an auth user
+    // frees the email so the same person can re-register in the correct role
+    // (the Asu Snacks recovery: delete the wrong-role customer, recreate as
+    // business, keep the merchant row which points at the new owner_id).
+    const { error } = await sb.auth.admin.deleteUser(id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true });
   }

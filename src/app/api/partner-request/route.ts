@@ -191,6 +191,11 @@ async function issueRiderCredentials(
   if (!userId) throw new Error(acctRole === "business" ? "Could not provision a business account" : "Could not provision a rider account");
 
   // User exists → reset to a fresh one-time password (keeps role, forces change).
+  // ROLE UPGRADE: if the email was first registered as a CUSTOMER (the Asu
+  // Snacks trap — user_metadata.role="customer" is what sign-in trusts, so the
+  // approved business/rider still landed on the customer home), flip it to
+  // acctRole now. Without this the comment above ("keeps role") was the bug:
+  // provisioning quietly kept role="customer" and the business was unreachable.
   const prevMeta = user?.user_metadata || {};
   const { error: updErr } = await sb.auth.admin.updateUserById(userId, {
     password,
@@ -429,6 +434,20 @@ export async function PUT(req: NextRequest) {
     }
     if (!userId) throw new Error("Could not provision the login account");
 
+    // UPGRADE an existing customer (the Asu Snacks trap): a business owner who
+    // first signed up as a customer keeps user_metadata.role="customer", which
+    // is what sign-in trusts → they land on the customer home forever even
+    // though their merchant is active. Flip the SAME auth row to acctRole so
+    // their normal sign-in now lands on the business/rider dashboard.
+    if (user) {
+      const prev = user.user_metadata || {};
+      if (prev.role !== acctRole) {
+        await sb.auth.admin.updateUserById(userId, {
+          user_metadata: { ...prev, role: acctRole, must_change_password: true },
+        });
+      }
+    }
+
     // Re-link domain row (idempotent)
     if (acctRole === "rider") {
       const { data: row } = await sb.from("riders").select("id").eq("id", userId).maybeSingle();
@@ -558,6 +577,21 @@ export async function PATCH(req: NextRequest) {
           userId = user?.id || "";
         }
         if (!userId) throw new Error("Could not provision the login account");
+
+        // UPGRADE an existing customer (the Asu Snacks trap): a business owner
+        // who first signed up as a customer keeps user_metadata.role="customer",
+        // which is what sign-in trusts → they land on the customer home forever
+        // even though their merchant is active. Flip the SAME auth row to
+        // acctRole so their normal sign-in now lands on the business/rider
+        // dashboard. (The role="customer" default on sign-in is why this matters.)
+        if (user) {
+          const prev = user.user_metadata || {};
+          if (prev.role !== acctRole) {
+            await sb.auth.admin.updateUserById(userId, {
+              user_metadata: { ...prev, role: acctRole, must_change_password: true },
+            });
+          }
+        }
 
         // Link the domain row (riders.id / merchants.owner_id) so the
         // dashboard resolves on first sign-in.

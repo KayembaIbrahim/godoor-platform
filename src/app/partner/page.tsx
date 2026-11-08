@@ -38,6 +38,7 @@ function PartnerBody() {
   const [area, setArea] = useState("");
   const [details, setDetails] = useState("");
   const [website, setWebsite] = useState("");
+  const [customerAlert, setCustomerAlert] = useState<string | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +53,20 @@ function PartnerBody() {
     if (!contactName.trim()) { setError("Tell us who to contact."); return; }
     if (!email.trim() && phone.trim().length < 9) { setError("We need a valid email or phone number."); return; }
     if (role === "business" && !businessName.trim()) { setError("Enter your business name."); return; }
+    // Warn BEFORE submitting if this email is already a customer login — that's
+    // the Asu Snacks trap (created a customer account first, then the approved
+    // business could never be reached because one email = one role).
+    if (email.trim() && !customerAlert) {
+      try {
+        const probe = await fetch(`/api/partner-request/check?email=${encodeURIComponent(email.trim())}`, { cache: "no-store" });
+        const pdata = await probe.json().catch(() => ({}));
+        if (probe.ok && pdata?.isCustomer) {
+          setCustomerAlert(pdata.message || "This email is already registered as a customer login. Applying here will link your business/rider to this same login — your role will upgrade when the GoDoor team approves you. Continue only if that's the email you want to sign in with.");
+          setBusy(false);
+          return;
+        }
+      } catch {}
+    }
     setBusy(true);
     try {
       const res = await fetch("/api/partner-request", {
@@ -219,6 +234,29 @@ function PartnerBody() {
               <input value={website} onChange={(e) => setWebsite(e.target.value)} className="hidden" tabIndex={-1} autoComplete="off" />
             </div>
           </div>
+
+          {customerAlert && (
+            <div className="rounded-xl bg-amber-500/15 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30">
+              <p className="font-semibold">⚠ Important — this email is already a customer login</p>
+              <p className="mt-1">{customerAlert}</p>
+              <div className="mt-2.5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setCustomerAlert(null); submit(); }}
+                  className="flex-1 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white hover:bg-amber-600 transition"
+                >
+                  Yes, apply with this email — upgrade it
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerAlert(null)}
+                  className="rounded-lg border border-amber-500/40 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 transition"
+                >
+                  Go back
+                </button>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="rounded-xl bg-danger/15 px-3 py-2 text-sm text-danger">
