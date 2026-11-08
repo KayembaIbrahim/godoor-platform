@@ -116,7 +116,7 @@ export async function GET() {
       email: u.email || "",
       name: (u.user_metadata?.name as string) || u.email || "Business",
       verified: false,
-      category: "Business",
+      category: "Groceries & Market",
       tagline: "",
       area: "Uganda",
       district: "",
@@ -173,9 +173,12 @@ export async function POST(req: Request) {
 
   if (!row) {
     if (!user) return NextResponse.json({ error: "Business account not found" }, { status: 404 });
+    // "Business" matches NO canonical CATEGORIES id (matchCategory→null), so
+    // a merchant created with it never appears in any /browse/[category] list.
+    // Use "Groceries & Market" — the broadest merchant category.
     const insert = {
       name: (user.user_metadata?.name as string) || user.email || "Business",
-      category: "Business",
+      category: "Groceries & Market",
       tagline: "",
       area: "Uganda",
       district: "",

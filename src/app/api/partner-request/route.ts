@@ -645,6 +645,8 @@ export async function PATCH(req: NextRequest) {
       if (!existing?.error && existing?.data && existing.data.length > 0) {
         merchantCreated = { id: String(existing.data[0].id) };
       } else {
+        // `merchants` has NO email column — including it here made the insert
+        // fail silently ("column does not exist") and the business never appeared.
         const { data: created, error: createErr } = await sb
           .from("merchants")
           .insert({
@@ -662,7 +664,6 @@ export async function PATCH(req: NextRequest) {
             status: "active",
             verified: true,
             owner_id: ownerId,
-            email,
           })
           .select("id")
           .single();

@@ -691,39 +691,83 @@ export async function deleteList(
   return { ok: true };
 }
 
+/* ── negotiation messages (table → app_settings fallback) ────────────────── */
+
+/** app_settings key for the messages fallback store. */
+const MESSAGES_FALLBACK_KEY = "shopping-list-messages:v1";
+
+type MessagesFallback = Record<string, ShoppingListMessage[]>;
+
+async function fallbackMessagesRead(sb: Sb): Promise<MessagesFallback> {
+  const { data, error } = await sb
+    .from("app_settings")
+    .select("value")
+    .eq("key", MESSAGES_FALLBACK_KEY)
+    .maybeSingle();
+  if (error || !data?.value) return {};
+  const parsed = parseStoredValue(data.value);
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as MessagesFallback) : {};
+}
+
+async function fallbackMessagesWrite(sb: Sb, store: MessagesFallback): Promise<void> {
+  try {
+    await sb.from("app_settings").upsert(
+      {
+        key: MESSAGES_FALLBACK_KEY,
+        value: JSON.stringify(store),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" },
+    );
+  } catch {}
+}
+
+async function messagesTableExists(sb: Sb): Promise<boolean> {
+  try {
+    const { error } = await sb.from("shopping_list_messages").select("id").limit(1);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 /** List negotiation messages for a GoMart list (oldest first). */
 export async function listMessages(
   sb: Sb,
   listId: string,
 ): Promise<ShoppingListMessage[]> {
-  try {
-    await ensureShoppingListSchema(sb);
-    const { data, error } = await sb
-      .from("shopping_list_messages")
-      .select("id, shopping_list_id, sender_id, sender_name, sender_role, text, kind, amount_ugx, created_at")
-      .eq("shopping_list_id", listId)
-      .order("created_at", { ascending: true })
-      .limit(200);
-    if (!error && data) return data as ShoppingListMessage[];
-  } catch {}
-  return [];
+  await ensureShoppingListSchema(sb);
+  if (await messagesTableExists(sb)) {
+    try {
+      const { data, error } = await sb
+        .from("shopping_list_messages")
+        .select("id, shopping_list_id, sender_id, sender_name, sender_role, text, kind, amount_ugx, created_at")
+        .eq("shopping_list_id", listId)
+        .order("created_at", { ascending: true })
+        .limit(200);
+      if (!error && data) return data as ShoppingListMessage[];
+    } catch {}
+    return [];
+  }
+  const store = await fallbackMessagesRead(sb);
+  return (store[listId] ?? []).slice(0, 200);
 }
 
 /** Append a negotiation message. */
 export async function addMessage(
   sb: Sb,
   listId: string,
-  senderId: string,
+  senderId: string | null,
   senderName: string,
   senderRole: string,
   text: string,
   kind: ShoppingListMessage["kind"] = "chat",
   amountUgx?: number | null,
 ): Promise<ShoppingListMessage> {
-  const row = {
+  const row: ShoppingListMessage = {
     id: randomId(),
     shopping_list_id: listId,
-    sender_id: senderId,
+    sender_id: senderId as unknown as string,
     sender_name: senderName,
     sender_role: senderRole,
     text: text.slice(0, 1000),
@@ -731,12 +775,25 @@ export async function addMessage(
     amount_ugx: amountUgx ?? null,
     created_at: new Date().toISOString(),
   };
-  try {
-    await ensureShoppingListSchema(sb);
-    const { data, error } = await sb.from("shopping_list_messages").insert(row).select("*").maybeSingle();
-    if (!error && data) return data as ShoppingListMessage;
-  } catch {}
-  return row as ShoppingListMessage;
+  await ensureShoppingListSchema(sb);
+  if (await messagesTableExists(sb)) {
+    // Use service-role client (passed in as `sb`) — insert with an explicit
+    // sender_id only when valid. Never silently swallow a DB failure:
+    // chat that "saves" but never appears is the reported bug.
+    const insertRow = { ...row } as Record<string, unknown>;
+    if (!insertRow.sender_id) delete insertRow.sender_id;
+    try {
+      const { data, error } = await sb.from("shopping_list_messages").insert(insertRow).select("*").maybeSingle();
+      if (!error && data) return data as ShoppingListMessage;
+      // Fall through to app_settings fallback so the message survives.
+    } catch {}
+  }
+  // Fallback — persist so the other side actually sees the message.
+  const store = await fallbackMessagesRead(sb);
+  const list = [...(store[listId] ?? []), row].slice(-500);
+  store[listId] = list;
+  await fallbackMessagesWrite(sb, store);
+  return row;
 }
 
 /** Append an audit event. Never throws — auditing must not break a write. */

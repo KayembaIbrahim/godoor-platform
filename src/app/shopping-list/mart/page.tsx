@@ -133,7 +133,23 @@ export default function GoMartShoppingListPage() {
       const data = (await res.json()) as { shoppingLists?: ListRow[] };
       const rows = data.shoppingLists ?? [];
       setLists(rows);
-      setActiveId((cur) => (cur && rows.some((r) => r.id === cur) ? cur : rows[0]?.id ?? null));
+      const nextActive = rows.some((r) => r.id === activeId) ? activeId : rows[0]?.id ?? null;
+      setActiveId(nextActive);
+      // Load messages for the active list on first open — the chat was
+      // empty on open because only the 5s poll filled it (customer never
+      // saw rider messages until a poll fired).
+      if (nextActive) {
+        try {
+          const mRes = await fetch(`/api/shopping-list/${encodeURIComponent(nextActive)}`, {
+            cache: "no-store",
+            headers: await apiAuthHeaders(false),
+          });
+          if (mRes.ok) {
+            const d = (await mRes.json()) as { messages?: typeof messages };
+            if (d.messages) setMessages(d.messages as typeof messages);
+          }
+        } catch {}
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load your GoMart lists");
     } finally {
@@ -700,6 +716,14 @@ export default function GoMartShoppingListPage() {
                         });
                         if (!res.ok) throw new Error("Message failed");
                         setChatText("");
+                        const r2 = await fetch(`/api/shopping-list/${encodeURIComponent(active.id)}`, {
+                          cache: "no-store",
+                          headers: await apiAuthHeaders(false),
+                        });
+                        if (r2.ok) {
+                          const d = (await r2.json()) as { messages?: typeof messages };
+                          if (d.messages) setMessages(d.messages as typeof messages);
+                        }
                         await load();
                       } catch (e) {
                         flash("err", e instanceof Error ? e.message : "Message failed");
@@ -724,6 +748,14 @@ export default function GoMartShoppingListPage() {
                       });
                       if (!res.ok) throw new Error("Message failed");
                       setChatText("");
+                      const r2b = await fetch(`/api/shopping-list/${encodeURIComponent(active.id)}`, {
+                        cache: "no-store",
+                        headers: await apiAuthHeaders(false),
+                      });
+                      if (r2b.ok) {
+                        const d = (await r2b.json()) as { messages?: typeof messages };
+                        if (d.messages) setMessages(d.messages as typeof messages);
+                      }
                       await load();
                     } catch (e) {
                       flash("err", e instanceof Error ? e.message : "Message failed");
