@@ -3,6 +3,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getServiceClient } from "@/lib/supabase-server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/admin-auth";
+import { searchUgandaPlaces } from "@/lib/uganda-places";
+
+/**
+ * Coordinate of a district/town name (Masaka → -0.3356, 31.7341).
+ * Resolution: searchUgandaPlaces on district, then the area text.
+ * Falls back to Kampala ONLY when the place is genuinely unknown — a known
+ * district is never pinned to Kampala coordinates.
+ */
+function districtCoords(district: unknown, area: unknown): { lat: number; lng: number } {
+  const d = String(district || "").trim();
+  for (const q of [d, String(area || "").trim()]) {
+    if (!q) continue;
+    const hit = searchUgandaPlaces(q, 1)[0];
+    if (hit) return { lat: hit.lat, lng: hit.lng };
+  }
+  return { lat: 0.3163, lng: 32.5822 }; // Kampala fallback for an unknown place
+}
 export const runtime = "nodejs";
 
 /**
@@ -671,6 +688,13 @@ export async function PATCH(req: NextRequest) {
       // Idempotent: if a merchant already exists for this business name, don't duplicate.
       const bizName = clamp(application.business_name, 200);
       const category = canonicalCategory(String(application.category || ""));
+      // Coordinates come from WHERE the business is — not a hard-coded 0.3533,32.5822
+      // (Mukono/Kampala). A Masaka business must be created at Masaka so the 25 km
+      // catalogue radius lets Masaka customers see it and hides it from Kampala.
+      const areaCoords = districtCoords(
+        application.district,
+        application.area,
+      );
       const existing = await sb
         .from("merchants")
         .select("id")
@@ -691,8 +715,8 @@ export async function PATCH(req: NextRequest) {
             district: clamp(application.district, 120) || "Uganda",
             momo_number: clamp(application.phone, 40) || "",
             momo_name: clamp(application.contact_name, 120) || "",
-            lat: 0.3533, // placeholder OK — matchCategory/category field is what browse uses
-            lng: 32.5822,
+            lat: areaCoords.lat, // centre of the applicant's district — never a hard-coded Kampala point
+            lng: areaCoords.lng,
             delivery_fee_ugx: 2000,
             rating: 0,
             status: "active",

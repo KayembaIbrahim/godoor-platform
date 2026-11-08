@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicClient, getServiceClient } from "@/lib/supabase-server";
 import { authorize, isUuid, resolveMerchantWriteAccess } from "@/lib/api-auth";
+import { searchUgandaPlaces } from "@/lib/uganda-places";
 export const runtime = "nodejs";
+
+/** Centre of the named place (Masaka → -0.3356, 31.7341). Unknown → Kampala. */
+function coordsForPlace(district: unknown, area: unknown): { lat: number; lng: number } {
+  for (const q of [String(district || "").trim(), String(area || "").trim()]) {
+    if (!q) continue;
+    const hit = searchUgandaPlaces(q, 1)[0];
+    if (hit) return { lat: hit.lat, lng: hit.lng };
+  }
+  return { lat: 0.3163, lng: 32.5822 };
+}
 
 const ENSURE_BUSINESS_TYPE = `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT 'goods';`;
 
@@ -118,9 +129,13 @@ export async function POST(req: NextRequest) {
 
   await ensureBusinessType(sb);
 
+  // No hard-coded Kampala point for new stores: a Masaka business must be
+  // created at Masaka, or the 25 km catalogue radius hides it from Masaka
+  // customers (and wrongly shows it to Kampala customers).
   const hasLocation = Number(body.lat || 0) !== 0 && Number(body.lng || 0) !== 0;
-  const initLat = hasLocation ? Number(body.lat) : 0.3533;
-  const initLng = hasLocation ? Number(body.lng) : 32.5822;
+  const fallback = coordsForPlace(body.district, body.area);
+  const initLat = hasLocation ? Number(body.lat) : fallback.lat;
+  const initLng = hasLocation ? Number(body.lng) : fallback.lng;
   const initDistrict = String(body.district || "").trim() || "Kampala";
   const initArea = String(body.area || "").trim() || "Kampala, Uganda";
   const { data, error } = await sb
@@ -140,7 +155,8 @@ export async function POST(req: NextRequest) {
       closes_at: body.closes_at || "22:00",
       delivery_fee_ugx: Number(body.delivery_fee_ugx || 3000),
       rating: 0,
-      // Auto-active so business receives orders immediately — static Kampala fallback ensures map pin always exists.
+      // Auto-active so business receives orders immediately — location is the
+      // business's own district (above), not a static Kampala fallback.
       status: "active",
       owner_id: ownerId,
     })
