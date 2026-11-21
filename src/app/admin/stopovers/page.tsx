@@ -41,6 +41,12 @@ const RATE_FIELDS: { key: string; label: string; help: string }[] = [
   { key: "evening_multiplier", label: "Evening uplift (×)", help: "1.0 = off. Re-prices live rides" },
   { key: "late_start_hour", label: "Late starts (EAT)", help: "22 = 10:00pm" },
   { key: "late_multiplier", label: "Late-night uplift (×)", help: "1.0 = off" },
+  { key: "morning_rush_start_hour", label: "Morning rush starts (EAT)", help: "7.0 = 7:00am" },
+  { key: "morning_rush_end_hour", label: "Morning rush ends (EAT)", help: "9.5 = 9:30am" },
+  { key: "evening_rush_start_hour", label: "Evening rush starts (EAT)", help: "17.0 = 5:00pm" },
+  { key: "evening_rush_end_hour", label: "Evening rush ends (EAT)", help: "20.5 = 8:30pm" },
+  { key: "rush_multiplier", label: "Rush traffic uplift (×)", help: "1.15 = +15% distance during peak traffic" },
+  { key: "upcountry_multiplier", label: "Upcountry multiplier (×)", help: "1.0 = standard, 0.9 = 10% lower outside Kampala" },
 ];
 
 export default function AdminStopovers() {

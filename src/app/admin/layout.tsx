@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Package, AlertTriangle, Store, Users, Settings,
   Shield, ShieldCheck, Truck, BarChart3, ChevronLeft, Menu, X, Bell, Tag, Wallet, ClipboardList, AtSign,
   BanknoteArrowDown, Download, Clock, ArrowUpRight, Megaphone, PanelTop, ArrowLeftRight, CalendarCheck,
-  Image, Sunrise, KeyRound, LifeBuoy, ChevronDown, Search, Activity, Zap, Percent, Sparkles,
+  Image, Sunrise, KeyRound, LifeBuoy, ChevronDown, Search, Activity, Zap, Percent, Sparkles, Navigation,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -47,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Activity,
     items: [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/admin/fleet-map", label: "Fleet Radar", icon: Navigation },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
     ],
   },

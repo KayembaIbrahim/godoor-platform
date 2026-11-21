@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowLeft, MapPin, Navigation, Bike, Phone, X, Loader2, Clock, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, MapPin, Navigation, Bike, Phone, X, Loader2, Clock, CheckCircle2, Package, Truck } from "lucide-react";
 import { AddressSearchModal } from "@/components/AddressSearchModal";
 import { useSession } from "@/lib/session-store";
 import { useGeolocation, distanceKm, type LatLng } from "@/lib/location";
@@ -48,10 +48,14 @@ type ServerQuote = {
   };
 };
 
-async function fetchServerQuote(p: Addr, d: Addr): Promise<ServerQuote | null> {
-  const r = await fetch("/api/rides/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pickup_lat: p.lat, pickup_lng: p.lng, dropoff_lat: d.lat, dropoff_lng: d.lng, kind: "boda" }) });
+async function fetchServerQuote(p: Addr, d: Addr, kind: string = "boda"): Promise<ServerQuote | null> {
+  const r = await fetch("/api/rides/quote", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pickup_lat: p.lat, pickup_lng: p.lng, dropoff_lat: d.lat, dropoff_lng: d.lng, kind }),
+  });
   if (!r.ok) return null;
-  const j = await r.json() as { quote: ServerQuote["quote"]; service_fee_ugx: number; total_ugx: number; fare_ugx?: number };
+  const j = (await r.json()) as { quote: ServerQuote["quote"]; service_fee_ugx: number; total_ugx: number; fare_ugx?: number };
   return { total_ugx: j.total_ugx, fare_ugx: j.fare_ugx ?? j.quote?.fare_ugx, service_fee_ugx: j.service_fee_ugx, quote: j.quote };
 }
 
@@ -133,10 +137,10 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
      receipt so the customer can see how far they actually travelled, not just
      what they paid. Falls back to the straight-line estimate from the stored
      pickup/dropoff coords when the column predates the fare engine. */
-  const distanceKm = (ride.distance_km ? Number(ride.distance_km) : 0) > 0
+  const actualDistanceKm = (ride.distance_km ? Number(ride.distance_km) : 0) > 0
     ? Number(ride.distance_km)
     : (ride.pickup_lat && ride.dropoff_lat ? distanceKm(pickup as { lat: number; lng: number }, drop as { lat: number; lng: number }) : 0);
-  const distanceLabel = distanceKm > 0 ? `${distanceKm.toFixed(1)} km` : null;
+  const distanceLabel = actualDistanceKm > 0 ? `${actualDistanceKm.toFixed(1)} km` : null;
   /* Visible fare breakdown on the active-ride card — the customer can see the
      base + distance × per-km math, not just the total. Derived from the stored
      quote so it matches what was actually charged. */
@@ -194,7 +198,7 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
           roadRoute={roadCoords}
           maneuvers={null}
           showNavigation={false}
-          roadDistanceKm={distanceKm > 0 ? distanceKm : null}
+          roadDistanceKm={actualDistanceKm > 0 ? actualDistanceKm : null}
           roadDurationMin={ride.duration_min != null ? Number(ride.duration_min) : null}
           /* The card previously fell back to a distance-based ESTIMATE because
              no quote was passed, so a booked ride showed "FARE UGX 2,000" while
@@ -204,6 +208,17 @@ function ActiveRideCard({ ride: initial, onSettled }: { ride: DBRide; onSettled:
           label={statusLabel}
           merchantName="Pickup"
           customerName="You"
+          statusStep={
+            ride.status === "requested"
+              ? "confirmed"
+              : ride.status === "accepted"
+              ? "assigned"
+              : ride.status === "in_progress"
+              ? "delivering"
+              : ride.status === "completed"
+              ? "arrived"
+              : null
+          }
         />
       </div>
       <div className="p-4">
@@ -312,16 +327,19 @@ export default function RidePage() {
   }, [activeId, activeRide]);
 
   const km = pickup && dropoff ? distanceKm(pickup, dropoff) : null;
+  const [vehicleKind, setVehicleKind] = useState<"boda" | "boda_cargo" | "car">("boda");
   const [quote, setQuote] = useState<ServerQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   useEffect(() => {
     if (!pickup || !dropoff) { setQuote(null); return; }
     const t = setTimeout(() => {
       setQuoteLoading(true);
-      fetchServerQuote(pickup, dropoff).then((q) => { setQuote(q); setQuoteLoading(false); }).catch(() => setQuoteLoading(false));
+      fetchServerQuote(pickup, dropoff, vehicleKind)
+        .then((q) => { setQuote(q); setQuoteLoading(false); })
+        .catch(() => setQuoteLoading(false));
     }, 300);
     return () => clearTimeout(t);
-  }, [pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
+  }, [pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng, vehicleKind]);
   const previewRoute = useRoadRoute(
     pickup ? { lat: pickup.lat, lng: pickup.lng } : null,
     dropoff ? { lat: dropoff.lat, lng: dropoff.lng } : null,
@@ -347,6 +365,7 @@ export default function RidePage() {
         dropoff_lat: dropoff.lat,
         dropoff_lng: dropoff.lng,
         dropoff_address: dropoff.place,
+        kind: vehicleKind,
       });
       setActiveId(ride.id);
       loadMine();
@@ -472,6 +491,65 @@ export default function RidePage() {
           </div>
           </div>
 
+          {/* Vehicle Category Selector (Uber / Bolt pattern) */}
+          {pickup && dropoff && (
+            <div className="mt-4 space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-dim">Choose your category</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVehicleKind("boda")}
+                  className={`flex flex-col items-center justify-between rounded-2xl border p-3 text-center transition ${
+                    vehicleKind === "boda"
+                      ? "border-primary bg-primary/10 shadow-md ring-2 ring-primary/30"
+                      : "border-border bg-surface hover:bg-elevated"
+                  }`}
+                >
+                  <Bike className={`h-6 w-6 ${vehicleKind === "boda" ? "text-primary" : "text-muted"}`} />
+                  <span className="mt-1 text-xs font-bold text-fg">GoRide</span>
+                  <span className="text-[10px] text-muted">1 Passenger</span>
+                  <span className="mt-1 text-[11px] font-bold text-primary tabular-nums">
+                    {vehicleKind === "boda" && quote ? formatUgx(quote.total_ugx) : "Fastest"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVehicleKind("boda_cargo")}
+                  className={`flex flex-col items-center justify-between rounded-2xl border p-3 text-center transition ${
+                    vehicleKind === "boda_cargo"
+                      ? "border-primary bg-primary/10 shadow-md ring-2 ring-primary/30"
+                      : "border-border bg-surface hover:bg-elevated"
+                  }`}
+                >
+                  <Package className={`h-6 w-6 ${vehicleKind === "boda_cargo" ? "text-primary" : "text-muted"}`} />
+                  <span className="mt-1 text-xs font-bold text-fg">Cargo Box</span>
+                  <span className="text-[10px] text-muted">Boxes/Packages</span>
+                  <span className="mt-1 text-[11px] font-bold text-primary tabular-nums">
+                    {vehicleKind === "boda_cargo" && quote ? formatUgx(quote.total_ugx) : "Delivery Box"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVehicleKind("car")}
+                  className={`flex flex-col items-center justify-between rounded-2xl border p-3 text-center transition ${
+                    vehicleKind === "car"
+                      ? "border-primary bg-primary/10 shadow-md ring-2 ring-primary/30"
+                      : "border-border bg-surface hover:bg-elevated"
+                  }`}
+                >
+                  <Truck className={`h-6 w-6 ${vehicleKind === "car" ? "text-primary" : "text-muted"}`} />
+                  <span className="mt-1 text-xs font-bold text-fg">GoCar</span>
+                  <span className="text-[10px] text-muted">4 Passengers</span>
+                  <span className="mt-1 text-[11px] font-bold text-primary tabular-nums">
+                    {vehicleKind === "car" && quote ? formatUgx(quote.total_ugx) : "Cab / Taxi"}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Booking gate — three distinct states, each with a working path:
               1. not a real account (no Supabase user): tapping sign-in sends
                  the user to /signin, not to a disabled dead end;
@@ -493,7 +571,7 @@ export default function RidePage() {
             <button type="button" onClick={request} disabled={busy || !pickup || !dropoff}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-white hover:bg-primary-2 transition disabled:opacity-50">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bike className="h-4 w-4" />}
-              {busy ? "Requesting…" : "Request boda ride"}
+              {busy ? "Requesting…" : vehicleKind === "boda" ? "Request GoRide Boda" : vehicleKind === "boda_cargo" ? "Request Cargo Boda" : "Request GoCar"}
             </button>
           )}
 

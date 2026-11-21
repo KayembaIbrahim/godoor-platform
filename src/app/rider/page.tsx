@@ -438,53 +438,79 @@ function BodaPanel({ riderName, verifiedOk, isOnline, coords, authReady, heading
           </p>
         </div>
       ) : (
-        visibleRides.map((r) => (
-          <div key={r.id} className="rounded-2xl border border-border bg-surface p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-muted shrink-0" /> {r.customer_name || "Passenger"}
-                </p>
-                <div className="mt-1.5 flex items-start gap-2">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
-                  <p className="min-w-0 flex-1 text-xs leading-snug text-muted break-words">{r.pickup_address || "Pickup point"}</p>
-                </div>
-                <div className="mt-1 flex items-start gap-2">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-go" />
-                  <p className="min-w-0 flex-1 text-xs leading-snug text-muted break-words">{r.dropoff_address || "Destination"}</p>
-                </div>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-bold text-primary tabular-nums">{formatUgx(r.total_ugx)}</p>
-                <p className="text-[10px] text-dim tabular-nums">{r.distance_km} km</p>
-              </div>
-            </div>
-            <button type="button" onClick={() => act(r, "accept")} disabled={busyId === r.id || !!activeRide}
-              className="btn mt-3 w-full bg-primary text-white hover:bg-primary-2 disabled:opacity-60">
-              {busyId === r.id ? "Accepting…" : activeRide ? "Finish current trip first" : "Accept ride"}
-            </button>
-            {/* Feedback belongs ON the button, not in a banner parked above the
-                map. That banner is off-screen in Boda mode, so a rejected tap
-                looked identical to a tap that worked. */}
-            {actResult?.[r.id] && (
-              <p
-                role="status"
-                className={`mt-2 flex items-start gap-1.5 rounded-lg border px-2.5 py-2 text-[11px] font-medium ${
-                  actResult[r.id].ok
-                    ? "border-success/30 bg-success/10 text-success"
-                    : "border-danger/30 bg-danger/10 text-danger"
-                }`}
-              >
-                {actResult[r.id].ok ? (
-                  <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0" />
-                ) : (
-                  <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+        visibleRides.map((r) => {
+          const pickupDist = coords && r.pickup_lat && r.pickup_lng
+            ? distanceKm(coords, { lat: Number(r.pickup_lat), lng: Number(r.pickup_lng) })
+            : null;
+          const pickupEtaMin = pickupDist != null ? Math.max(1, Math.round(pickupDist * 3)) : null;
+          const riderTakeHome = r.fare_ugx && r.fare_ugx > 0 ? r.fare_ugx : Math.max(0, r.total_ugx - (r.service_fee_ugx || 250));
+          const kindLabel = (r as any).kind === "boda_cargo" ? "Cargo Box" : (r as any).kind === "car" ? "GoCar" : "GoRide";
+
+          return (
+            <div key={r.id} className="relative overflow-hidden rounded-2xl border-2 border-primary/30 bg-surface p-4 shadow-lg shadow-black/10 animate-fade-in">
+              {/* Trip Radar Top Bar */}
+              <div className="mb-2 flex items-center justify-between border-b border-border pb-2 text-[10px]">
+                <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-go">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-go opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-go" />
+                  </span>
+                  Trip Radar · {kindLabel}
+                </span>
+                {pickupDist != null && (
+                  <span className="rounded-md bg-elevated px-2 py-0.5 font-semibold text-fg tabular-nums">
+                    {pickupDist < 1 ? `${Math.round(pickupDist * 1000)}m` : `${pickupDist.toFixed(1)} km`} to pickup (~{pickupEtaMin}m)
+                  </span>
                 )}
-                <span className="min-w-0">{actResult[r.id].message}</span>
-              </p>
-            )}
-          </div>
-        ))
+              </div>
+
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5 text-muted shrink-0" /> {r.customer_name || "Passenger"}
+                  </p>
+                  <div className="mt-1.5 flex items-start gap-2">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+                    <p className="min-w-0 flex-1 text-xs leading-snug text-muted break-words">{r.pickup_address || "Pickup point"}</p>
+                  </div>
+                  <div className="mt-1 flex items-start gap-2">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-go" />
+                    <p className="min-w-0 flex-1 text-xs leading-snug text-muted break-words">{r.dropoff_address || "Destination"}</p>
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-dim">You earn</p>
+                  <p className="font-display text-lg font-bold text-success tabular-nums">{formatUgx(riderTakeHome)}</p>
+                  <p className="text-[10px] text-muted tabular-nums">Total: {formatUgx(r.total_ugx)} · {r.distance_km} km</p>
+                </div>
+              </div>
+
+              <button type="button" onClick={() => act(r, "accept")} disabled={busyId === r.id || !!activeRide}
+                className="btn mt-3 w-full bg-primary py-3 text-sm font-bold text-white shadow-md hover:bg-primary-2 active:scale-[0.99] disabled:opacity-60 transition">
+                {busyId === r.id ? "Accepting trip…" : activeRide ? "Finish current trip first" : "Accept Ride Now"}
+              </button>
+
+              {/* Feedback belongs ON the card */}
+              {actResult?.[r.id] && (
+                <p
+                  role="status"
+                  className={`mt-2 flex items-start gap-1.5 rounded-lg border px-2.5 py-2 text-[11px] font-medium ${
+                    actResult[r.id].ok
+                      ? "border-success/30 bg-success/10 text-success"
+                      : "border-danger/30 bg-danger/10 text-danger"
+                  }`}
+                >
+                  {actResult[r.id].ok ? (
+                    <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0" />
+                  ) : (
+                    <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <span className="min-w-0">{actResult[r.id].message}</span>
+                </p>
+              )}
+            </div>
+          );
+        })
       )}
       {coords && (
         <p className="text-center text-[10px] text-dim">Your GPS is on — passengers see you live once you accept.</p>
@@ -615,7 +641,7 @@ function RiderDashboard() {
                 };
               })
               .filter((d): d is NonNullable<typeof d> => d !== null)
-              .sort((a, b) => a.distanceKm - b.distanceKm) as ReturnType<typeof useState<DeliveryRequest[]>>[0]
+              .sort((a, b) => a.distanceKm - b.distanceKm) as DeliveryRequest[]
           : [],
       );
       setActiveDelivery(myActive || null);

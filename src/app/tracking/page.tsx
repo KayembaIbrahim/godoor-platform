@@ -738,6 +738,18 @@ function OrderTracker({ order }: { order: DBOrder }) {
                   merchantName={order.merchant_name}
                   customerName={dropoffIsLiveGps ? "You (live GPS)" : order.customer_name || "Customer"}
                   riderVehicleType={riderVehicle}
+                  riderPhone={riderPhone || null}
+                  statusStep={
+                    ["pending", "payment_submitted", "payment_confirmed", "preparing"].includes(status)
+                      ? "confirmed"
+                      : status === "rider_assigned"
+                      ? "assigned"
+                      : status === "delivering"
+                      ? "delivering"
+                      : status === "delivered"
+                      ? "arrived"
+                      : null
+                  }
                 />
               ) : (
                 <div className="h-full md:overflow-hidden md:rounded-2xl">

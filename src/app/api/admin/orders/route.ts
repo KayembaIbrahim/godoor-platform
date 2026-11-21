@@ -27,11 +27,21 @@ export async function PATCH(req: Request) {
   if (!sb) return NextResponse.json({ error: "Not configured" }, { status: 500 });
 
   const body = await req.json().catch(() => ({}));
-  const { id, status } = body;
-  if (!id || !status) return NextResponse.json({ error: "id and status required" }, { status: 400 });
-  if (!isKnownStatus(status)) return NextResponse.json({ error: `Unknown status "${status}"` }, { status: 400 });
+  const { id, status, rider_id, rider_name } = body;
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  const { error } = await sb.from("orders").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+  const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (status) {
+    if (!isKnownStatus(status)) return NextResponse.json({ error: `Unknown status "${status}"` }, { status: 400 });
+    updateData.status = status;
+  }
+  if (rider_id !== undefined) {
+    updateData.rider_id = rider_id;
+    if (rider_name) updateData.rider_name = rider_name;
+    if (!status) updateData.status = "rider_assigned";
+  }
+
+  const { error } = await sb.from("orders").update(updateData).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

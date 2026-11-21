@@ -1167,7 +1167,7 @@ export type RideInput = {
   dropoff_lat: number;
   dropoff_lng: number;
   dropoff_address?: string;
-  kind?: "boda" | "car" | "delivery" | "express" | "parcel";
+  kind?: "boda" | "boda_cargo" | "car" | "delivery" | "express" | "parcel" | "gomart";
   description?: string;
 };
 

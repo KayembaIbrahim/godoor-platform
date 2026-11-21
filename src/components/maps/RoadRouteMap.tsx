@@ -122,7 +122,27 @@ export function RoadRouteMap({
               ? (pinHint || "Drag the pin to the exact gate · route updates live")
               : route?.source === "mapbox" ? "Road route" : route?.source === "osrm" ? "Road route (fallback)" : "Direct route"}
           </span>
+          {route && !editable && (
+            <span className="ml-1 rounded-md bg-go/15 px-1.5 py-0.5 text-[10px] font-bold text-go">
+              {route.distanceKm < 1 ? `${Math.round(route.distanceKm * 1000)}m` : `${route.distanceKm.toFixed(1)}km`} · {Math.max(1, Math.round(route.durationMin))}m
+            </span>
+          )}
         </div>
+
+        {/* Floating Re-center button (Uber/Bolt quick camera snap) */}
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("godoor:recenter"));
+            }
+          }}
+          aria-label="Re-center route"
+          title="Fit route in view"
+          className="absolute right-3 bottom-3 z-10 grid h-9 w-9 place-items-center rounded-xl border border-border bg-surface/90 text-fg shadow-lg backdrop-blur-md transition hover:scale-105 active:scale-95"
+        >
+          <Navigation className="h-4 w-4 text-go" />
+        </button>
       </div>
 
       {showRouteInfo && route && (

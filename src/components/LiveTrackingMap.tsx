@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Navigation, MapPin, ShoppingBag } from "lucide-react";
+import { Navigation, MapPin, ShoppingBag, Phone } from "lucide-react";
 import { type LatLng, distanceKm } from "@/lib/location";
 import { calcDeliveryFee, ugandaFareTier, formatUgx } from "@/lib/utils";
 import { maneuverGlyph } from "@/lib/routing";
@@ -114,6 +114,9 @@ type Props = {
   riderVehicleType?: string | null;
   onDropoffDragEnd?: (c: { lat: number; lng: number; place: string }) => void;
   onPickupDragEnd?: (c: { lat: number; lng: number; place: string }) => void;
+  /** Uber/Bolt quick contact & status enhancements */
+  riderPhone?: string | null;
+  statusStep?: "confirmed" | "assigned" | "pickup" | "delivering" | "arrived" | null;
 };
 
 export function LiveTrackingMap({
@@ -125,9 +128,11 @@ export function LiveTrackingMap({
   riderVehicleType = null,
   onDropoffDragEnd,
   onPickupDragEnd,
+  riderPhone = null,
+  statusStep = null,
 }: Props) {
   const UG_DEFAULT: LatLng = { lat: 0.3163, lng: 32.5822 };
-  const hasCoords = (p: LatLng | null | undefined) => !!p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9);
+  const hasCoords = (p: LatLng | null | undefined): p is LatLng => !!p && (Math.abs(p.lat) > 1e-9 || Math.abs(p.lng) > 1e-9);
   const validDropoff = hasCoords(dropoffLoc) ? dropoffLoc : null;
   const validPickup = hasCoords(pickupLoc) ? pickupLoc : null;
 
@@ -413,6 +418,33 @@ export function LiveTrackingMap({
           )}
         </div>
 
+        {/* Floating Quick Action Controls (Uber/Bolt style) */}
+        <div className="absolute right-3 bottom-52 z-10 flex flex-col items-center gap-2">
+          {riderPhone && (
+            <a
+              href={`tel:${riderPhone}`}
+              aria-label="Call Rider"
+              title="Call Rider"
+              className="grid h-10 w-10 place-items-center rounded-2xl border border-border bg-surface/90 text-go shadow-xl backdrop-blur-md transition hover:scale-105 active:scale-95"
+            >
+              <Phone className="h-4 w-4" />
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("godoor:recenter"));
+              }
+            }}
+            aria-label="Re-center map"
+            title="Re-center view"
+            className="grid h-10 w-10 place-items-center rounded-2xl border border-border bg-surface/90 text-fg shadow-xl backdrop-blur-md transition hover:scale-105 active:scale-95"
+          >
+            <Navigation className="h-4 w-4 text-go" />
+          </button>
+        </div>
+
         {/* Bottom-left: legend */}
         <div className="absolute bottom-52 left-3 z-10 hidden items-center gap-3 rounded-xl border border-border bg-surface/85 px-3 py-2 shadow-lg backdrop-blur-md sm:flex">
           <span className="flex items-center gap-1.5 text-[10px] text-muted"><span className="grid h-3.5 w-3.5 place-items-center rounded-md bg-orange-500"><ShoppingBag className="h-2 w-2 text-white" /></span>Shop</span>
@@ -424,6 +456,30 @@ export function LiveTrackingMap({
 
         {/* Bottom: glass metrics card */}
         <div className="absolute bottom-3 left-3 right-3 z-10 rounded-2xl border border-border bg-surface/90 p-2.5 shadow-2xl backdrop-blur-xl sm:left-auto sm:right-3 sm:w-[27rem]">
+          {statusStep && (
+            <div className="mb-2 flex items-center justify-between gap-1 text-[9px] font-semibold uppercase tracking-wider text-muted">
+              <div className={`flex items-center gap-1 ${["confirmed", "assigned", "pickup", "delivering", "arrived"].includes(statusStep) ? "text-go font-bold" : ""}`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                <span>Confirmed</span>
+              </div>
+              <div className="h-0.5 flex-1 bg-border" />
+              <div className={`flex items-center gap-1 ${["assigned", "pickup", "delivering", "arrived"].includes(statusStep) ? "text-go font-bold" : ""}`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                <span>Assigned</span>
+              </div>
+              <div className="h-0.5 flex-1 bg-border" />
+              <div className={`flex items-center gap-1 ${["delivering", "arrived"].includes(statusStep) ? "text-go font-bold" : ""}`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                <span>On the way</span>
+              </div>
+              <div className="h-0.5 flex-1 bg-border" />
+              <div className={`flex items-center gap-1 ${statusStep === "arrived" ? "text-success font-bold" : ""}`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                <span>Arrived</span>
+              </div>
+            </div>
+          )}
+
           {progress != null && (
             <div className="mb-2">
               <div className="h-1.2 w-full overflow-hidden rounded-full bg-elevated">

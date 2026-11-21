@@ -466,11 +466,12 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
   `;
   el.appendChild(shadow);
 
-  /* Pulsing ring: drop-off pin only (the rider is a puck and owns its own).
+  /* Pulsing ring: drop-off and pickup pins emit radar pulses (Uber/Bolt style)
+     so the customer and rider instantly spot their active landmarks.
      The centring lives on a wrapper because the keyframe animates `transform`
      outright, which would otherwise wipe out the translateX(-50%) and fling
      the ring off to the right of the pin. */
-  if (isDest) {
+  if (isDest || isPickup) {
     const wrap = document.createElement("div");
     wrap.style.cssText = `
       position: absolute;
@@ -481,14 +482,15 @@ function createMarkerElement(m: MarkerData): HTMLDivElement {
       transform: translateX(-50%);
       pointer-events: none;
     `;
+    const ringColor = isPickup ? "#EA580C" : dark;
     const pulse = document.createElement("div");
     pulse.style.cssText = `
       position: absolute;
       inset: 0;
       border-radius: 50%;
-      border: 2.5px solid ${dark};
+      border: 2.5px solid ${ringColor};
       opacity: 0.8;
-      animation: marker-ring-pulse 2.6s ease-in-out infinite;
+      animation: marker-ring-pulse ${isPickup ? "2.2s" : "2.6s"} ease-in-out infinite;
     `;
     wrap.appendChild(pulse);
     el.appendChild(wrap);
@@ -1317,25 +1319,68 @@ function MapboxMapInner({
   }, []);
 
   /* Ease a marker between two fixes. Restarting mid-flight blends from
-     wherever the pin currently is, so rapid updates never snap backwards. */
+     wherever the pin currently is, so rapid updates never snap backwards.
+     Interpolates both coordinate and shortest-path heading (Uber/Bolt standard). */
   const glideTo = useCallback((m: MarkerData, marker: any, from: [number, number], to: [number, number]) => {
     const running = glideRef.current.get(m.id);
     if (running) cancelAnimationFrame(running);
     const dist = Math.hypot(to[0] - from[0], to[1] - from[1]);
     if (dist < 1e-6) return;
-    const duration = Math.min(6000, Math.max(900, dist * 100_000));
+    const duration = Math.min(5000, Math.max(800, dist * 90_000));
     const started = performance.now();
+
+    // Determine target heading: explicit GPS heading, or derive from travel vector
+    let targetHeading = m.heading;
+    if ((targetHeading == null || !Number.isFinite(targetHeading)) && dist > 0.00002) {
+      const dLng = ((to[0] - from[0]) * Math.PI) / 180;
+      const lat1 = (from[1] * Math.PI) / 180;
+      const lat2 = (to[1] * Math.PI) / 180;
+      const y = Math.sin(dLng) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.cos(lat1) * Math.cos(dLng);
+      targetHeading = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+    }
+
+    const markerEl = marker.getElement() as any;
+    const arrowEl = markerEl?.__gdrArrow;
+    const isPuck = markerEl?.__gdrIsPuck;
+
+    let startAngle: number | null = markerEl?.__gdrCurAngle ?? null;
+    let angleDiff = 0;
+    if (arrowEl && targetHeading != null && Number.isFinite(targetHeading)) {
+      const targetRel = targetHeading - mapBearingRef.current;
+      if (startAngle == null) {
+        startAngle = targetRel;
+        markerEl.__gdrCurAngle = startAngle;
+      }
+      // Shortest angle difference: wraps correctly across 360 degrees
+      angleDiff = ((targetRel - startAngle + 540) % 360) - 180;
+    }
+
     const step = (now: number) => {
       const t = Math.min(1, (now - started) / duration);
-      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      // Cubic ease-in-out for smooth vehicle acceleration and braking
+      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
       try {
         marker.setLngLat([from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e]);
+        if (arrowEl && startAngle != null && angleDiff !== 0) {
+          const currentRot = startAngle + angleDiff * e;
+          arrowEl.style.transform = isPuck
+            ? `rotate(${currentRot}deg)`
+            : `translateX(-50%) rotate(${currentRot}deg)`;
+          markerEl.__gdrCurAngle = currentRot;
+        }
       } catch {
         glideRef.current.delete(m.id);
         return;
       }
-      if (t < 1) glideRef.current.set(m.id, requestAnimationFrame(step));
-      else glideRef.current.delete(m.id);
+      if (t < 1) {
+        glideRef.current.set(m.id, requestAnimationFrame(step));
+      } else {
+        glideRef.current.delete(m.id);
+        if (markerEl && startAngle != null) {
+          markerEl.__gdrCurAngle = startAngle + angleDiff;
+        }
+      }
     };
     glideRef.current.set(m.id, requestAnimationFrame(step));
   }, []);
@@ -1395,11 +1440,15 @@ function MapboxMapInner({
                compass heading points off to the side while the rider is
                travelling straight up the screen. Subtracting the map bearing
                puts the nose back on the road ahead. */
-            const isPuck = (marker.getElement() as any).__gdrIsPuck;
+            const el = marker.getElement() as any;
+            const isPuck = el.__gdrIsPuck;
             const relative = m.heading - mapBearingRef.current;
-            arrowEl.style.transform = isPuck
-              ? `rotate(${relative}deg)`
-              : `translateX(-50%) rotate(${relative}deg)`;
+            if (!m.isRider || !glideRef.current.has(m.id)) {
+              el.__gdrCurAngle = relative;
+              arrowEl.style.transform = isPuck
+                ? `rotate(${relative}deg)`
+                : `translateX(-50%) rotate(${relative}deg)`;
+            }
           }
         } else {
           const el = createMarkerElement(m);

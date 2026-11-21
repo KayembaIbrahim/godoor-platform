@@ -43,6 +43,8 @@ export function parseTrip(body: Record<string, unknown>) {
 
 export function fareKindOf(v: unknown): FareKind {
   if (v === "car") return "car";
+  if (v === "boda_cargo" || v === "cargo" || v === "box" || v === "boda_xl") return "boda_cargo";
+  if (v === "gomart" || v === "mart" || v === "shopping") return "gomart";
   if (v === "delivery" || v === "express" || v === "parcel") return "delivery";
   return "boda";
 }
@@ -133,6 +135,8 @@ export async function priceRide(
     distanceKm: road.distanceKm,
     durationMin: road.durationMin,
     waitMin: args.waitMin ?? 0,
+    pickupLat: args.pickupLat,
+    pickupLng: args.pickupLng,
     at: args.at,
     rates,
   });

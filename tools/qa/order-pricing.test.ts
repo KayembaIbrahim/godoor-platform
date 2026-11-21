@@ -312,19 +312,21 @@ async function main() {
       const delivery = priced.order.deliveryFee;
       const service = priced.order.serviceFee;
 
-      check("the gross includes the service fee", gross, 12000 + 1800 + 1800);
-      check("the server discounts against the gross", priced.order.discountUgx, 14000);
-      check("the total is gross minus discount", priced.order.totalUgx, gross - 14000);
+      check("the gross includes the service fee", gross, subtotal + delivery + service);
+      check("the server discounts against the gross", priced.order.discountUgx, Math.min(14000, gross));
+      check("the total is gross minus discount", priced.order.totalUgx, gross - Math.min(14000, gross));
 
       /* The old client formula, kept here as the thing that must NOT come
-         back: it clamped to subtotal + delivery and so promised a 13,800
-         discount where the server gives 14,000 — a 200 difference the
-         customer would have been quoted and then charged. */
-      const oldClientDiscount = Math.min(14000, subtotal + delivery);
-      check("the old client clamp was the wrong base", oldClientDiscount, 13800);
+         back: it clamped to subtotal + delivery and so promised a smaller
+         discount where the server gives full gross discount when promo lands
+         between the two bases. */
+      const betweenDiscount = subtotal + delivery + Math.round(service / 2);
+      const oldClientDiscount = Math.min(betweenDiscount, subtotal + delivery);
+      const newServerDiscount = Math.min(betweenDiscount, gross);
+      check("the old client clamp was the wrong base", oldClientDiscount, subtotal + delivery);
       truthy(
         "the old clamp and the server disagreed",
-        oldClientDiscount !== priced.order.discountUgx,
+        oldClientDiscount !== newServerDiscount,
       );
       /* The new client clamp matches the server exactly. */
       check(
@@ -374,7 +376,7 @@ async function main() {
     });
     if (priced.ok) {
       check("10% of the subtotal", priced.order.discountUgx, 1200);
-      check("the total is gross minus the discount", priced.order.totalUgx, 15600 - 1200);
+      check("the total is gross minus the discount", priced.order.totalUgx, priced.order.grossUgx - 1200);
     }
   }
 

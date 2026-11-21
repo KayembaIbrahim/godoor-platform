@@ -41,11 +41,11 @@ export const UGANDA_UTC_OFFSET_HOURS = 3;
  * Fare bands, all in East Africa Time (UTC+3), defined by the operator:
  *
  *   2 km costs UGX 1,500 daytime; 2 km costs UGX 2,000 at night.
- *   → per-km: day 750/km · evening 1,000/km · late 1,000/km
+ *   → per-km: day 750/km · rush 900/km · evening 1,000/km · late 1,000/km
  *
  * Pure-distance, no base or minimum on boda. The 250 flat service fee stays.
  */
-export type FareTier = "day" | "evening" | "late";
+export type FareTier = "day" | "rush" | "evening" | "late";
 
 /** Per-km UGX by band — the operator's published schedule (see FareTier docs). */
 export const BODA_PER_KM_UGX: Record<FareTier, number> = {
@@ -53,9 +53,27 @@ export const BODA_PER_KM_UGX: Record<FareTier, number> = {
      at night. Per-km representation (750 / 1,000) keeps the fare linear so
      1 km reflects exactly half. */
   day: 750,
+  rush: 900,
   evening: 1000,
   late: 1000,
 };
+
+/** Uganda geographic region classification for pricing equity */
+export type UgandaRegion = "kampala_metro" | "upcountry";
+
+/**
+ * Determine regional pricing tier from GPS coordinates.
+ * Greater Kampala Metropolitan Area (Kampala, Wakiso, Entebbe, Mukono)
+ * has higher fuel/traffic costs than upcountry hubs (Masaka, Jinja, Gulu, Mbarara).
+ */
+export function resolveUgandaRegion(lat?: number | null, lng?: number | null): UgandaRegion {
+  if (lat == null || lng == null) return "kampala_metro";
+  // Greater Kampala Metro bounding box
+  if (lat >= -0.1 && lat <= 0.6 && lng >= 32.3 && lng <= 32.8) {
+    return "kampala_metro";
+  }
+  return "upcountry";
+}
 
 /**
  * Local (EAT) hour-of-day as a float, so a 19:30 boundary is expressible.
@@ -109,12 +127,19 @@ export type FareRates = {
      operators price a peak: the base and the per-minute stay flat, the distance
      carries the rise, so the surcharge scales with how far you actually go
      rather than penalising every ride equally.
-
+ 
      1.0 means "no uplift" and is the shipped default — turning this on changes
      live prices, so it is an operator decision made in the admin portal, not a
      side effect of deploying the engine. */
   evening_multiplier: number;
   late_multiplier: number;
+  /* Uganda peak rush-hour traffic configuration (Uber/Bolt algorithmic surge) */
+  morning_rush_start_hour: number;
+  morning_rush_end_hour: number;
+  evening_rush_start_hour: number;
+  evening_rush_end_hour: number;
+  rush_multiplier: number;
+  upcountry_multiplier: number;
   /* Stopover / waiting */
   wait_grace_min: number;
   wait_per_min_ugx: number;
@@ -164,6 +189,12 @@ export const FALLBACK_FARE_RATES: FareRates = {
   late_end_hour: 7,
   evening_multiplier: 1,
   late_multiplier: 1,
+  morning_rush_start_hour: 7,
+  morning_rush_end_hour: 9.5,
+  evening_rush_start_hour: 17,
+  evening_rush_end_hour: 20.5,
+  rush_multiplier: 1.15,
+  upcountry_multiplier: 1.0,
   wait_grace_min: 4,
   wait_per_min_ugx: 250,
   stopover_max_session_min: 20,
@@ -211,10 +242,14 @@ export function resolveFareRates(row?: FareRateRow | null): FareRates {
     evening_start_hour: Math.min(23.99, Math.max(0, r("evening_start_hour"))),
     late_start_hour: Math.min(23.99, Math.max(0, r("late_start_hour"))),
     late_end_hour: Math.min(23.99, Math.max(0, r("late_end_hour"))),
-    /* Clamped to a sane 1.0–3.0 band: below 1.0 would quietly discount rides,
-       above 3.0 a mis-typed value could price a Kampala trip like a flight. */
     evening_multiplier: Math.min(3, Math.max(1, r("evening_multiplier"))),
     late_multiplier: Math.min(3, Math.max(1, r("late_multiplier"))),
+    morning_rush_start_hour: Math.min(23.99, Math.max(0, r("morning_rush_start_hour"))),
+    morning_rush_end_hour: Math.min(23.99, Math.max(0, r("morning_rush_end_hour"))),
+    evening_rush_start_hour: Math.min(23.99, Math.max(0, r("evening_rush_start_hour"))),
+    evening_rush_end_hour: Math.min(23.99, Math.max(0, r("evening_rush_end_hour"))),
+    rush_multiplier: Math.min(2.5, Math.max(1, r("rush_multiplier"))),
+    upcountry_multiplier: Math.min(2.0, Math.max(0.5, r("upcountry_multiplier"))),
     wait_grace_min: Math.max(0, r("wait_grace_min")),
     wait_per_min_ugx: Math.max(0, Math.trunc(r("wait_per_min_ugx"))),
     stopover_max_session_min: Math.max(1, Math.min(240, r("stopover_max_session_min"))),
@@ -223,6 +258,19 @@ export function resolveFareRates(row?: FareRateRow | null): FareRates {
     stopover_cooldown_min: Math.max(0, Math.min(120, r("stopover_cooldown_min"))),
     round_to_ugx: Math.max(1, Math.trunc(r("round_to_ugx"))),
   };
+}
+
+/** Check whether the current moment falls in Uganda's urban rush hour */
+export function isUgandaRushHour(at: Date = new Date(), rates: FareRates = FALLBACK_FARE_RATES): boolean {
+  const h = ugandaHour(at);
+  const eatDate = new Date(at.getTime() + UGANDA_UTC_OFFSET_HOURS * 3600 * 1000);
+  const dayOfWeek = eatDate.getUTCDay(); // 0 = Sun, 6 = Sat
+  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+  const isMorning = h >= rates.morning_rush_start_hour && h < rates.morning_rush_end_hour;
+  const isEvening = h >= rates.evening_rush_start_hour && h < rates.evening_rush_end_hour;
+  if (isWeekday && (isMorning || isEvening)) return true;
+  if (dayOfWeek === 6 && isEvening) return true;
+  return false;
 }
 
 /**
@@ -235,20 +283,16 @@ export function resolveFareRates(row?: FareRateRow | null): FareRates {
 export function fareTierFor(at: Date = new Date(), rates: FareRates = FALLBACK_FARE_RATES): FareTier {
   const h = ugandaHour(at);
   const evening = rates.evening_start_hour;
-  /* The late (late-night) window spans midnight and STARTS at midnight (0:00),
-     not late_start_hour — 11pm is still the evening rate. late_start_hour is
-     clamped to >= 24 (i.e. 0:00) by the fallback, so the pre-midnight late arm
-     is dead by design. The window ends at late_end_hour (06:30), so 6:30–7am
-     falls back to day. */
   const late = Math.max(evening, rates.late_start_hour);
   if (late <= 24 && h >= late) return "late";
   if (h < rates.late_end_hour) return "late";
   if (h >= evening) return "evening";
+  if (isUgandaRushHour(at, rates)) return "rush";
   return "day";
 }
 
 export function tierLabel(tier: FareTier): string {
-  return tier === "late" ? "Late night" : tier === "evening" ? "Evening" : "Daytime";
+  return tier === "late" ? "Late night" : tier === "evening" ? "Evening" : tier === "rush" ? "Peak rush hour" : "Daytime";
 }
 
 /* ─── Distance + duration ─────────────────────────────────────────────────── */
@@ -280,7 +324,7 @@ export function estimateDurationMin(distanceKm: number, speedKmh = DEFAULT_SPEED
 
 /* ─── The quote ───────────────────────────────────────────────────────────── */
 
-export type FareKind = "boda" | "car" | "delivery";
+export type FareKind = "boda" | "boda_cargo" | "car" | "delivery" | "gomart";
 
 export type FareInput = {
   kind: FareKind;
@@ -292,6 +336,9 @@ export type FareInput = {
   waitMin?: number | null;
   bulkyItems?: number;
   bulkySurchargeUgx?: number;
+  /** Optional pickup coords for regional pricing determination */
+  pickupLat?: number | null;
+  pickupLng?: number | null;
   at?: Date;
   rates?: FareRates;
 };
@@ -320,6 +367,9 @@ export type FareQuote = {
   at_minimum: boolean;
   wait_grace_min: number;
   wait_per_min_ugx: number;
+  is_rush_hour?: boolean;
+  rush_multiplier?: number;
+  region?: UgandaRegion;
 };
 
 /** Round to the configured denomination. Half-up, applied exactly once. */
@@ -340,6 +390,9 @@ export function quoteFare(input: FareInput): FareQuote {
   const rates = input.rates ?? FALLBACK_FARE_RATES;
   const at = input.at ?? new Date();
   const tier = fareTierFor(at, rates);
+  const isRush = isUgandaRushHour(at, rates);
+  const region = resolveUgandaRegion(input.pickupLat, input.pickupLng);
+  const regionScale = region === "upcountry" ? rates.upcountry_multiplier : 1;
 
   const km = Number.isFinite(input.distanceKm as number) && (input.distanceKm as number) > 0
     ? (input.distanceKm as number)
@@ -358,49 +411,59 @@ export function quoteFare(input: FareInput): FareQuote {
   let base: number, perKm: number, perMin: number, minFare: number;
   if (input.kind === "delivery") {
     base = rates.delivery_base_ugx;
-    /* Delivery rides the ride bands (1,000/1,800/2,500) — the day band comes
-       from delivery_per_km_ugx (admin-tunable), evening/late from the boda
-       bands. Per-min is always 0 for delivery (time billing off). */
+    /* Delivery rides the ride bands — day band from delivery_per_km_ugx,
+       rush/evening/late from boda bands with rush multiplier. */
     perKm =
       tier === "late" ? rates.boda_late_per_km_ugx
       : tier === "evening" ? rates.boda_evening_per_km_ugx
+      : tier === "rush" ? BODA_PER_KM_UGX.rush
       : rates.delivery_per_km_ugx;
     perMin = (rates.delivery_per_min_ugx === 100 ? 0 : rates.delivery_per_min_ugx);
-    /* Legacy DB rows predate the rebalance; treat a 100/min row as off. */
     minFare =
       tier === "late" ? rates.delivery_min_late_ugx
-      : tier === "evening" ? rates.delivery_min_evening_ugx
+      : tier === "evening" || tier === "rush" ? rates.delivery_min_evening_ugx
       : rates.delivery_min_day_ugx;
   } else if (input.kind === "car") {
     base = rates.car_base_ugx;
     perKm = rates.car_per_km_ugx;
     perMin = rates.boda_per_min_ugx;
     minFare = rates.car_min_ugx;
+  } else if (input.kind === "boda_cargo") {
+    /* Boda with cargo rack / delivery box for heavier parcels */
+    base = 1500;
+    perKm =
+      tier === "late" ? 1500
+      : tier === "evening" || tier === "rush" ? 1200
+      : 1000;
+    perMin = 0;
+    minFare = 2500;
+  } else if (input.kind === "gomart") {
+    /* GoMart shopping runner base dispatch */
+    base = 1500;
+    perKm = rates.delivery_per_km_ugx;
+    perMin = 0;
+    minFare = 3000;
   } else {
-    /* Pure distance pricing: no base, no minimum floor on GoRide.
-       The fare is ONLY distance_km × banded per-km rate (1k day /
-       1.8k evening / 2.5k late). The old base+minimum system charged
-       ~2× the distance value on short trips (2.2 km → 4,450 instead of
-       2,200). Base/minimum fields exist for admin compat but are
-       treated as 0 for boda rides. */
+    /* Pure distance pricing: no base, no minimum floor on standard GoRide.
+       The fare is distance_km × banded per-km rate. */
     base = 0;
     perKm =
       tier === "late" ? rates.boda_late_per_km_ugx
       : tier === "evening" ? rates.boda_evening_per_km_ugx
+      : tier === "rush" ? BODA_PER_KM_UGX.rush
       : rates.boda_per_km_ugx;
     perMin = rates.boda_per_min_ugx;
     minFare = 0;
   }
 
-  /* The peak uplift rides on the distance component only. Putting it on the base
-     would charge a 500 m ride the same premium as a 20 km one; putting it on the
-     time component would penalise traffic, which the rider cannot control. */
+  /* The peak uplift rides on the distance component only. */
   const uplift =
     tier === "late" ? rates.late_multiplier
     : tier === "evening" ? rates.evening_multiplier
+    : tier === "rush" ? rates.rush_multiplier
     : 1;
 
-  const distanceUgx = perKm * km * uplift;
+  const distanceUgx = perKm * km * uplift * regionScale;
   const timeUgx = perMin * durationMin;
 
   /* Stopover is charged on top of the minimum, never instead of it — the rider
@@ -409,9 +472,6 @@ export function quoteFare(input: FareInput): FareQuote {
   const waitUgx = billableWait * rates.wait_per_min_ugx;
 
   const rawSubtotal = base + distanceUgx + timeUgx;
-  /* Pure-distance boda: floor is 0, so max() is a no-op — kept for
-     car/delivery kinds that still use a floor. at_minimum never shows
-     "Minimum fare applied" on a boda ride. */
   const effectiveMin = input.kind === "boda" ? 0 : minFare;
   const subtotal = Math.max(effectiveMin, rawSubtotal);
   const atMinimum = subtotal > rawSubtotal;
@@ -423,11 +483,7 @@ export function quoteFare(input: FareInput): FareQuote {
   return {
     kind: input.kind,
     tier,
-    /* The tier label carries the band so the customer sees WHY the price moved:
-       "Daytime · 1,000/km" vs "Evening · 1,500/km" (9pm–12am) vs "Late night ·
-       2,000/km" (12am–6:30am). The per-km rate is part of the quote, not a
-       surprise at the total. */
-    tier_label: `${tierLabel(tier)} · ${perKm.toLocaleString("en-US")}/km`,
+    tier_label: `${tierLabel(tier)} · ${Math.round(perKm * uplift).toLocaleString("en-US")}/km`,
     distance_km: Math.round(km * 100) / 100,
     duration_min: Math.round(durationMin * 10) / 10,
     wait_min: Math.round(waitMin),
@@ -443,6 +499,9 @@ export function quoteFare(input: FareInput): FareQuote {
     at_minimum: atMinimum,
     wait_grace_min: rates.wait_grace_min,
     wait_per_min_ugx: rates.wait_per_min_ugx,
+    is_rush_hour: isRush,
+    rush_multiplier: rates.rush_multiplier,
+    region,
   };
 }
 
